@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app:*)",
+      "Bash(docker --version:*)",
+      "Bash(docker run:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(cat:*)",
+      "Bash(npx prisma db pull:*)",
+      "Bash(npx prisma migrate:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(timeout:*)",
+      "Bash(npx prisma studio)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

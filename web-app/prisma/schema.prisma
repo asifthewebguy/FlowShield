@@ -1,0 +1,161 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  hashedPassword  String
+  name            String?
+  timezone        String   @default("UTC")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // User preferences from onboarding
+  preferences     UserPreferences?
+
+  // Relations
+  sessions        Session[]
+  goals           Goal[]
+  dailyStats      DailyStats[]
+  activityLogs    ActivityLog[]
+
+  @@map("users")
+}
+
+model UserPreferences {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Onboarding quiz answers
+  workStyle             String?  // "morning" | "evening" | "flexible"
+  preferredDuration     Int      @default(25) // Default 25 min Pomodoro
+  primaryDistractions   String[] // Array of distraction sources
+  workEnvironment       String?  // "home" | "office" | "hybrid"
+
+  // App settings
+  breakReminders        Boolean  @default(true)
+  soundEnabled          Boolean  @default(true)
+  darkMode              Boolean  @default(false)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("user_preferences")
+}
+
+model Session {
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  startTime         DateTime
+  endTime           DateTime?
+  plannedDuration   Int       // in minutes
+  actualDuration    Int?      // in minutes
+  sessionType       SessionType @default(WORK)
+  productivityScore Int?      // 0-100
+  completed         Boolean   @default(false)
+
+  // Relations
+  activityLogs      ActivityLog[]
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([userId, startTime])
+  @@map("sessions")
+}
+
+enum SessionType {
+  WORK
+  STUDY
+  CREATIVE
+}
+
+model ActivityLog {
+  id              String   @id @default(uuid())
+  sessionId       String
+  session         Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  timestamp       DateTime
+  source          ActivitySource
+  appName         String   // hashed for privacy
+  category        ActivityCategory
+  durationSeconds Int
+  activityLevel   Int      // 0-100
+
+  createdAt       DateTime @default(now())
+
+  @@index([sessionId, timestamp])
+  @@index([userId, timestamp])
+  @@map("activity_logs")
+}
+
+enum ActivitySource {
+  DESKTOP
+  BROWSER
+  MOBILE
+}
+
+enum ActivityCategory {
+  DEEP_WORK
+  SHALLOW_WORK
+  DISTRACTION
+  NEUTRAL
+}
+
+model Goal {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  goalType      GoalType
+  targetValue   Int
+  currentValue  Int       @default(0)
+  startDate     DateTime  @default(now())
+  endDate       DateTime?
+  active        Boolean   @default(true)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, active])
+  @@map("goals")
+}
+
+enum GoalType {
+  DAILY_TIME
+  WEEKLY_TIME
+  STREAK
+  PRODUCTIVITY_SCORE
+}
+
+model DailyStats {
+  id                    String   @id @default(uuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date                  DateTime @unique
+  totalFocusMinutes     Int      @default(0)
+  avgProductivityScore  Int?
+  topDistractions       Json?    // Array of {app: string, minutes: number}
+  peakFocusHour         Int?     // 0-23
+  sessionsCompleted     Int      @default(0)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId, date])
+  @@map("daily_stats")
+}
