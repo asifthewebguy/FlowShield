@@ -132,6 +132,12 @@ export default function AnalyticsPage() {
               >
                 Analytics
               </Link>
+              <Link
+                href="/profile"
+                className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
+              >
+                Profile
+              </Link>
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
