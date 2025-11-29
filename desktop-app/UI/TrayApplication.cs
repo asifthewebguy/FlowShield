@@ -27,7 +27,7 @@ namespace FlowShield.Desktop.UI
             // Create system tray icon
             _trayIcon = new NotifyIcon
             {
-                Icon = SystemIcons.Application, // TODO: Replace with custom icon
+                Icon = LoadIcon(),
                 Text = "FlowShield - Tracking Active",
                 Visible = true
             };
@@ -46,6 +46,25 @@ namespace FlowShield.Desktop.UI
             {
                 ShowLoginDialog();
             }
+        }
+
+        private Icon LoadIcon()
+        {
+            try
+            {
+                // Try to load custom icon from logo.ico file
+                var iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logo.ico");
+                if (System.IO.File.Exists(iconPath))
+                {
+                    return new Icon(iconPath);
+                }
+            }
+            catch (Exception)
+            {
+                // Fall back to system icon if loading fails
+            }
+
+            return SystemIcons.Application;
         }
 
         private void BuildContextMenu()

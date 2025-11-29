@@ -11,6 +11,7 @@
     <Company>FlowShield</Company>
     <Product>FlowShield Desktop</Product>
     <Description>Activity tracking and productivity monitoring for FlowShield</Description>
+    <ApplicationIcon>logo.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

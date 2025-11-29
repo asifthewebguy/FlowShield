@@ -14,7 +14,8 @@
       "Bash(npx prisma studio)",
       "Bash(dotnet build:*)",
       "Bash(dotnet publish:*)",
-      "Bash(npx prisma generate:*)"
+      "Bash(npx prisma generate:*)",
+      "Bash(npm i:*)"
     ],
     "deny": [],
     "ask": []

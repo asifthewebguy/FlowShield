@@ -6,6 +6,8 @@ AI-Powered Productivity & Focus Management Platform
 
 FlowShield is a comprehensive productivity platform designed to help knowledge workers, developers, and students build better focus habits through structured work sessions, intelligent activity tracking, and actionable analytics.
 
+![FlowShield Logo](image-resources/logo.jpg)
+
 ## Project Status
 
 ### ✅ Completed: Web Application MVP
@@ -77,14 +79,19 @@ FlowShield/
 │   │   ├── lib/          # Utilities and database client
 │   │   └── types/        # TypeScript type definitions
 │   ├── prisma/           # Database schema
+│   ├── public/           # Static assets (favicon, logo)
 │   ├── README.md         # Web app documentation
 │   └── SETUP_GUIDE.md    # Setup instructions
 ├── desktop-app/          # ✅ Windows desktop app (COMPLETED)
 │   ├── Models/           # Data models
 │   ├── Services/         # Activity tracking and sync services
 │   ├── UI/               # System tray and forms
+│   ├── logo.ico          # Application icon
 │   ├── README.md         # Desktop app documentation
 │   └── SETUP_GUIDE.md    # Setup instructions
+├── image-resources/      # ✅ Brand assets
+│   ├── logo.ico          # Icon file (3.7KB)
+│   └── logo.jpg          # Logo image (65KB)
 ├── browser-extension/    # 🚧 Chrome/Firefox extension (TODO)
 ├── mobile-app/           # 🚧 Android app (TODO)
 ├── dev-docs/             # Product documentation
@@ -186,11 +193,12 @@ The Windows desktop application provides automatic activity monitoring:
   - Browsing (General web browsing)
 - **Offline-First**: Stores all data locally in SQLite database
 - **Cloud Sync**: Syncs with web app every 5 minutes when online
-- **System Tray Integration**: Runs quietly in background
+- **System Tray Integration**: Runs quietly in background with custom FlowShield icon
 - **Privacy Focused**: Only tracks app names and activity counts - no actual keystrokes or mouse coordinates
 - **Manual Controls**: Pause/resume tracking anytime
 - **Configurable Settings**: Adjust idle threshold, tracking intervals, and privacy options
 - **Today's Stats**: View daily activity summary
+- **Custom Branding**: Uses FlowShield logo in system tray and application window
 
 ## Next Steps: Roadmap
 
@@ -305,16 +313,21 @@ This is an active project under development. The web MVP is complete and ready f
 
 **Desktop Application (Windows):**
 - Automatic window and process tracking
+- Keyboard and mouse activity monitoring for idle detection
+- Activity level calculation (0-100 scale based on input intensity)
+- Smart idle detection (pauses tracking after 5 minutes of inactivity)
 - Smart activity categorization (Development, Communication, Entertainment, etc.)
 - Local SQLite database for offline storage
 - Cloud sync with web app (every 5 minutes)
-- System tray integration with notifications
+- System tray integration with custom FlowShield logo and notifications
 - Login/authentication with web app
 - Pause/resume tracking controls
 - Today's stats viewer
 - Configurable tracking and sync intervals
+- Configurable idle threshold (1-30 minutes)
 - Start with Windows option
-- Privacy-focused (only tracks window titles and process names)
+- Privacy-focused (only tracks window titles, process names, and activity counts - no keylogging)
+- Custom application icon and branding
 
 ### Planned 📋
 **Short-term (Next Phase):**
@@ -336,10 +349,17 @@ This is an active project under development. The web MVP is complete and ready f
 - Integration with calendar apps (Google Calendar, Outlook)
 - Slack/Discord integrations
 - Public API for third-party integrations
-- Idle time detection
 - Screenshot capture (opt-in)
 - Website URL extraction from browsers
 - Custom activity rules and filters
+
+## Branding
+
+FlowShield uses a custom logo and icon across all applications:
+- **Logo Image**: `image-resources/logo.jpg` (65KB) - Used in web app and marketing materials
+- **Icon File**: `image-resources/logo.ico` (3.7KB) - Used in desktop app and browser favicon
+- **Web App**: Favicon displayed in browser tabs
+- **Desktop App**: Custom icon in system tray, taskbar, and window title bar
 
 ## License
 
