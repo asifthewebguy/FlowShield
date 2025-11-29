@@ -15,6 +15,7 @@ The web application has been built with the following features:
 #### Core Features
 - ✅ **User Authentication** - Secure signup/login with JWT
 - ✅ **Onboarding Flow** - 4-step quiz to personalize experience
+- ✅ **User Profile Management** - Comprehensive profile page with settings
 - ✅ **Focus Session Manager** - Start/pause/end timed focus sessions
 - ✅ **Real-time Timer** - Countdown timer with progress tracking
 - ✅ **Session History** - View today's completed sessions
@@ -23,7 +24,8 @@ The web application has been built with the following features:
 - ✅ **Productivity Scoring** - Intelligent 0-100 scoring algorithm
 - ✅ **Peak Time Detection** - AI-powered peak productivity time analysis
 - ✅ **Data Export** - Export session data as CSV or JSON
-- ✅ **Dark Mode** - Built-in dark mode support
+- ✅ **Dark Mode** - System-wide dark mode with toggle in profile
+- ✅ **Timezone Support** - 60+ timezones across all continents
 - ✅ **Responsive Design** - Works on desktop, tablet, and mobile
 
 #### Tech Stack
@@ -100,7 +102,22 @@ FlowShield/
 - Quick stats sidebar
 - Responsive layout
 
-### 5. Analytics Dashboard
+### 5. User Profile Management
+- **Personal Information**:
+  - Full name and email management
+  - Comprehensive timezone selection (60+ timezones)
+  - Organized by continent: North America, South America, Europe, Africa, Asia, Australia & Pacific
+- **Work Preferences**:
+  - Work style preference (Morning/Evening/Flexible)
+  - Preferred focus session duration (15-90 minutes with slider)
+  - Primary distractions tracking (Social Media, Email, Messaging, etc.)
+  - Work environment selection (Home/Office/Hybrid)
+- **Appearance Settings**:
+  - Dark mode toggle with instant preview
+  - Persistent theme across all pages
+  - Synced to database for cross-device consistency
+
+### 6. Analytics Dashboard
 - **Period Selection**: Toggle between last 7 days or 30 days
 - **Summary Cards**: Total sessions, completion rate, focus time, productivity score
 - **Peak Time Detection**: AI-powered analysis showing your most productive hours
@@ -110,7 +127,7 @@ FlowShield/
   - Sessions Completed (Bar Chart) - Number of completed sessions per day
 - **Data Export**: Download your session data as CSV or JSON files
 
-### 6. Productivity Scoring Algorithm
+### 7. Productivity Scoring Algorithm
 FlowShield uses an intelligent scoring system (0-100) that evaluates:
 - **Completion Rate** (40 points): Whether you finish your sessions
 - **Duration Match** (30 points): How closely actual time matches planned time
@@ -129,7 +146,7 @@ FlowShield uses an intelligent scoring system (0-100) that evaluates:
 - 40-59: Fair - Room for improvement
 - 0-39: Needs Work - Let's build better habits
 
-### 7. Peak Time Detection
+### 8. Peak Time Detection
 The AI-powered peak time detection analyzes your sessions by hour of day to identify when you're most productive. It:
 - Groups all sessions by start hour (0-23)
 - Calculates productivity scores for each hour
@@ -215,7 +232,11 @@ This is an active project under development. The web MVP is complete and ready f
 
 ### Implemented ✅
 - User registration and authentication
-- Profile management
+- Comprehensive profile management page
+  - Personal information (name, email, timezone)
+  - Work preferences (work style, duration, distractions, environment)
+  - Dark mode toggle with instant preview
+  - 60+ timezones organized by continent
 - Onboarding quiz (4-step personalization)
 - Focus session creation and management
 - Session timer with countdown
@@ -226,7 +247,7 @@ This is an active project under development. The web MVP is complete and ready f
 - Productivity scoring algorithm (0-100 scale)
 - Peak productivity time detection
 - Data export (CSV and JSON formats)
-- Dark mode support
+- System-wide dark mode with database persistence
 - Responsive design
 - RESTful API
 - PostgreSQL database with Prisma
