@@ -83,36 +83,25 @@ enum SessionType {
 
 model ActivityLog {
   id              String   @id @default(uuid())
-  sessionId       String
-  session         Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId       String?
+  session         Session?  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   timestamp       DateTime
-  source          ActivitySource
-  appName         String   // hashed for privacy
-  category        ActivityCategory
+  windowTitle     String
+  processName     String
+  applicationName String
+  url             String?
   durationSeconds Int
-  activityLevel   Int      // 0-100
+  activityLevel   Int      @default(0) // 0-100 based on keyboard/mouse activity
+  category        String   @default("Unknown") // Development, Communication, Entertainment, etc.
 
   createdAt       DateTime @default(now())
 
   @@index([sessionId, timestamp])
   @@index([userId, timestamp])
   @@map("activity_logs")
-}
-
-enum ActivitySource {
-  DESKTOP
-  BROWSER
-  MOBILE
-}
-
-enum ActivityCategory {
-  DEEP_WORK
-  SHALLOW_WORK
-  DISTRACTION
-  NEUTRAL
 }
 
 model Goal {

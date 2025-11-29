@@ -1,0 +1,117 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { verify } from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'your-secret-key';
+
+function getUserIdFromToken(request: NextRequest): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.substring(7);
+  try {
+    const decoded = verify(token, JWT_SECRET) as { userId: string };
+    return decoded.userId;
+  } catch {
+    return null;
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const userId = getUserIdFromToken(request);
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { activities } = body;
+
+    if (!Array.isArray(activities) || activities.length === 0) {
+      return NextResponse.json(
+        { error: 'No activities provided' },
+        { status: 400 }
+      );
+    }
+
+    // Store activities in database
+    const activityLogs = activities.map((activity: any) => ({
+      userId,
+      timestamp: new Date(activity.timestamp),
+      windowTitle: activity.windowTitle,
+      processName: activity.processName,
+      applicationName: activity.applicationName,
+      url: activity.url || null,
+      durationSeconds: activity.durationSeconds,
+      activityLevel: activity.activityLevel || 0,
+      category: activity.category,
+    }));
+
+    // Batch insert activities
+    await prisma.activityLog.createMany({
+      data: activityLogs,
+      skipDuplicates: true,
+    });
+
+    return NextResponse.json({
+      message: 'Activities synced successfully',
+      count: activities.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Activity sync error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const userId = getUserIdFromToken(request);
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    const whereClause: any = { userId };
+
+    if (startDate && endDate) {
+      whereClause.timestamp = {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+      };
+    }
+
+    const activities = await prisma.activityLog.findMany({
+      where: whereClause,
+      orderBy: { timestamp: 'desc' },
+      take: 1000,
+    });
+
+    return NextResponse.json({
+      activities,
+      count: activities.length,
+    });
+  } catch (error) {
+    console.error('Activity fetch error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
