@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Header from '@/components/layout/Header';
 
 interface ActivitySummary {
   totalMinutes: number;
@@ -173,36 +174,7 @@ export default function ActivityAnalysisPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Flow<span className="text-primary-600">Shield</span>
-            </h1>
-            <div className="flex items-center gap-4">
-              <Link
-                href="/dashboard"
-                className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/analytics"
-                className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
-              >
-                Analytics
-              </Link>
-              <Link
-                href="/profile"
-                className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
-              >
-                Profile
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container mx-auto px-4 py-8">
         {/* Page Header */}

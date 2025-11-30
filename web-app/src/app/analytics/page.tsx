@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import {
   LineChart,
   Line,
@@ -16,6 +15,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { getProductivityLevel } from '@/lib/productivity';
+import Header from '@/components/layout/Header';
 
 export default function AnalyticsPage() {
   const router = useRouter();
@@ -51,12 +51,6 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/');
   };
 
   const handleExport = (format: 'json' | 'csv') => {
@@ -112,48 +106,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Flow<span className="text-primary-600">Shield</span>
-            </h1>
-            <div className="flex items-center gap-4">
-              <Link
-                href="/dashboard"
-                className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/analytics"
-                className="text-primary-600 font-semibold"
-              >
-                Analytics
-              </Link>
-              <Link
-                href="/activity"
-                className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
-              >
-                Activity
-              </Link>
-              <Link
-                href="/profile"
-                className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
-              >
-                Profile
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container mx-auto px-4 py-8">
         {/* Period Selector and Export */}

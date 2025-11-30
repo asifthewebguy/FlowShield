@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import FocusTimer from '@/components/dashboard/FocusTimer';
+import Header from '@/components/layout/Header';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -112,12 +112,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/');
-  };
-
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -128,46 +122,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Flow<span className="text-primary-600">Shield</span>
-          </h1>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/dashboard"
-              className="text-gray-900 dark:text-white font-semibold"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/analytics"
-              className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
-            >
-              Analytics
-            </Link>
-            <Link
-              href="/activity"
-              className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
-            >
-              Activity
-            </Link>
-            <Link
-              href="/profile"
-              className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
-            >
-              Profile
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container mx-auto px-4 py-8">
         <div className="grid lg:grid-cols-3 gap-8">
