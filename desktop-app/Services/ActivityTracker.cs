@@ -18,8 +18,15 @@ namespace FlowShield.Desktop.Services
         private string _lastProcessName = string.Empty;
         private DateTime _lastActivityTime = DateTime.Now;
         private bool _isTracking = false;
+        private bool _wasIdle = false;
 
         public bool IsTracking => _isTracking;
+
+        // Events
+        public event EventHandler? TrackingStarted;
+        public event EventHandler? TrackingStopped;
+        public event EventHandler<ActivityLoggedEventArgs>? ActivityLogged;
+        public event EventHandler<IdleStateChangedEventArgs>? IdleStateChanged;
 
         public ActivityTracker(DatabaseService dbService)
         {
@@ -34,6 +41,7 @@ namespace FlowShield.Desktop.Services
             _isTracking = true;
             _inputMonitor.Start();
             _trackingTimer = new Timer(TrackActivity, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+            TrackingStarted?.Invoke(this, EventArgs.Empty);
         }
 
         public void Stop()
@@ -42,6 +50,7 @@ namespace FlowShield.Desktop.Services
             _inputMonitor.Stop();
             _trackingTimer?.Dispose();
             _trackingTimer = null;
+            TrackingStopped?.Invoke(this, EventArgs.Empty);
         }
 
         public bool IsIdle()
@@ -64,7 +73,21 @@ namespace FlowShield.Desktop.Services
             try
             {
                 // Check if user is idle (no input for 5 minutes by default)
-                if (_inputMonitor.IsIdle())
+                bool isCurrentlyIdle = _inputMonitor.IsIdle();
+
+                if (isCurrentlyIdle != _wasIdle)
+                {
+                    // Idle state changed
+                    _wasIdle = isCurrentlyIdle;
+                    var idleMinutes = _inputMonitor.GetIdleTimeSeconds() / 60;
+                    IdleStateChanged?.Invoke(this, new IdleStateChangedEventArgs
+                    {
+                        IsIdle = isCurrentlyIdle,
+                        IdleMinutes = idleMinutes
+                    });
+                }
+
+                if (isCurrentlyIdle)
                 {
                     Debug.WriteLine("User is idle, skipping activity tracking");
                     return;
@@ -100,6 +123,13 @@ namespace FlowShield.Desktop.Services
                             };
 
                             _dbService.LogActivity(log);
+
+                            // Raise event
+                            ActivityLogged?.Invoke(this, new ActivityLoggedEventArgs
+                            {
+                                Log = log,
+                                ActivityLevel = inputStats.GetActivityLevel()
+                            });
                         }
                     }
 
@@ -252,5 +282,17 @@ namespace FlowShield.Desktop.Services
                 return string.Empty;
             }
         }
+    }
+
+    public class ActivityLoggedEventArgs : EventArgs
+    {
+        public ActivityLog Log { get; set; } = null!;
+        public int ActivityLevel { get; set; }
+    }
+
+    public class IdleStateChangedEventArgs : EventArgs
+    {
+        public bool IsIdle { get; set; }
+        public int IdleMinutes { get; set; }
     }
 }

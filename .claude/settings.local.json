@@ -15,7 +15,12 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet publish:*)",
       "Bash(npx prisma generate:*)",
-      "Bash(npm i:*)"
+      "Bash(npm i:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(start FlowShield.exe)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

@@ -19,6 +19,40 @@ function getUserIdFromToken(request: NextRequest): string | null {
   }
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    const userId = getUserIdFromToken(request);
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const preferences = await prisma.userPreferences.findUnique({
+      where: { userId },
+    });
+
+    if (!preferences) {
+      return NextResponse.json(
+        { error: 'Preferences not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      preferences,
+    });
+  } catch (error) {
+    console.error('Preferences fetch error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const userId = getUserIdFromToken(request);

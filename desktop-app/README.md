@@ -9,9 +9,11 @@ Windows desktop application for automatic activity tracking and productivity mon
 - **Idle Time Detection**: Detects when you're idle (no keyboard/mouse activity) and pauses tracking
 - **Activity Level Tracking**: Measures keyboard and mouse activity intensity (0-100 scale)
 - **Smart Categorization**: Automatically categorizes activities (Development, Communication, Entertainment, etc.)
+- **Website Blocking**: Block distracting websites based on your preferences (requires Administrator)
 - **Offline-First**: Stores activity logs locally in SQLite database
 - **Cloud Sync**: Syncs activity data with FlowShield web app when online
 - **System Tray Integration**: Runs quietly in the background with system tray icon
+- **Event Notifications**: Real-time balloon tip notifications for tracking, sync, and productivity events
 - **Privacy Focused**: Only tracks app names and activity counts - no actual keystrokes or mouse coordinates recorded
 
 ## Requirements
@@ -43,8 +45,19 @@ dotnet build -c Release
 
 5. Run the application:
 ```bash
+# Option A: Run with dotnet
 dotnet run
+
+# Option B: Run the built executable directly
+cd bin\Release\net8.0-windows
+.\FlowShield.exe
 ```
+
+**⚠️ IMPORTANT**: FlowShield runs in the **Windows system tray**, not as a regular window!
+- After starting, look for the FlowShield icon in your system tray (bottom-right corner, near the clock)
+- If you don't see it, click the ^ arrow to show hidden icons
+- Right-click the icon to access: Login, Stats, Settings, and more
+- The console window will close immediately when using `dotnet run` - this is normal!
 
 ### Option 2: Publish Standalone Executable
 
@@ -75,6 +88,7 @@ Right-click the FlowShield icon in the system tray to access:
 - **Sync Now**: Manually trigger sync with cloud
 - **Today's Stats**: View today's activity summary
 - **Settings**: Configure tracking intervals and preferences
+- **Block Distracting Sites**: Enable/disable website blocking (requires Administrator)
 - **Login/Logout**: Manage authentication
 - **Exit**: Close the application
 
@@ -98,6 +112,20 @@ Tracked every **5 seconds** by default (configurable in settings).
 - Works offline - syncs when connection is restored
 - Only syncs when logged in with valid credentials
 - All data encrypted in transit (HTTPS)
+- Real-time sync notifications showing success/failure status
+
+### Notifications
+
+The app provides real-time notifications for important events:
+
+- **Tracking Events**: Started/stopped/paused notifications
+- **Idle Detection**: Alert when user goes idle and when activity resumes
+- **Sync Status**: Start, success, and failure notifications with counts
+- **Login/Logout**: Authentication status updates
+- **High Productivity**: Congratulatory messages when activity level is high (≥80)
+- **Daily Summary**: Optional daily stats notifications
+
+All notifications can be toggled on/off in Settings.
 
 ### Settings
 
@@ -116,17 +144,19 @@ Configure these options in Settings:
 ```
 desktop-app/
 ├── Models/
-│   ├── ActivityLog.cs       # Activity log data model
-│   └── AppSettings.cs       # Application settings model
+│   ├── ActivityLog.cs          # Activity log data model
+│   └── AppSettings.cs          # Application settings model
 ├── Services/
-│   ├── ActivityTracker.cs   # Windows API activity tracking
-│   ├── DatabaseService.cs   # SQLite database operations
-│   ├── ApiClient.cs         # HTTP client for web app API
-│   └── SyncService.cs       # Background sync service
+│   ├── ActivityTracker.cs      # Windows API activity tracking
+│   ├── InputMonitor.cs         # Keyboard/mouse activity monitoring
+│   ├── DatabaseService.cs      # SQLite database operations
+│   ├── ApiClient.cs            # HTTP client for web app API
+│   ├── SyncService.cs          # Background sync service
+│   └── NotificationService.cs  # Event notification system
 ├── UI/
-│   ├── TrayApplication.cs   # System tray application
-│   ├── LoginForm.cs         # Login dialog
-│   └── SettingsForm.cs      # Settings dialog
+│   ├── TrayApplication.cs      # System tray application
+│   ├── LoginForm.cs            # Login dialog
+│   └── SettingsForm.cs         # Settings dialog
 ├── Program.cs               # Application entry point
 └── FlowShield.Desktop.csproj # Project file
 ```
@@ -154,6 +184,50 @@ Contains:
 - **ActivityLogs**: All tracked activities with timestamps
 - **Settings**: User preferences and configuration
 
+## Website Blocking
+
+FlowShield can block distracting websites by modifying the Windows hosts file. This feature integrates with your web app preferences.
+
+### How to Use
+
+1. **Configure distractions in web app**:
+   - Log in to FlowShield web app
+   - Go to Profile page
+   - Select your Primary Distractions (Social Media, Video Streaming, etc.)
+   - Save your preferences
+
+2. **Run FlowShield as Administrator**:
+   - Right-click FlowShield.exe → "Run as administrator"
+   - Or set permanent admin mode in Properties → Compatibility
+
+3. **Enable blocking**:
+   - Right-click system tray icon
+   - Click "Block Distracting Sites"
+   - Confirm the list of websites to block
+
+4. **Disable blocking**:
+   - Right-click system tray icon
+   - Click "✓ Block Distracting Sites" (checkmark indicates it's ON)
+
+### Supported Categories
+
+- **Social Media**: Facebook, Twitter, Instagram, LinkedIn, Reddit, TikTok, etc.
+- **Video Streaming**: YouTube, Netflix, Hulu, Twitch, etc.
+- **Email**: Gmail, Outlook, Yahoo Mail, etc.
+- **Messaging**: Discord, Slack, WhatsApp Web, Messenger, etc.
+- **News Sites**: CNN, BBC, Reddit, BuzzFeed, etc.
+- **Shopping**: Amazon, eBay, Walmart, Target, etc.
+
+### Technical Details
+
+- Modifies `C:\Windows\System32\drivers\etc\hosts` file
+- Redirects blocked domains to 127.0.0.1 (localhost)
+- Automatically flushes DNS cache
+- Automatically disables on app exit
+- Works across all browsers
+
+**See [WEBSITE_BLOCKING.md](WEBSITE_BLOCKING.md) for complete documentation.**
+
 ## API Integration
 
 Communicates with FlowShield web app via REST API:
@@ -161,6 +235,7 @@ Communicates with FlowShield web app via REST API:
 - `POST /api/auth/login` - Authenticate user
 - `POST /api/activity/sync` - Sync activity logs
 - `GET /api/sessions/active` - Get current active session
+- `GET /api/user/preferences` - Fetch user preferences for website blocking
 
 Requires JWT authentication token.
 

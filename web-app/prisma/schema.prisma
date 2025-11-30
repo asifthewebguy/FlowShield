@@ -1,5 +1,3 @@
-// This is your Prisma schema file
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,69 +8,130 @@ datasource db {
 }
 
 model User {
-  id              String   @id @default(uuid())
-  email           String   @unique
-  hashedPassword  String
-  name            String?
-  timezone        String   @default("UTC")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // User preferences from onboarding
-  preferences     UserPreferences?
-
-  // Relations
-  sessions        Session[]
-  goals           Goal[]
-  dailyStats      DailyStats[]
-  activityLogs    ActivityLog[]
+  id             String             @id @default(uuid())
+  email          String             @unique
+  hashedPassword String
+  name           String?
+  timezone       String             @default("UTC")
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  activityLogs   ActivityLog[]
+  dailyStats     DailyStats[]
+  goals          Goal[]
+  sessions       Session[]
+  preferences    UserPreferences?
+  devices        DeviceConnection[]
 
   @@map("users")
 }
 
 model UserPreferences {
-  id                    String   @id @default(uuid())
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Onboarding quiz answers
-  workStyle             String?  // "morning" | "evening" | "flexible"
-  preferredDuration     Int      @default(25) // Default 25 min Pomodoro
-  primaryDistractions   String[] // Array of distraction sources
-  workEnvironment       String?  // "home" | "office" | "hybrid"
-
-  // App settings
-  breakReminders        Boolean  @default(true)
-  soundEnabled          Boolean  @default(true)
-  darkMode              Boolean  @default(false)
-
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  workStyle           String?
+  preferredDuration   Int      @default(25)
+  primaryDistractions String[]
+  workEnvironment     String?
+  breakReminders      Boolean  @default(true)
+  soundEnabled        Boolean  @default(true)
+  darkMode            Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
 }
 
 model Session {
-  id                String    @id @default(uuid())
+  id                String        @id @default(uuid())
   userId            String
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   startTime         DateTime
   endTime           DateTime?
-  plannedDuration   Int       // in minutes
-  actualDuration    Int?      // in minutes
-  sessionType       SessionType @default(WORK)
-  productivityScore Int?      // 0-100
-  completed         Boolean   @default(false)
-
-  // Relations
+  plannedDuration   Int
+  actualDuration    Int?
+  sessionType       SessionType   @default(WORK)
+  productivityScore Int?
+  completed         Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
   activityLogs      ActivityLog[]
-
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, startTime])
   @@map("sessions")
+}
+
+model ActivityLog {
+  id              String   @id @default(uuid())
+  sessionId       String?
+  userId          String
+  timestamp       DateTime
+  durationSeconds Int
+  createdAt       DateTime @default(now())
+  applicationName String
+  processName     String
+  url             String?
+  windowTitle     String
+  category        String   @default("Unknown")
+  activityLevel   Int      @default(0)
+  session         Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, timestamp])
+  @@index([userId, timestamp])
+  @@map("activity_logs")
+}
+
+model Goal {
+  id           String    @id @default(uuid())
+  userId       String
+  goalType     GoalType
+  targetValue  Int
+  currentValue Int       @default(0)
+  startDate    DateTime  @default(now())
+  endDate      DateTime?
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, active])
+  @@map("goals")
+}
+
+model DailyStats {
+  id                   String   @id @default(uuid())
+  userId               String
+  date                 DateTime @unique
+  totalFocusMinutes    Int      @default(0)
+  avgProductivityScore Int?
+  topDistractions      Json?
+  peakFocusHour        Int?
+  sessionsCompleted    Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@map("daily_stats")
+}
+
+model DeviceConnection {
+  id           String   @id @default(uuid())
+  userId       String
+  deviceName   String
+  deviceId     String   @unique
+  platform     String   @default("Windows")
+  appVersion   String?
+  lastSyncAt   DateTime @default(now())
+  lastActiveAt DateTime @default(now())
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("device_connections")
 }
 
 enum SessionType {
@@ -81,70 +140,9 @@ enum SessionType {
   CREATIVE
 }
 
-model ActivityLog {
-  id              String   @id @default(uuid())
-  sessionId       String?
-  session         Session?  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  timestamp       DateTime
-  windowTitle     String
-  processName     String
-  applicationName String
-  url             String?
-  durationSeconds Int
-  activityLevel   Int      @default(0) // 0-100 based on keyboard/mouse activity
-  category        String   @default("Unknown") // Development, Communication, Entertainment, etc.
-
-  createdAt       DateTime @default(now())
-
-  @@index([sessionId, timestamp])
-  @@index([userId, timestamp])
-  @@map("activity_logs")
-}
-
-model Goal {
-  id            String    @id @default(uuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  goalType      GoalType
-  targetValue   Int
-  currentValue  Int       @default(0)
-  startDate     DateTime  @default(now())
-  endDate       DateTime?
-  active        Boolean   @default(true)
-
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  @@index([userId, active])
-  @@map("goals")
-}
-
 enum GoalType {
   DAILY_TIME
   WEEKLY_TIME
   STREAK
   PRODUCTIVITY_SCORE
-}
-
-model DailyStats {
-  id                    String   @id @default(uuid())
-  userId                String
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  date                  DateTime @unique
-  totalFocusMinutes     Int      @default(0)
-  avgProductivityScore  Int?
-  topDistractions       Json?    // Array of {app: string, minutes: number}
-  peakFocusHour         Int?     // 0-23
-  sessionsCompleted     Int      @default(0)
-
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  @@index([userId, date])
-  @@map("daily_stats")
 }

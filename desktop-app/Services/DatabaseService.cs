@@ -54,6 +54,38 @@ namespace FlowShield.Desktop.Services
                 );
             ";
             createTableCmd.ExecuteNonQuery();
+
+            // Run migrations to update existing databases
+            MigrateDatabase(connection);
+        }
+
+        private void MigrateDatabase(SqliteConnection connection)
+        {
+            // Check if ActivityLevel column exists, if not add it
+            var checkColumnCmd = connection.CreateCommand();
+            checkColumnCmd.CommandText = "PRAGMA table_info(ActivityLogs)";
+
+            bool hasActivityLevel = false;
+            using (var reader = checkColumnCmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    var columnName = reader.GetString(1); // Column name is at index 1
+                    if (columnName == "ActivityLevel")
+                    {
+                        hasActivityLevel = true;
+                        break;
+                    }
+                }
+            }
+
+            // Add ActivityLevel column if it doesn't exist
+            if (!hasActivityLevel)
+            {
+                var alterTableCmd = connection.CreateCommand();
+                alterTableCmd.CommandText = "ALTER TABLE ActivityLogs ADD COLUMN ActivityLevel INTEGER NOT NULL DEFAULT 0";
+                alterTableCmd.ExecuteNonQuery();
+            }
         }
 
         public void LogActivity(ActivityLog log)

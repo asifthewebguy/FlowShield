@@ -24,6 +24,9 @@ export default function ProfilePage() {
     },
   });
 
+  const [devices, setDevices] = useState<any[]>([]);
+  const [loadingDevices, setLoadingDevices] = useState(true);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -32,6 +35,7 @@ export default function ProfilePage() {
     }
 
     fetchProfile(token);
+    fetchDevices(token);
   }, [router]);
 
   const fetchProfile = async (token: string) => {
@@ -116,6 +120,52 @@ export default function ProfilePage() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     router.push('/');
+  };
+
+  const fetchDevices = async (token: string) => {
+    try {
+      const response = await fetch('/api/devices', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDevices(data.devices || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch devices:', error);
+    } finally {
+      setLoadingDevices(false);
+    }
+  };
+
+  const disconnectDevice = async (deviceId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    if (!confirm('Are you sure you want to disconnect this device?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/devices?deviceId=${deviceId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Device disconnected successfully' });
+        fetchDevices(token);
+      } else {
+        setMessage({ type: 'error', text: 'Failed to disconnect device' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'An error occurred' });
+    }
   };
 
   const toggleDistraction = (distraction: string) => {
@@ -402,12 +452,12 @@ export default function ProfilePage() {
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {[
-                    { value: 'social_media', label: 'Social Media', emoji: '📱' },
-                    { value: 'email', label: 'Email', emoji: '📧' },
-                    { value: 'meetings', label: 'Meetings', emoji: '👥' },
-                    { value: 'noise', label: 'Noise', emoji: '🔊' },
-                    { value: 'notifications', label: 'Notifications', emoji: '🔔' },
-                    { value: 'multitasking', label: 'Multitasking', emoji: '🔀' },
+                    { value: 'Social Media', label: 'Social Media', emoji: '📱' },
+                    { value: 'Video Streaming', label: 'Video Streaming', emoji: '📺' },
+                    { value: 'Email', label: 'Email', emoji: '📧' },
+                    { value: 'Messaging', label: 'Messaging', emoji: '💬' },
+                    { value: 'News Sites', label: 'News Sites', emoji: '📰' },
+                    { value: 'Shopping', label: 'Shopping', emoji: '🛒' },
                   ].map((distraction) => (
                     <button
                       key={distraction.value}
@@ -462,6 +512,219 @@ export default function ProfilePage() {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Website Blocking Info */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-primary-200 dark:border-primary-800">
+            <div className="flex items-start gap-4">
+              <div className="text-4xl">🛡️</div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  Website Blocking Available
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                  Your selected distractions can be automatically blocked on your Windows desktop using the FlowShield desktop app.
+                </p>
+
+                {formData.preferences.primaryDistractions.length > 0 ? (
+                  <div className="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-4 mb-4">
+                    <p className="text-sm font-medium text-primary-900 dark:text-primary-100 mb-2">
+                      ✓ You have {formData.preferences.primaryDistractions.length} distraction{formData.preferences.primaryDistractions.length !== 1 ? 's' : ''} selected:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.preferences.primaryDistractions.map((distraction) => (
+                        <span
+                          key={distraction}
+                          className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white dark:bg-gray-800 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-700"
+                        >
+                          {distraction}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                      ⚠️ No distractions selected. Select your common distractions above to enable website blocking.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2">
+                    <span className="text-primary-600 dark:text-primary-400 font-bold">1.</span>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                      <strong>Install the desktop app</strong> on your Windows computer
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-primary-600 dark:text-primary-400 font-bold">2.</span>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                      <strong>Run as Administrator</strong> (required to block websites)
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-primary-600 dark:text-primary-400 font-bold">3.</span>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                      <strong>Right-click the system tray icon</strong> and select "Block Distracting Sites"
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                    <strong>How it works:</strong>
+                  </p>
+                  <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                    <li>• Blocks websites system-wide (all browsers)</li>
+                    <li>• Uses Windows hosts file for reliable blocking</li>
+                    <li>• Automatically syncs with your preferences</li>
+                    <li>• Can be toggled on/off anytime</li>
+                    <li>• Automatically disables when app closes</li>
+                  </ul>
+                </div>
+
+                {formData.preferences.primaryDistractions.length > 0 && (
+                  <div className="mt-4">
+                    <details className="text-sm">
+                      <summary className="cursor-pointer text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
+                        View example blocked websites →
+                      </summary>
+                      <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900/50 rounded text-xs space-y-2">
+                        {formData.preferences.primaryDistractions.includes('Social Media') && (
+                          <div>
+                            <strong className="text-gray-900 dark:text-white">Social Media:</strong>
+                            <span className="text-gray-600 dark:text-gray-400 ml-2">
+                              facebook.com, twitter.com, instagram.com, linkedin.com, reddit.com, tiktok.com
+                            </span>
+                          </div>
+                        )}
+                        {formData.preferences.primaryDistractions.includes('Video Streaming') && (
+                          <div>
+                            <strong className="text-gray-900 dark:text-white">Video Streaming:</strong>
+                            <span className="text-gray-600 dark:text-gray-400 ml-2">
+                              youtube.com, netflix.com, hulu.com, twitch.tv, vimeo.com
+                            </span>
+                          </div>
+                        )}
+                        {formData.preferences.primaryDistractions.includes('Email') && (
+                          <div>
+                            <strong className="text-gray-900 dark:text-white">Email:</strong>
+                            <span className="text-gray-600 dark:text-gray-400 ml-2">
+                              gmail.com, outlook.com, yahoo.com, protonmail.com
+                            </span>
+                          </div>
+                        )}
+                        {formData.preferences.primaryDistractions.includes('Messaging') && (
+                          <div>
+                            <strong className="text-gray-900 dark:text-white">Messaging:</strong>
+                            <span className="text-gray-600 dark:text-gray-400 ml-2">
+                              discord.com, slack.com, web.whatsapp.com, messenger.com
+                            </span>
+                          </div>
+                        )}
+                        {formData.preferences.primaryDistractions.includes('News Sites') && (
+                          <div>
+                            <strong className="text-gray-900 dark:text-white">News Sites:</strong>
+                            <span className="text-gray-600 dark:text-gray-400 ml-2">
+                              news.google.com, cnn.com, bbc.com, buzzfeed.com
+                            </span>
+                          </div>
+                        )}
+                        {formData.preferences.primaryDistractions.includes('Shopping') && (
+                          <div>
+                            <strong className="text-gray-900 dark:text-white">Shopping:</strong>
+                            <span className="text-gray-600 dark:text-gray-400 ml-2">
+                              amazon.com, ebay.com, walmart.com, target.com
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Connected Devices */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              💻 Connected Devices
+            </h3>
+
+            {loadingDevices ? (
+              <p className="text-gray-600 dark:text-gray-400">Loading devices...</p>
+            ) : devices.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-600 dark:text-gray-400 mb-2">No devices connected</p>
+                <p className="text-sm text-gray-500 dark:text-gray-500">
+                  Install the FlowShield desktop app to start tracking your activity
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {devices.map((device) => {
+                  const lastActive = new Date(device.lastActiveAt);
+                  const timeSinceActive = Date.now() - lastActive.getTime();
+                  const isOnline = timeSinceActive < 5 * 60 * 1000; // Online if active within 5 minutes
+
+                  return (
+                    <div
+                      key={device.id}
+                      className="flex items-start justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    >
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className="text-3xl">
+                          {device.platform === 'Windows' ? '🪟' : '💻'}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-gray-900 dark:text-white">
+                              {device.deviceName}
+                            </h4>
+                            {isOnline && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                                Online
+                              </span>
+                            )}
+                            {!device.isActive && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                Disconnected
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 space-y-1">
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {device.platform} {device.appVersion && `• v${device.appVersion}`}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-500">
+                              Last active: {lastActive.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-500">
+                              Connected since: {new Date(device.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => disconnectDevice(device.deviceId)}
+                        className="ml-4 px-3 py-1 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>💡 Tip:</strong> The desktop app automatically registers when you log in. You can manage your connected devices here.
+              </p>
             </div>
           </div>
 

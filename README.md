@@ -199,6 +199,7 @@ The Windows desktop application provides automatic activity monitoring:
 - **Configurable Settings**: Adjust idle threshold, tracking intervals, and privacy options
 - **Today's Stats**: View daily activity summary
 - **Custom Branding**: Uses FlowShield logo in system tray and application window
+- **Smart Notifications**: Real-time alerts for tracking events, sync status, idle detection, and productivity milestones
 
 ## Next Steps: Roadmap
 
@@ -328,6 +329,13 @@ This is an active project under development. The web MVP is complete and ready f
 - Start with Windows option
 - Privacy-focused (only tracks window titles, process names, and activity counts - no keylogging)
 - Custom application icon and branding
+- Real-time event notifications:
+  - Tracking start/stop/pause alerts
+  - Idle detection and activity resume notifications
+  - Sync progress and status updates
+  - Login/logout confirmations
+  - High productivity congratulations (≥80 activity level)
+  - Configurable notification preferences
 
 ### Planned 📋
 **Short-term (Next Phase):**

@@ -140,9 +140,107 @@ namespace FlowShield.Desktop.Services
             }
         }
 
+        public async Task<UserPreferences?> GetUserPreferencesAsync()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_authToken))
+                    return null;
+
+                var response = await _httpClient.GetAsync("/api/user/preferences");
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseData = await response.Content.ReadAsStringAsync();
+                    var result = JsonConvert.DeserializeObject<PreferencesResponse>(responseData);
+                    return result?.Preferences;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Get user preferences error: {ex.Message}");
+                return null;
+            }
+        }
+
         public bool IsAuthenticated()
         {
             return !string.IsNullOrEmpty(_authToken);
+        }
+
+        public async Task<bool> RegisterDeviceAsync()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_authToken))
+                    return false;
+
+                var deviceId = GetDeviceId();
+                var deviceName = Environment.MachineName;
+                var appVersion = GetAppVersion();
+
+                var deviceData = new
+                {
+                    deviceId,
+                    deviceName,
+                    platform = "Windows",
+                    appVersion
+                };
+
+                var json = JsonConvert.SerializeObject(deviceData);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _httpClient.PostAsync("/api/devices", content);
+                if (response.IsSuccessStatusCode)
+                {
+                    _dbService.SaveSetting("DeviceId", deviceId);
+                    _dbService.SaveSetting("DeviceName", deviceName);
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Device registration error: {ex.Message}");
+                return false;
+            }
+        }
+
+        private string GetDeviceId()
+        {
+            // Try to get saved device ID first
+            var savedId = _dbService.GetSetting("DeviceId");
+            if (!string.IsNullOrEmpty(savedId))
+                return savedId;
+
+            // Generate new device ID from machine name and username
+            var machineName = Environment.MachineName;
+            var userName = Environment.UserName;
+            var uniqueString = $"{machineName}-{userName}";
+
+            // Create a consistent hash
+            using (var sha256 = System.Security.Cryptography.SHA256.Create())
+            {
+                var bytes = Encoding.UTF8.GetBytes(uniqueString);
+                var hash = sha256.ComputeHash(bytes);
+                return Convert.ToBase64String(hash).Replace("+", "-").Replace("/", "_").Substring(0, 32);
+            }
+        }
+
+        private string GetAppVersion()
+        {
+            try
+            {
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                var version = assembly.GetName().Version;
+                return version?.ToString() ?? "1.0.0";
+            }
+            catch
+            {
+                return "1.0.0";
+            }
         }
 
         public void Logout()
@@ -191,5 +289,41 @@ namespace FlowShield.Desktop.Services
 
         [JsonProperty("startTime")]
         public DateTime StartTime { get; set; }
+    }
+
+    public class PreferencesResponse
+    {
+        [JsonProperty("preferences")]
+        public UserPreferences? Preferences { get; set; }
+    }
+
+    public class UserPreferences
+    {
+        [JsonProperty("id")]
+        public string? Id { get; set; }
+
+        [JsonProperty("userId")]
+        public string? UserId { get; set; }
+
+        [JsonProperty("workStyle")]
+        public string? WorkStyle { get; set; }
+
+        [JsonProperty("preferredDuration")]
+        public int PreferredDuration { get; set; }
+
+        [JsonProperty("primaryDistractions")]
+        public List<string>? PrimaryDistractions { get; set; }
+
+        [JsonProperty("workEnvironment")]
+        public string? WorkEnvironment { get; set; }
+
+        [JsonProperty("breakReminders")]
+        public bool BreakReminders { get; set; }
+
+        [JsonProperty("soundEnabled")]
+        public bool SoundEnabled { get; set; }
+
+        [JsonProperty("darkMode")]
+        public bool DarkMode { get; set; }
     }
 }

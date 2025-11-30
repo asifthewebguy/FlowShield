@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using FlowShield.Desktop.Services;
 
@@ -12,6 +13,8 @@ namespace FlowShield.Desktop.UI
         private readonly DatabaseService _dbService;
         private readonly ApiClient _apiClient;
         private readonly SyncService _syncService;
+        private readonly NotificationService _notificationService;
+        private readonly WebsiteBlocker _websiteBlocker;
         private ContextMenuStrip? _contextMenu;
 
         public TrayApplication(ActivityTracker activityTracker, DatabaseService dbService)
@@ -20,9 +23,7 @@ namespace FlowShield.Desktop.UI
             _dbService = dbService;
             _apiClient = new ApiClient(_dbService);
             _syncService = new SyncService(_apiClient, _dbService);
-
-            // Subscribe to sync events
-            _syncService.SyncCompleted += OnSyncCompleted;
+            _websiteBlocker = new WebsiteBlocker();
 
             // Create system tray icon
             _trayIcon = new NotifyIcon
@@ -32,6 +33,12 @@ namespace FlowShield.Desktop.UI
                 Visible = true
             };
 
+            // Initialize notification service
+            _notificationService = new NotificationService(_trayIcon, _dbService);
+
+            // Subscribe to events
+            SubscribeToEvents();
+
             BuildContextMenu();
             _trayIcon.ContextMenuStrip = _contextMenu;
             _trayIcon.DoubleClick += OnTrayIconDoubleClick;
@@ -40,12 +47,29 @@ namespace FlowShield.Desktop.UI
             if (_apiClient.IsAuthenticated())
             {
                 _syncService.Start();
-                ShowNotification("FlowShield Started", "Activity tracking is active");
+                _notificationService.ShowInfo("FlowShield Started", "Activity tracking is active");
+
+                // Register device and load user preferences
+                RegisterDeviceAndLoadPreferencesAsync();
             }
             else
             {
                 ShowLoginDialog();
             }
+        }
+
+        private void SubscribeToEvents()
+        {
+            // Activity Tracker events
+            _activityTracker.TrackingStarted += OnTrackingStarted;
+            _activityTracker.TrackingStopped += OnTrackingStopped;
+            _activityTracker.IdleStateChanged += OnIdleStateChanged;
+            _activityTracker.ActivityLogged += OnActivityLogged;
+
+            // Sync Service events
+            _syncService.SyncStarted += OnSyncStarted;
+            _syncService.SyncCompleted += OnSyncCompleted;
+            _syncService.SyncFailed += OnSyncFailed;
         }
 
         private Icon LoadIcon()
@@ -107,6 +131,20 @@ namespace FlowShield.Desktop.UI
 
             _contextMenu.Items.Add(new ToolStripSeparator());
 
+            // Website Blocking
+            if (_apiClient.IsAuthenticated())
+            {
+                var blockingEnabled = _dbService.GetSetting("WebsiteBlockingEnabled") == "true";
+                var blockItem = new ToolStripMenuItem
+                {
+                    Text = blockingEnabled ? "✓ Block Distracting Sites" : "Block Distracting Sites",
+                    Checked = blockingEnabled
+                };
+                blockItem.Click += ToggleWebsiteBlocking;
+                _contextMenu.Items.Add(blockItem);
+                _contextMenu.Items.Add(new ToolStripSeparator());
+            }
+
             // Login/Logout
             var authItem = new ToolStripMenuItem
             {
@@ -127,13 +165,11 @@ namespace FlowShield.Desktop.UI
             {
                 _activityTracker.Stop();
                 _trayIcon.Text = "FlowShield - Tracking Paused";
-                ShowNotification("Tracking Paused", "Activity tracking has been paused");
             }
             else
             {
                 _activityTracker.Start();
                 _trayIcon.Text = "FlowShield - Tracking Active";
-                ShowNotification("Tracking Resumed", "Activity tracking has been resumed");
             }
 
             BuildContextMenu();
@@ -174,7 +210,7 @@ namespace FlowShield.Desktop.UI
                 {
                     _apiClient.Logout();
                     _syncService.Stop();
-                    ShowNotification("Logged Out", "You have been logged out");
+                    _notificationService.NotifyLogout();
                     BuildContextMenu();
                     _trayIcon.ContextMenuStrip = _contextMenu;
                 }
@@ -190,9 +226,12 @@ namespace FlowShield.Desktop.UI
             var loginForm = new LoginForm(_apiClient, _syncService);
             if (loginForm.ShowDialog() == DialogResult.OK)
             {
-                ShowNotification("Logged In", "Successfully connected to FlowShield");
+                _notificationService.NotifyLoginSuccess();
                 BuildContextMenu();
                 _trayIcon.ContextMenuStrip = _contextMenu;
+
+                // Register device and load preferences after successful login
+                RegisterDeviceAndLoadPreferencesAsync();
             }
         }
 
@@ -201,26 +240,199 @@ namespace FlowShield.Desktop.UI
             ShowStats(sender, e);
         }
 
-        private void OnSyncCompleted(object? sender, SyncEventArgs e)
+        // Event handlers
+        private void OnTrackingStarted(object? sender, EventArgs e)
         {
-            if (e.Success && e.RemainingUnsyncedCount == 0)
+            _notificationService.NotifyTrackingStarted();
+        }
+
+        private void OnTrackingStopped(object? sender, EventArgs e)
+        {
+            _notificationService.NotifyTrackingPaused();
+        }
+
+        private void OnIdleStateChanged(object? sender, IdleStateChangedEventArgs e)
+        {
+            if (e.IsIdle)
             {
-                Console.WriteLine($"Sync completed successfully at {e.Timestamp}");
+                _notificationService.NotifyIdleDetected(e.IdleMinutes);
+            }
+            else
+            {
+                _notificationService.NotifyActivityResumed();
             }
         }
 
-        private void ShowNotification(string title, string message)
+        private void OnActivityLogged(object? sender, ActivityLoggedEventArgs e)
         {
-            _trayIcon.BalloonTipTitle = title;
-            _trayIcon.BalloonTipText = message;
-            _trayIcon.BalloonTipIcon = ToolTipIcon.Info;
-            _trayIcon.ShowBalloonTip(3000);
+            // Optional: Notify on high productivity
+            if (e.ActivityLevel >= 80)
+            {
+                _notificationService.NotifyHighProductivity();
+            }
+        }
+
+        private void OnSyncStarted(object? sender, SyncEventArgs e)
+        {
+            if (e.RemainingUnsyncedCount > 0)
+            {
+                _notificationService.NotifySyncStarted();
+            }
+        }
+
+        private void OnSyncCompleted(object? sender, SyncEventArgs e)
+        {
+            _notificationService.NotifySyncCompleted(e.SyncedCount, e.RemainingUnsyncedCount);
+        }
+
+        private void OnSyncFailed(object? sender, SyncEventArgs e)
+        {
+            _notificationService.NotifySyncFailed(e.ErrorMessage ?? "Unknown error");
+        }
+
+        private async void RegisterDeviceAndLoadPreferencesAsync()
+        {
+            try
+            {
+                // Register this device with the server
+                await _apiClient.RegisterDeviceAsync();
+
+                // Load user preferences
+                var preferences = await _apiClient.GetUserPreferencesAsync();
+                if (preferences != null && preferences.PrimaryDistractions != null)
+                {
+                    // Setup website blocker with user's distractions
+                    _websiteBlocker.SetBlockedDistractions(preferences.PrimaryDistractions);
+
+                    // Check if blocking was previously enabled
+                    var blockingEnabled = _dbService.GetSetting("WebsiteBlockingEnabled") == "true";
+                    if (blockingEnabled && _websiteBlocker.IsRunningAsAdministrator())
+                    {
+                        _websiteBlocker.EnableBlocking();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading user preferences: {ex.Message}");
+            }
+        }
+
+        private void ToggleWebsiteBlocking(object? sender, EventArgs e)
+        {
+            try
+            {
+                if (!_websiteBlocker.IsRunningAsAdministrator())
+                {
+                    MessageBox.Show(
+                        "Administrator privileges are required to block websites.\n\n" +
+                        "Please restart FlowShield as Administrator to use this feature.",
+                        "Administrator Required",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+                    return;
+                }
+
+                var currentlyBlocking = _websiteBlocker.IsBlocking();
+
+                if (currentlyBlocking)
+                {
+                    // Disable blocking
+                    if (_websiteBlocker.DisableBlocking())
+                    {
+                        _dbService.SaveSetting("WebsiteBlockingEnabled", "false");
+                        _notificationService.ShowInfo("Website Blocking Disabled", "You can now access all websites");
+                        BuildContextMenu();
+                        _trayIcon.ContextMenuStrip = _contextMenu;
+                    }
+                }
+                else
+                {
+                    // Enable blocking
+                    var blockedDomains = _websiteBlocker.GetBlockedDomains();
+                    if (blockedDomains.Count == 0)
+                    {
+                        MessageBox.Show(
+                            "No distracting websites configured.\n\n" +
+                            "Please update your distraction preferences on the web app first.",
+                            "No Distractions Configured",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information
+                        );
+                        return;
+                    }
+
+                    var result = MessageBox.Show(
+                        $"This will block {blockedDomains.Count} distracting websites based on your preferences.\n\n" +
+                        "Examples: " + string.Join(", ", blockedDomains.Take(3)) +
+                        (blockedDomains.Count > 3 ? "..." : "") + "\n\n" +
+                        "Do you want to enable website blocking?",
+                        "Enable Website Blocking",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question
+                    );
+
+                    if (result == DialogResult.Yes)
+                    {
+                        if (_websiteBlocker.EnableBlocking())
+                        {
+                            _dbService.SaveSetting("WebsiteBlockingEnabled", "true");
+                            _notificationService.ShowSuccess("Website Blocking Enabled",
+                                $"Blocking {blockedDomains.Count} distracting websites");
+                            BuildContextMenu();
+                            _trayIcon.ContextMenuStrip = _contextMenu;
+                        }
+                        else
+                        {
+                            MessageBox.Show(
+                                "Failed to enable website blocking. Check logs for details.",
+                                "Error",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error
+                            );
+                        }
+                    }
+                }
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                MessageBox.Show(
+                    ex.Message,
+                    "Permission Denied",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Error toggling website blocking: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
         }
 
         private void Exit(object? sender, EventArgs e)
         {
             _activityTracker.Stop();
             _syncService.Stop();
+
+            // Disable website blocking on exit
+            try
+            {
+                if (_websiteBlocker.IsBlocking() && _websiteBlocker.IsRunningAsAdministrator())
+                {
+                    _websiteBlocker.DisableBlocking();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error disabling website blocking on exit: {ex.Message}");
+            }
+
             _trayIcon.Visible = false;
             Application.Exit();
         }

@@ -36,7 +36,15 @@ The FlowShield Windows desktop application has been successfully built. It provi
 5. **User Interface**
    - **Login Form** ([LoginForm.cs](UI/LoginForm.cs)) - Authenticate with web app
    - **Settings Form** ([SettingsForm.cs](UI/SettingsForm.cs)) - Configure preferences
-   - **System Notifications** - Sync status and tracking events
+   - **System Notifications** - Real-time event notifications
+
+6. **Event Notification System** ([NotificationService.cs](Services/NotificationService.cs))
+   - Tracking start/stop/pause notifications
+   - Idle detection and activity resume alerts
+   - Sync progress and status updates
+   - Login/logout confirmations
+   - High productivity congratulations
+   - User-configurable preferences
 
 ### Technical Stack
 
@@ -55,17 +63,21 @@ desktop-app/
 │   └── AppSettings.cs          # Settings data model
 ├── Services/
 │   ├── ActivityTracker.cs      # Windows activity monitoring
+│   ├── InputMonitor.cs         # Keyboard/mouse activity tracking
 │   ├── DatabaseService.cs      # SQLite operations
 │   ├── ApiClient.cs            # HTTP client for web app
-│   └── SyncService.cs          # Background sync scheduler
+│   ├── SyncService.cs          # Background sync scheduler
+│   └── NotificationService.cs  # Event notification system
 ├── UI/
 │   ├── TrayApplication.cs      # System tray app
 │   ├── LoginForm.cs            # Login dialog
 │   └── SettingsForm.cs         # Settings dialog
 ├── Program.cs                  # Application entry point
 ├── FlowShield.Desktop.csproj   # Project configuration
+├── logo.ico                    # Application icon
 ├── README.md                   # Documentation
 ├── SETUP_GUIDE.md              # Installation guide
+├── NOTIFICATIONS.md            # Notification system guide
 └── .gitignore                  # Git ignore rules
 ```
 
@@ -248,6 +260,30 @@ Output: `bin\Release\net8.0-windows\win-x64\publish\FlowShield.exe`
 3. **MSI Installer** - Windows installer package (future)
 4. **Auto-Update** - In-app updates (future)
 
+## Event Notification System
+
+The desktop app includes a comprehensive event notification system:
+
+### Features
+- **Centralized Management**: NotificationService handles all app notifications
+- **Event-Driven Architecture**: Events from ActivityTracker and SyncService trigger notifications
+- **User Control**: All notifications can be toggled on/off in Settings
+- **Smart Throttling**: High productivity notifications only trigger once per session
+
+### Notification Types
+1. **Tracking Events**: Started, stopped, paused
+2. **Idle Detection**: Alerts when idle and when activity resumes
+3. **Sync Operations**: Start, success, failure with counts
+4. **Authentication**: Login/logout confirmations
+5. **Productivity**: Congratulations for high activity (≥80)
+
+### Event System
+- **ActivityTracker**: 4 events (TrackingStarted, TrackingStopped, IdleStateChanged, ActivityLogged)
+- **SyncService**: 3 events (SyncStarted, SyncCompleted, SyncFailed)
+- **TrayApplication**: Subscribes to all events and routes to NotificationService
+
+See [NOTIFICATIONS.md](NOTIFICATIONS.md) for complete documentation.
+
 ## Testing Checklist
 
 - [x] Activity tracking captures window changes
@@ -260,19 +296,23 @@ Output: `bin\Release\net8.0-windows\win-x64\publish\FlowShield.exe`
 - [x] Today's stats display correctly
 - [x] Logout clears credentials
 - [x] Activity categorization accurate
+- [x] Idle detection works correctly
+- [x] Event notifications display properly
+- [x] Notification preferences are respected
 
 ## Known Limitations
 
 1. **Windows Only** - Uses Windows API (GetForegroundWindow)
 2. **Window Titles Only** - Can't extract exact URLs from browsers yet
-3. **No Idle Detection** - Tracks all active windows, even if idle
-4. **Manual Process Categorization** - Categories are rule-based, not ML
-5. **No Multi-Monitor Specific Tracking** - Tracks only active window
+3. **Manual Process Categorization** - Categories are rule-based, not ML
+4. **No Multi-Monitor Specific Tracking** - Tracks only active window
 
 ## Future Enhancements
 
 ### High Priority
-- [ ] Idle time detection (5-10 min inactivity)
+- [x] Idle time detection (5-10 min inactivity) - **DONE**
+- [x] Event notification system - **DONE**
+- [x] Custom icon and branding - **DONE**
 - [ ] Browser URL extraction (via browser extensions)
 - [ ] Activity insights in web app dashboard
 - [ ] MSI installer for easy distribution
@@ -282,15 +322,18 @@ Output: `bin\Release\net8.0-windows\win-x64\publish\FlowShield.exe`
 - [ ] Screenshot capture (opt-in, privacy-focused)
 - [ ] Custom activity rules/filters
 - [ ] Productivity goal tracking
-- [ ] Break reminders
+- [ ] Break reminders (can now use notification system)
 - [ ] Focus mode integration with web app sessions
+- [ ] Notification history/log viewer
+- [ ] Custom notification sounds
+- [ ] Quiet hours/Do not disturb mode
 
 ### Low Priority
 - [ ] Multi-monitor support
 - [ ] macOS version
 - [ ] Linux version
-- [ ] Custom icon and branding
 - [ ] Telemetry and analytics (opt-in)
+- [ ] Rich actionable notifications
 
 ## Security Considerations
 

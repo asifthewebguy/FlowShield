@@ -133,6 +133,12 @@ export default function AnalyticsPage() {
                 Analytics
               </Link>
               <Link
+                href="/activity"
+                className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
+              >
+                Activity
+              </Link>
+              <Link
                 href="/profile"
                 className="text-gray-600 dark:text-gray-400 hover:text-primary-600"
               >

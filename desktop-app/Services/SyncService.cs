@@ -11,7 +11,9 @@ namespace FlowShield.Desktop.Services
         private Timer? _syncTimer;
         private bool _isSyncing = false;
 
+        public event EventHandler<SyncEventArgs>? SyncStarted;
         public event EventHandler<SyncEventArgs>? SyncCompleted;
+        public event EventHandler<SyncEventArgs>? SyncFailed;
 
         public SyncService(ApiClient apiClient, DatabaseService dbService)
         {
@@ -41,23 +43,61 @@ namespace FlowShield.Desktop.Services
                 return false;
 
             _isSyncing = true;
+
+            // Get initial count
+            var initialUnsyncedCount = _dbService.GetUnsyncedLogs().Count;
+
+            // Raise sync started event
+            SyncStarted?.Invoke(this, new SyncEventArgs
+            {
+                Success = false,
+                Timestamp = DateTime.Now,
+                RemainingUnsyncedCount = initialUnsyncedCount,
+                SyncedCount = 0
+            });
+
             try
             {
                 var success = await _apiClient.SyncActivitiesAsync();
 
-                var unsyncedCount = _dbService.GetUnsyncedLogs().Count;
-                SyncCompleted?.Invoke(this, new SyncEventArgs
+                // Also update device status during sync
+                await _apiClient.RegisterDeviceAsync();
+
+                var remainingUnsyncedCount = _dbService.GetUnsyncedLogs().Count;
+                var syncedCount = initialUnsyncedCount - remainingUnsyncedCount;
+
+                var eventArgs = new SyncEventArgs
                 {
                     Success = success,
                     Timestamp = DateTime.Now,
-                    RemainingUnsyncedCount = unsyncedCount
-                });
+                    RemainingUnsyncedCount = remainingUnsyncedCount,
+                    SyncedCount = syncedCount
+                };
+
+                if (success)
+                {
+                    SyncCompleted?.Invoke(this, eventArgs);
+                }
+                else
+                {
+                    SyncFailed?.Invoke(this, eventArgs);
+                }
 
                 return success;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Sync error: {ex.Message}");
+
+                SyncFailed?.Invoke(this, new SyncEventArgs
+                {
+                    Success = false,
+                    Timestamp = DateTime.Now,
+                    RemainingUnsyncedCount = initialUnsyncedCount,
+                    SyncedCount = 0,
+                    ErrorMessage = ex.Message
+                });
+
                 return false;
             }
             finally
@@ -72,5 +112,7 @@ namespace FlowShield.Desktop.Services
         public bool Success { get; set; }
         public DateTime Timestamp { get; set; }
         public int RemainingUnsyncedCount { get; set; }
+        public int SyncedCount { get; set; }
+        public string? ErrorMessage { get; set; }
     }
 }
