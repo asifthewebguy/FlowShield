@@ -104,7 +104,9 @@ namespace FlowShield.Desktop.Services
                 throw new UnauthorizedAccessException("Administrator privileges required to modify hosts file");
             }
 
-            if (_isBlocking)
+            // Always check the actual state from the hosts file
+            var actuallyBlocking = IsBlocking();
+            if (actuallyBlocking)
             {
                 return true; // Already blocking
             }
@@ -149,52 +151,100 @@ namespace FlowShield.Desktop.Services
                 throw new UnauthorizedAccessException("Administrator privileges required to modify hosts file");
             }
 
-            if (!_isBlocking)
+            // Always check the actual state from the hosts file
+            var actuallyBlocking = IsBlocking();
+            Console.WriteLine($"DisableBlocking: Currently blocking = {actuallyBlocking}");
+
+            if (!actuallyBlocking)
             {
+                Console.WriteLine("DisableBlocking: Already not blocking, returning true");
                 return true; // Already not blocking
             }
 
             try
             {
+                Console.WriteLine($"DisableBlocking: Reading hosts file from {_hostsFilePath}");
+
                 // Read current hosts file
                 var lines = File.ReadAllLines(_hostsFilePath).ToList();
+                Console.WriteLine($"DisableBlocking: Read {lines.Count} lines from hosts file");
 
-                // Remove FlowShield blocks
-                lines = lines.Where(line => !line.Contains(_blockMarker)).ToList();
+                var beforeCount = lines.Count;
 
-                // Remove empty FlowShield comment section
-                for (int i = lines.Count - 1; i >= 0; i--)
+                // Remove all FlowShield-related lines (blocks and comments)
+                var cleanedLines = new List<string>();
+                for (int i = 0; i < lines.Count; i++)
                 {
-                    if (lines[i].StartsWith("# FlowShield - Website Blocking"))
+                    var line = lines[i];
+
+                    // Skip lines with FlowShield marker
+                    if (line.Contains(_blockMarker))
                     {
-                        lines.RemoveAt(i);
-                        // Remove preceding empty line if exists
-                        if (i > 0 && string.IsNullOrWhiteSpace(lines[i - 1]))
-                        {
-                            lines.RemoveAt(i - 1);
-                        }
+                        continue;
                     }
+
+                    // Skip FlowShield comment header
+                    if (line.StartsWith("# FlowShield - Website Blocking"))
+                    {
+                        continue;
+                    }
+
+                    // Skip empty lines that come right before FlowShield section
+                    if (string.IsNullOrWhiteSpace(line) &&
+                        i + 1 < lines.Count &&
+                        lines[i + 1].StartsWith("# FlowShield - Website Blocking"))
+                    {
+                        continue;
+                    }
+
+                    cleanedLines.Add(line);
                 }
+
+                lines = cleanedLines;
+                Console.WriteLine($"DisableBlocking: Removed {beforeCount - lines.Count} FlowShield lines");
+
+                Console.WriteLine($"DisableBlocking: Writing {lines.Count} lines back to hosts file");
 
                 // Write back to hosts file
                 File.WriteAllLines(_hostsFilePath, lines);
+
+                Console.WriteLine("DisableBlocking: Flushing DNS cache");
 
                 // Flush DNS cache
                 FlushDnsCache();
 
                 _isBlocking = false;
+                Console.WriteLine("DisableBlocking: Success!");
                 return true;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error disabling website blocking: {ex.Message}");
-                return false;
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                throw; // Re-throw so the UI can show the actual error
             }
         }
 
         public bool IsBlocking()
         {
-            return _isBlocking;
+            // Check the actual hosts file to determine if blocking is active
+            try
+            {
+                if (!File.Exists(_hostsFilePath))
+                {
+                    _isBlocking = false;
+                    return false;
+                }
+
+                var lines = File.ReadAllLines(_hostsFilePath);
+                var hasFlowShieldBlocks = lines.Any(line => line.Contains(_blockMarker));
+                _isBlocking = hasFlowShieldBlocks;
+                return hasFlowShieldBlocks;
+            }
+            catch
+            {
+                return _isBlocking; // Fallback to in-memory state if file can't be read
+            }
         }
 
         public List<string> GetBlockedDomains()

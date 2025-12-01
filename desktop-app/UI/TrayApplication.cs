@@ -134,11 +134,16 @@ namespace FlowShield.Desktop.UI
             // Website Blocking
             if (_apiClient.IsAuthenticated())
             {
-                var blockingEnabled = _dbService.GetSetting("WebsiteBlockingEnabled") == "true";
+                // Check the actual blocking state from the hosts file
+                var actuallyBlocking = _websiteBlocker.IsBlocking();
+
+                // Sync the database setting with the actual state
+                _dbService.SaveSetting("WebsiteBlockingEnabled", actuallyBlocking ? "true" : "false");
+
                 var blockItem = new ToolStripMenuItem
                 {
-                    Text = blockingEnabled ? "✓ Block Distracting Sites" : "Block Distracting Sites",
-                    Checked = blockingEnabled
+                    Text = actuallyBlocking ? "✓ Block Distracting Sites" : "Block Distracting Sites",
+                    Checked = actuallyBlocking
                 };
                 blockItem.Click += ToggleWebsiteBlocking;
                 _contextMenu.Items.Add(blockItem);
@@ -338,13 +343,46 @@ namespace FlowShield.Desktop.UI
 
                 if (currentlyBlocking)
                 {
-                    // Disable blocking
-                    if (_websiteBlocker.DisableBlocking())
+                    // Disable blocking - Ask for confirmation
+                    var blockedDomains = _websiteBlocker.GetBlockedDomains();
+                    var result = MessageBox.Show(
+                        $"Website blocking is currently active for {blockedDomains.Count} websites.\n\n" +
+                        "Do you want to disable website blocking and allow access to all sites?",
+                        "Disable Website Blocking",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question
+                    );
+
+                    if (result == DialogResult.Yes)
                     {
-                        _dbService.SaveSetting("WebsiteBlockingEnabled", "false");
-                        _notificationService.ShowInfo("Website Blocking Disabled", "You can now access all websites");
-                        BuildContextMenu();
-                        _trayIcon.ContextMenuStrip = _contextMenu;
+                        try
+                        {
+                            if (_websiteBlocker.DisableBlocking())
+                            {
+                                _dbService.SaveSetting("WebsiteBlockingEnabled", "false");
+                                _notificationService.ShowInfo("Website Blocking Disabled", "You can now access all websites");
+                                BuildContextMenu();
+                                _trayIcon.ContextMenuStrip = _contextMenu;
+                            }
+                            else
+                            {
+                                MessageBox.Show(
+                                    "Failed to disable website blocking. The hosts file may be in use or you may need to restart as Administrator.",
+                                    "Error",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Error
+                                );
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show(
+                                $"Error disabling website blocking: {ex.Message}",
+                                "Error",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error
+                            );
+                        }
                     }
                 }
                 else
