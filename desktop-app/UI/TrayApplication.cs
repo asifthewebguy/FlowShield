@@ -317,9 +317,8 @@ namespace FlowShield.Desktop.UI
                     }
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"Error loading user preferences: {ex.Message}");
             }
         }
 
@@ -466,9 +465,8 @@ namespace FlowShield.Desktop.UI
                     _websiteBlocker.DisableBlocking();
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"Error disabling website blocking on exit: {ex.Message}");
             }
 
             _trayIcon.Visible = false;

@@ -109,7 +109,6 @@ export default function ActivityAnalysisPage() {
         router.push('/auth/login');
       }
     } catch (error) {
-      console.error('Failed to fetch analysis:', error);
     } finally {
       setLoading(false);
     }

@@ -1,23 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verify } from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'your-secret-key';
-
-function getUserIdFromToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-  try {
-    const decoded = verify(token, JWT_SECRET) as { userId: string };
-    return decoded.userId;
-  } catch {
-    return null;
-  }
-}
+import { getUserIdFromToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -118,7 +102,7 @@ export async function GET(request: NextRequest) {
       });
     }
   } catch (error) {
-    console.error('Export error:', error);
+    logger.error('Export error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

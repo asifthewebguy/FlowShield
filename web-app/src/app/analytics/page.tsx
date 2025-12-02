@@ -47,7 +47,6 @@ export default function AnalyticsPage() {
         setData(analyticsData);
       }
     } catch (error) {
-      console.error('Failed to fetch analytics:', error);
     } finally {
       setLoading(false);
     }
@@ -82,7 +81,6 @@ export default function AnalyticsPage() {
         document.body.removeChild(a);
       })
       .catch((error) => {
-        console.error('Export failed:', error);
       });
   };
 
