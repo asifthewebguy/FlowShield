@@ -154,8 +154,18 @@ namespace FlowShield.Desktop.Services
             using var connection = new SqliteConnection(_connectionString);
             connection.Open();
 
+            // Build parameterized query to prevent SQL injection
+            var parameters = new List<string>();
             var command = connection.CreateCommand();
-            command.CommandText = $"UPDATE ActivityLogs SET IsSynced = 1 WHERE Id IN ({string.Join(",", logIds)})";
+
+            for (int i = 0; i < logIds.Count; i++)
+            {
+                var paramName = $"@id{i}";
+                parameters.Add(paramName);
+                command.Parameters.AddWithValue(paramName, logIds[i]);
+            }
+
+            command.CommandText = $"UPDATE ActivityLogs SET IsSynced = 1 WHERE Id IN ({string.Join(",", parameters)})";
             command.ExecuteNonQuery();
         }
 

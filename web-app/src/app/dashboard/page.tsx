@@ -59,7 +59,6 @@ export default function DashboardPage() {
         });
       }
     } catch (error) {
-      console.error('Failed to fetch sessions:', error);
     }
   };
 
@@ -84,7 +83,6 @@ export default function DashboardPage() {
         fetchTodaySessions(token!);
       }
     } catch (error) {
-      console.error('Failed to start session:', error);
     }
   };
 
@@ -108,7 +106,6 @@ export default function DashboardPage() {
         fetchTodaySessions(token!);
       }
     } catch (error) {
-      console.error('Failed to end session:', error);
     }
   };
 
