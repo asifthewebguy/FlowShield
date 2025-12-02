@@ -423,12 +423,12 @@ export default function ProfilePage() {
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {[
-                    { value: 'Social Media', label: 'Social Media', emoji: '📱' },
-                    { value: 'Video Streaming', label: 'Video Streaming', emoji: '📺' },
-                    { value: 'Email', label: 'Email', emoji: '📧' },
-                    { value: 'Messaging', label: 'Messaging', emoji: '💬' },
-                    { value: 'News Sites', label: 'News Sites', emoji: '📰' },
-                    { value: 'Shopping', label: 'Shopping', emoji: '🛒' },
+                    { value: 'social-media', label: 'Social Media', emoji: '📱' },
+                    { value: 'messaging', label: 'Messaging Apps', emoji: '💬' },
+                    { value: 'news', label: 'News & Media', emoji: '📰' },
+                    { value: 'email', label: 'Email', emoji: '📧' },
+                    { value: 'youtube', label: 'YouTube/Videos', emoji: '🎥' },
+                    { value: 'games', label: 'Games', emoji: '🎮' },
                   ].map((distraction) => (
                     <button
                       key={distraction.value}
