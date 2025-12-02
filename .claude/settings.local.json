@@ -25,7 +25,20 @@
       "Bash(git push:*)",
       "Bash(git rm:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(gh pr create:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git tag:*)",
+      "Bash(if [ -f \"C:/Program Files (x86)/Inno Setup 6/ISCC.exe\" ])",
+      "Bash(then echo \"Inno Setup found\")",
+      "Bash(else echo \"Inno Setup not found - please install from https://jrsoftware.org/isdl.php\")",
+      "Bash(fi)",
+      "Bash(where iscc:*)",
+      "Bash(\"C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe\" FlowShield-Setup.iss)",
+      "Bash(openssl rand:*)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_9GvBqpsLJX0z@ep-late-king-adkm0h55-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require\" npx prisma migrate:*)",
+      "Bash(gh:*)"
     ],
     "deny": [],
     "ask": []
