@@ -19,7 +19,7 @@ namespace FlowShield.Desktop.Services
             _dbService = dbService;
 
             // Get API URL from settings, fallback to parameter or default
-            var apiUrl = _dbService.GetSetting("ApiBaseUrl") ?? baseUrl ?? "http://localhost:3000";
+            var apiUrl = _dbService.GetSetting("ApiBaseUrl") ?? baseUrl ?? "https://flowshield.app";
 
             _httpClient = new HttpClient
             {
