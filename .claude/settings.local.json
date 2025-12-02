@@ -20,7 +20,11 @@
       "Bash(findstr:*)",
       "Bash(dir:*)",
       "Bash(start FlowShield.exe)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(git checkout:*)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

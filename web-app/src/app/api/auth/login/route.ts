@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyPassword } from '@/lib/auth';
 import { sign } from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.NEXTAUTH_SECRET || 'your-secret-key';
+import { getJwtSecret } from '@/lib/jwt';
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,8 +44,8 @@ export async function POST(request: NextRequest) {
     // Create JWT token
     const token = sign(
       { userId: user.id, email: user.email },
-      JWT_SECRET,
-      { expiresIn: '7d' }
+      getJwtSecret(),
+      { expiresIn: '1h' } // Reduced from 7d for better security
     );
 
     // Return user data (excluding password) and token
