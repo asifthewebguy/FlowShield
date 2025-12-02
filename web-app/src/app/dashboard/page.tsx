@@ -134,7 +134,7 @@ export default function DashboardPage() {
             {/* Today's Sessions */}
             <div className="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-                Today's Sessions
+                Today&apos;s Sessions
               </h3>
               {todaySessions.length === 0 ? (
                 <p className="text-gray-500 dark:text-gray-400">No sessions yet today</p>
@@ -173,7 +173,7 @@ export default function DashboardPage() {
           <div className="space-y-6">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                Today's Stats
+                Today&apos;s Stats
               </h3>
               <div className="space-y-4">
                 <div>
