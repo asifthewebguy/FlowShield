@@ -525,7 +525,7 @@ export default function ProfilePage() {
                   <div className="flex items-start gap-2">
                     <span className="text-primary-600 dark:text-primary-400 font-bold">3.</span>
                     <p className="text-sm text-gray-700 dark:text-gray-300">
-                      <strong>Right-click the system tray icon</strong> and select "Block Distracting Sites"
+                      <strong>Right-click the system tray icon</strong> and select &quot;Block Distracting Sites&quot;
                     </p>
                   </div>
                 </div>

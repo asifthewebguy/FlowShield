@@ -52,7 +52,7 @@ export default function OnboardingPage() {
       <div className="max-w-2xl w-full space-y-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            Let's get you started
+            Let&apos;s get you started
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
             Answer a few questions to personalize your experience
