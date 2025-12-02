@@ -4,6 +4,8 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  SECRETS_SCAN_OMIT_PATHS = "DEPLOYMENT.md,.env.production.example"
+  SECRETS_SCAN_OMIT_KEYS = "NEXTAUTH_URL"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
