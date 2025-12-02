@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
 
 // Create a new session
 export async function POST(request: NextRequest) {
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ session }, { status: 201 });
   } catch (error) {
-    console.error('Session creation error:', error);
+    logger.error('Session creation error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ sessions });
   } catch (error) {
-    console.error('Sessions fetch error:', error);
+    logger.error('Sessions fetch error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

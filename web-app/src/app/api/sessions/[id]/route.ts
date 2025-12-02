@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -51,7 +52,7 @@ export async function PATCH(
 
     return NextResponse.json({ session: updatedSession });
   } catch (error) {
-    console.error('Session update error:', error);
+    logger.error('Session update error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -88,7 +89,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Session deleted successfully' });
   } catch (error) {
-    console.error('Session deletion error:', error);
+    logger.error('Session deletion error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

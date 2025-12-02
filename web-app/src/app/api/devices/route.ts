@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
 
 // GET - List all connected devices for the user
 export async function GET(request: NextRequest) {
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ devices });
   } catch (error) {
-    console.error('Devices fetch error:', error);
+    logger.error('Devices fetch error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ device });
   } catch (error) {
-    console.error('Device registration error:', error);
+    logger.error('Device registration error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -139,7 +140,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ device: updatedDevice });
   } catch (error) {
-    console.error('Device update error:', error);
+    logger.error('Device update error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -188,7 +189,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Device deletion error:', error);
+    logger.error('Device deletion error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

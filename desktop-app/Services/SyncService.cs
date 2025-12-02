@@ -87,8 +87,6 @@ namespace FlowShield.Desktop.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Sync error: {ex.Message}");
-
                 SyncFailed?.Invoke(this, new SyncEventArgs
                 {
                     Success = false,

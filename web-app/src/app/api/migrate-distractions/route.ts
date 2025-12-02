@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
 
 // Mapping of old distraction values to new ones
 const distractionMapping: Record<string, string> = {
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
       preferences: updated,
     });
   } catch (error) {
-    console.error('Migration error:', error);
+    logger.error('Migration error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

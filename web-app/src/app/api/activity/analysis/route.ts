@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -160,7 +161,7 @@ export async function GET(request: NextRequest) {
       hourlyStats,
     });
   } catch (error) {
-    console.error('Activity analysis error:', error);
+    logger.error('Activity analysis error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

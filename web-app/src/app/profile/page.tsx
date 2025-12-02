@@ -67,7 +67,6 @@ export default function ProfilePage() {
         router.push('/auth/login');
       }
     } catch (error) {
-      console.error('Failed to fetch profile:', error);
     } finally {
       setLoading(false);
     }
@@ -130,7 +129,6 @@ export default function ProfilePage() {
         setDevices(data.devices || []);
       }
     } catch (error) {
-      console.error('Failed to fetch devices:', error);
     } finally {
       setLoadingDevices(false);
     }

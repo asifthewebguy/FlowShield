@@ -14,12 +14,16 @@ namespace FlowShield.Desktop.Services
         private readonly DatabaseService _dbService;
         private string? _authToken;
 
-        public ApiClient(DatabaseService dbService, string baseUrl = "http://localhost:3000")
+        public ApiClient(DatabaseService dbService, string? baseUrl = null)
         {
             _dbService = dbService;
+
+            // Get API URL from settings, fallback to parameter or default
+            var apiUrl = _dbService.GetSetting("ApiBaseUrl") ?? baseUrl ?? "http://localhost:3000";
+
             _httpClient = new HttpClient
             {
-                BaseAddress = new Uri(baseUrl)
+                BaseAddress = new Uri(apiUrl)
             };
 
             // Load saved auth token
@@ -62,7 +66,6 @@ namespace FlowShield.Desktop.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Login error: {ex.Message}");
                 return false;
             }
         }
@@ -112,7 +115,6 @@ namespace FlowShield.Desktop.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Sync error: {ex.Message}");
                 return false;
             }
         }
@@ -135,7 +137,6 @@ namespace FlowShield.Desktop.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Get active session error: {ex.Message}");
                 return null;
             }
         }
@@ -159,7 +160,6 @@ namespace FlowShield.Desktop.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Get user preferences error: {ex.Message}");
                 return null;
             }
         }
@@ -203,7 +203,6 @@ namespace FlowShield.Desktop.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Device registration error: {ex.Message}");
                 return false;
             }
         }

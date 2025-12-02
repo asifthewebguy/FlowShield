@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
       preferences,
     });
   } catch (error) {
-    console.error('Preferences fetch error:', error);
+    logger.error('Preferences fetch error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -67,7 +68,7 @@ export async function PATCH(request: NextRequest) {
       preferences: updatedPreferences,
     });
   } catch (error) {
-    console.error('Preferences update error:', error);
+    logger.error('Preferences update error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -137,9 +137,8 @@ namespace FlowShield.Desktop.Services
                 _isBlocking = true;
                 return true;
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"Error enabling website blocking: {ex.Message}");
                 return false;
             }
         }
@@ -153,23 +152,16 @@ namespace FlowShield.Desktop.Services
 
             // Always check the actual state from the hosts file
             var actuallyBlocking = IsBlocking();
-            Console.WriteLine($"DisableBlocking: Currently blocking = {actuallyBlocking}");
 
             if (!actuallyBlocking)
             {
-                Console.WriteLine("DisableBlocking: Already not blocking, returning true");
                 return true; // Already not blocking
             }
 
             try
             {
-                Console.WriteLine($"DisableBlocking: Reading hosts file from {_hostsFilePath}");
-
                 // Read current hosts file
                 var lines = File.ReadAllLines(_hostsFilePath).ToList();
-                Console.WriteLine($"DisableBlocking: Read {lines.Count} lines from hosts file");
-
-                var beforeCount = lines.Count;
 
                 // Remove all FlowShield-related lines (blocks and comments)
                 var cleanedLines = new List<string>();
@@ -201,26 +193,18 @@ namespace FlowShield.Desktop.Services
                 }
 
                 lines = cleanedLines;
-                Console.WriteLine($"DisableBlocking: Removed {beforeCount - lines.Count} FlowShield lines");
-
-                Console.WriteLine($"DisableBlocking: Writing {lines.Count} lines back to hosts file");
 
                 // Write back to hosts file
                 File.WriteAllLines(_hostsFilePath, lines);
-
-                Console.WriteLine("DisableBlocking: Flushing DNS cache");
 
                 // Flush DNS cache
                 FlushDnsCache();
 
                 _isBlocking = false;
-                Console.WriteLine("DisableBlocking: Success!");
                 return true;
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"Error disabling website blocking: {ex.Message}");
-                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 throw; // Re-throw so the UI can show the actual error
             }
         }
@@ -272,7 +256,6 @@ namespace FlowShield.Desktop.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error flushing DNS cache: {ex.Message}");
             }
         }
 

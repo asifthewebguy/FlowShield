@@ -42,7 +42,6 @@ export default function OnboardingPage() {
         router.push('/dashboard');
       }
     } catch (error) {
-      console.error('Onboarding error:', error);
     } finally {
       setLoading(false);
     }

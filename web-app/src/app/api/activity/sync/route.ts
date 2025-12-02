@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Activity sync error:', error);
+    logger.error('Activity sync error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
       count: activities.length,
     });
   } catch (error) {
-    console.error('Activity fetch error:', error);
+    logger.error('Activity fetch error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
