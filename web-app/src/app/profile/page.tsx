@@ -6,6 +6,19 @@ import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
 import Header from '@/components/layout/Header';
 
+// Helper function to get distraction label
+const getDistractionLabel = (value: string): string => {
+  const labels: Record<string, string> = {
+    'social-media': 'Social Media',
+    'messaging': 'Messaging Apps',
+    'news': 'News & Media',
+    'email': 'Email',
+    'youtube': 'YouTube/Videos',
+    'games': 'Games',
+  };
+  return labels[value] || value;
+};
+
 export default function ProfilePage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -496,7 +509,7 @@ export default function ProfilePage() {
                           key={distraction}
                           className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white dark:bg-gray-800 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-700"
                         >
-                          {distraction}
+                          {getDistractionLabel(distraction)}
                         </span>
                       ))}
                     </div>
