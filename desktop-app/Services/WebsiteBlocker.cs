@@ -254,7 +254,7 @@ namespace FlowShield.Desktop.Services
                 process.Start();
                 process.WaitForExit();
             }
-            catch (Exception ex)
+            catch
             {
             }
         }

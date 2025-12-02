@@ -317,7 +317,7 @@ namespace FlowShield.Desktop.UI
                     }
                 }
             }
-            catch (Exception ex)
+            catch
             {
             }
         }
@@ -465,7 +465,7 @@ namespace FlowShield.Desktop.UI
                     _websiteBlocker.DisableBlocking();
                 }
             }
-            catch (Exception ex)
+            catch
             {
             }
 

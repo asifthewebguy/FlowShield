@@ -64,7 +64,7 @@ namespace FlowShield.Desktop.Services
 
                 return false;
             }
-            catch (Exception ex)
+            catch
             {
                 return false;
             }
@@ -113,7 +113,7 @@ namespace FlowShield.Desktop.Services
 
                 return false;
             }
-            catch (Exception ex)
+            catch
             {
                 return false;
             }
@@ -135,7 +135,7 @@ namespace FlowShield.Desktop.Services
 
                 return null;
             }
-            catch (Exception ex)
+            catch
             {
                 return null;
             }
@@ -158,7 +158,7 @@ namespace FlowShield.Desktop.Services
 
                 return null;
             }
-            catch (Exception ex)
+            catch
             {
                 return null;
             }
@@ -201,7 +201,7 @@ namespace FlowShield.Desktop.Services
 
                 return false;
             }
-            catch (Exception ex)
+            catch
             {
                 return false;
             }
