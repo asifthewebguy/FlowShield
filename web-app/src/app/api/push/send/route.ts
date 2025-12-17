@@ -3,12 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import webpush from 'web-push';
 
-// Configure Web Push
-webpush.setVapidDetails(
-    'mailto:support@flowshield.app',
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-    process.env.VAPID_PRIVATE_KEY!
-);
+// Configure Web Push lazily in handler to avoid build errors if keys are missing
 
 export async function POST(req: NextRequest) {
     try {
@@ -16,6 +11,20 @@ export async function POST(req: NextRequest) {
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        const privateKey = process.env.VAPID_PRIVATE_KEY;
+
+        if (!publicKey || !privateKey) {
+            console.error('VAPID keys are missing');
+            return NextResponse.json({ error: 'Server configuration error: Missing VAPID keys' }, { status: 500 });
+        }
+
+        webpush.setVapidDetails(
+            'mailto:support@flowshield.app',
+            publicKey,
+            privateKey
+        );
 
         const { title, body, userId: targetUserId } = await req.json();
 
