@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         });
 
         // Redirect to login or success page
-        const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/login?verified=true`;
+        const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/login?verified=true`;
         return NextResponse.redirect(loginUrl);
 
     } catch (error) {
