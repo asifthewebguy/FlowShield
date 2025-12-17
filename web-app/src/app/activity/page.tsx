@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/layout/Header';
@@ -70,7 +70,7 @@ export default function ActivityAnalysisPage() {
     fetchAnalysis(token, timeRange);
   }, [router, timeRange]);
 
-  const fetchAnalysis = async (token: string, range: string) => {
+  const fetchAnalysis = useCallback(async (token: string, range: string) => {
     setLoading(true);
     try {
       const now = new Date();
@@ -109,10 +109,8 @@ export default function ActivityAnalysisPage() {
         router.push('/auth/login');
       }
     } catch (error) {
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [router]);
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
@@ -192,11 +190,10 @@ export default function ActivityAnalysisPage() {
             <button
               key={range}
               onClick={() => setTimeRange(range)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                timeRange === range
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${timeRange === range
+                ? 'bg-primary-600 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
             >
               {range === 'today' && 'Today'}
               {range === 'week' && 'Last 7 Days'}

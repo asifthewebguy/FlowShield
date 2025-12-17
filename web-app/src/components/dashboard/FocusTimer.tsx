@@ -88,6 +88,19 @@ export default function FocusTimer({
     }
   }, [currentSession]);
 
+  const handleEndSession = useCallback(async () => {
+    if (currentSession) {
+      try {
+        await onSessionEnd(currentSession.id);
+        setTimeRemaining(0);
+        onSessionUpdate?.();
+        setSoundEnabled(false);
+      } catch (error) {
+        console.error('Failed to end session:', error);
+      }
+    }
+  }, [currentSession, onSessionEnd, onSessionUpdate]);
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
@@ -104,7 +117,7 @@ export default function FocusTimer({
     }
 
     return () => clearInterval(interval);
-  }, [currentSession, timeRemaining]);
+  }, [currentSession, timeRemaining, handleEndSession]);
 
   const handleStartSession = async () => {
     try {
@@ -144,18 +157,7 @@ export default function FocusTimer({
     }
   };
 
-  const handleEndSession = useCallback(async () => {
-    if (currentSession) {
-      try {
-        await onSessionEnd(currentSession.id);
-        setTimeRemaining(0);
-        onSessionUpdate?.();
-        setSoundEnabled(false);
-      } catch (error) {
-        console.error('Failed to end session:', error);
-      }
-    }
-  }, [currentSession, onSessionEnd, onSessionUpdate]);
+
 
   const handleTogglePause = async () => {
     if (!currentSession) return;
