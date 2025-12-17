@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import NotificationManager from '@/components/common/NotificationManager';
 
 // ... (inside the component's JSX, likely in a "Settings" or "Preferences" section)
@@ -46,18 +46,7 @@ export default function ProfilePage() {
   const [devices, setDevices] = useState<any[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(true);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/auth/login');
-      return;
-    }
-
-    fetchProfile(token);
-    fetchDevices(token);
-  }, [router]);
-
-  const fetchProfile = async (token: string) => {
+  const fetchProfile = useCallback(async (token: string) => {
     try {
       const response = await fetch('/api/user/profile', {
         headers: {
@@ -88,7 +77,38 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
+
+  const fetchDevices = useCallback(async (token: string) => {
+    try {
+      const response = await fetch('/api/devices', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDevices(data.devices || []);
+      }
+    } catch (error) {
+    } finally {
+      setLoadingDevices(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/auth/login');
+      return;
+    }
+
+    fetchProfile(token);
+    fetchDevices(token);
+  }, [router, fetchProfile, fetchDevices]);
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,23 +154,7 @@ export default function ProfilePage() {
     }
   };
 
-  const fetchDevices = async (token: string) => {
-    try {
-      const response = await fetch('/api/devices', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        setDevices(data.devices || []);
-      }
-    } catch (error) {
-    } finally {
-      setLoadingDevices(false);
-    }
-  };
 
   const disconnectDevice = async (deviceId: string) => {
     const token = localStorage.getItem('token');

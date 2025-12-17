@@ -36,7 +36,7 @@ export default function CommunityPage() {
                     <div className="bg-gradient-to-br from-primary-600 to-primary-800 rounded-xl shadow-lg p-6 text-white">
                         <h3 className="text-xl font-bold mb-4">Weekly Challenge 🎯</h3>
                         <p className="mb-4">
-                            Focus for at least <strong>10 hours</strong> this week to earn the "Week Warrior" badge.
+                            Focus for at least <strong>10 hours</strong> this week to earn the &quot;Week Warrior&quot; badge.
                         </p>
                         <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
                             <div className="text-sm opacity-80 mb-1">Your Progress</div>
