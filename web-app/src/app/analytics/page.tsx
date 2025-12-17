@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import {
   LineChart,
   Line,
@@ -16,41 +17,48 @@ import {
 } from 'recharts';
 import { getProductivityLevel } from '@/lib/productivity';
 import Header from '@/components/layout/Header';
+import HeatmapWidget from '@/components/analytics/HeatmapWidget';
+
+const fetcher = (url: string) => {
+  const token = localStorage.getItem('token');
+  if (!token) throw new Error('No token');
+
+  return fetch(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  }).then(res => res.json());
+};
+
+function HeatmapSection({ token }: { token: string | null }) {
+  const { data, isLoading } = useSWR(
+    token ? '/api/analytics/yearly' : null,
+    fetcher
+  );
+
+  if (isLoading || !data?.heatmap) return <div className="mb-8 h-48 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse"></div>;
+
+  return (
+    <div className="mb-8">
+      <HeatmapWidget data={data.heatmap} />
+    </div>
+  );
+}
 
 export default function AnalyticsPage() {
   const router = useRouter();
   const [period, setPeriod] = useState<'week' | 'month'>('week');
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
       router.push('/auth/login');
-      return;
     }
+  }, [router]);
 
-    fetchAnalytics(token, period);
-  }, [router, period]);
-
-  const fetchAnalytics = async (token: string, selectedPeriod: string) => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/analytics?period=${selectedPeriod}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const analyticsData = await response.json();
-        setData(analyticsData);
-      }
-    } catch (error) {
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data, error, isLoading } = useSWR(
+    `/api/analytics?period=${period}`,
+    fetcher,
+    { refreshInterval: 300000 } // Refresh every 5 minutes
+  );
 
   const handleExport = (format: 'json' | 'csv') => {
     const token = localStorage.getItem('token');
@@ -59,11 +67,7 @@ export default function AnalyticsPage() {
     const url = `/api/export?format=${format}&period=${period}`;
 
     // Create a temporary anchor element to trigger download
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `flowshield-sessions-${period}-${new Date().toISOString().split('T')[0]}.${format}`;
-
-    // Add authorization header by fetching and downloading
+    // Using fetch to include auth header
     fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -81,10 +85,21 @@ export default function AnalyticsPage() {
         document.body.removeChild(a);
       })
       .catch((error) => {
+        console.error('Export failed', error);
       });
   };
 
-  if (loading || !data) {
+  if (error || (data && data.error)) {
+    // If unauthorized, redirect to login
+    if (data?.error === 'Unauthorized' || error?.message?.includes('Unauthorized')) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        router.push('/auth/login');
+      }
+    }
+    return <div>Failed to load analytics: {error?.message || data?.error}</div>;
+  }
+  if (isLoading || !data || !data.summary) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-xl text-gray-600 dark:text-gray-400">Loading analytics...</div>
@@ -115,21 +130,19 @@ export default function AnalyticsPage() {
           <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setPeriod('week')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                period === 'week'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
-              }`}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors ${period === 'week'
+                ? 'bg-primary-600 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
+                }`}
             >
               Last 7 Days
             </button>
             <button
               onClick={() => setPeriod('month')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                period === 'month'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
-              }`}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors ${period === 'month'
+                ? 'bg-primary-600 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
+                }`}
             >
               Last 30 Days
             </button>
@@ -150,6 +163,9 @@ export default function AnalyticsPage() {
             </button>
           </div>
         </div>
+
+        {/* Heatmap Section - Yearly Data */}
+        <HeatmapSection token={typeof window !== 'undefined' ? localStorage.getItem('token') : null} />
 
         {/* Summary Cards */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">

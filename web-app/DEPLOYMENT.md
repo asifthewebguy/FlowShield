@@ -71,6 +71,9 @@ Click "Show advanced" → "New variable" and add:
 | `DATABASE_URL` | Your PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
 | `NEXTAUTH_SECRET` | Generate a random 32+ character string | Use: `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | Your production URL | `https://flowshield.app` |
+| `RESEND_API_KEY` | Your Resend API Key | `re_123...` |
+| `ADMIN_EMAIL` | Admin email address | `admin@flowshield.app` |
+| `NEXT_PUBLIC_APP_URL`| Your production URL | `https://flowshield.app` |
 
 **To generate NEXTAUTH_SECRET:**
 ```bash

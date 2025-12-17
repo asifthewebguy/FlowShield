@@ -1,6 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import NotificationManager from '@/components/common/NotificationManager';
+
+// ... (inside the component's JSX, likely in a "Settings" or "Preferences" section)
+// I need to see the file content first to know where to insert it.
+// Wait, I am viewing it in parallel. I'll do a separate tool call to edit after viewing.
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -205,11 +210,10 @@ export default function ProfilePage() {
 
         {message && (
           <div
-            className={`mb-6 p-4 rounded-lg ${
-              message.type === 'success'
-                ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-                : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
-            }`}
+            className={`mb-6 p-4 rounded-lg ${message.type === 'success'
+              ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+              : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
+              }`}
           >
             {message.text}
           </div>
@@ -218,9 +222,12 @@ export default function ProfilePage() {
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Personal Information */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-              Personal Information
-            </h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                Personal Information
+              </h3>
+              <NotificationManager />
+            </div>
 
             <div className="space-y-4">
               <div>
@@ -370,11 +377,10 @@ export default function ProfilePage() {
                           preferences: { ...formData.preferences, workStyle: option.value },
                         })
                       }
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        formData.preferences.workStyle === option.value
-                          ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
-                      }`}
+                      className={`p-4 rounded-lg border-2 transition-all ${formData.preferences.workStyle === option.value
+                        ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
+                        }`}
                     >
                       <div className="text-3xl mb-2">{option.emoji}</div>
                       <div className="font-semibold text-gray-900 dark:text-white">
@@ -408,11 +414,12 @@ export default function ProfilePage() {
                   className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary-600"
                 />
                 <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  <span>15 min</span>
-                  <span>30 min</span>
-                  <span>45 min</span>
-                  <span>60 min</span>
-                  <span>90 min</span>
+                  <span className="w-8">15m</span>
+                  <span className="w-8 text-center">30m</span>
+                  <span className="w-8 text-center">45m</span>
+                  <span className="w-8 text-center">60m</span>
+                  <span className="w-8 text-center">75m</span>
+                  <span className="w-8 text-right">90m</span>
                 </div>
               </div>
 
@@ -434,11 +441,10 @@ export default function ProfilePage() {
                       key={distraction.value}
                       type="button"
                       onClick={() => toggleDistraction(distraction.value)}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        formData.preferences.primaryDistractions.includes(distraction.value)
-                          ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
-                      }`}
+                      className={`p-3 rounded-lg border-2 transition-all ${formData.preferences.primaryDistractions.includes(distraction.value)
+                        ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
+                        }`}
                     >
                       <div className="text-2xl mb-1">{distraction.emoji}</div>
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
@@ -469,11 +475,10 @@ export default function ProfilePage() {
                           preferences: { ...formData.preferences, workEnvironment: env.value },
                         })
                       }
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        formData.preferences.workEnvironment === env.value
-                          ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
-                      }`}
+                      className={`p-4 rounded-lg border-2 transition-all ${formData.preferences.workEnvironment === env.value
+                        ? 'border-primary-600 bg-primary-50 dark:bg-primary-900/20'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
+                        }`}
                     >
                       <div className="text-3xl mb-2">{env.emoji}</div>
                       <div className="font-semibold text-gray-900 dark:text-white">
@@ -719,14 +724,12 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                    theme === 'dark' ? 'bg-primary-600' : 'bg-gray-300'
-                  }`}
+                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${theme === 'dark' ? 'bg-primary-600' : 'bg-gray-300'
+                    }`}
                 >
                   <span
-                    className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                      theme === 'dark' ? 'translate-x-7' : 'translate-x-1'
-                    }`}
+                    className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${theme === 'dark' ? 'translate-x-7' : 'translate-x-1'
+                      }`}
                   >
                     <span className="flex items-center justify-center h-full text-xs">
                       {theme === 'dark' ? '🌙' : '☀️'}

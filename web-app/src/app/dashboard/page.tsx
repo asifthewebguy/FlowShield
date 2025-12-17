@@ -2,70 +2,60 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import FocusTimer from '@/components/dashboard/FocusTimer';
+import GoalsWidget from '@/components/dashboard/GoalsWidget';
+import GamificationStats from '@/components/dashboard/GamificationStats';
+import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 import Header from '@/components/layout/Header';
+
+const fetcher = (url: string) => {
+  const token = localStorage.getItem('token');
+  if (!token) throw new Error('No token');
+
+  return fetch(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  }).then(res => res.json());
+};
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [currentSession, setCurrentSession] = useState<any>(null);
-  const [todaySessions, setTodaySessions] = useState<any[]>([]);
-  const [stats, setStats] = useState({
-    totalFocusTime: 0,
-    sessionsCompleted: 0,
-    currentStreak: 0,
-  });
 
+  // Initialize user from local storage
   useEffect(() => {
-    const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
 
     if (!token || !userData) {
       router.push('/auth/login');
-      return;
+    } else {
+      setUser(JSON.parse(userData));
     }
-
-    setUser(JSON.parse(userData));
-    fetchTodaySessions(token);
   }, [router]);
 
-  const fetchTodaySessions = async (token: string) => {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const response = await fetch(`/api/sessions?date=${today}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+  const today = new Date().toISOString().split('T')[0];
+  const { data: sessionData, error: sessionError, mutate } = useSWR(
+    user ? `/api/sessions?date=${today}` : null,
+    fetcher,
+    { refreshInterval: 60000 } // Auto-refresh every minute
+  );
 
-      if (response.ok) {
-        const data = await response.json();
-        setTodaySessions(data.sessions);
+  const todaySessions = sessionData?.sessions || [];
 
-        // Find active session
-        const active = data.sessions.find((s: any) => !s.completed && !s.endTime);
-        if (active) {
-          setCurrentSession(active);
-        }
+  // Calculate derived state
+  const currentSession = todaySessions.find((s: any) => !s.completed && !s.endTime) || null;
+  const completedSessions = todaySessions.filter((s: any) => s.completed);
+  const totalFocusTime = completedSessions.reduce((sum: number, s: any) => sum + (s.actualDuration || 0), 0);
 
-        // Calculate stats
-        const completed = data.sessions.filter((s: any) => s.completed);
-        const totalMinutes = completed.reduce((sum: number, s: any) => sum + (s.actualDuration || 0), 0);
+  // Note: Streak calculation is currently mocked or requires a dedicated endpoint. 
+  // For now we use the fetched stats if available, or simpler derived logic
+  const currentStreak = 0; // Placeholder until API support
 
-        setStats({
-          totalFocusTime: totalMinutes,
-          sessionsCompleted: completed.length,
-          currentStreak: 0, // TODO: Calculate streak
-        });
-      }
-    } catch (error) {
-    }
-  };
-
-  const handleSessionStart = async (duration: number, type: string) => {
+  const handleSessionStart = async (duration: number, type: string, projectId?: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/sessions', {
+      await fetch('/api/sessions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -74,22 +64,20 @@ export default function DashboardPage() {
         body: JSON.stringify({
           plannedDuration: duration,
           sessionType: type,
+          projectId,
         }),
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setCurrentSession(data.session);
-        fetchTodaySessions(token!);
-      }
+      // Revalidate data
+      mutate();
     } catch (error) {
+      console.error('Failed to start session', error);
     }
   };
 
   const handleSessionEnd = async (sessionId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/sessions/${sessionId}`, {
+      await fetch(`/api/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -100,21 +88,14 @@ export default function DashboardPage() {
           completed: true,
         }),
       });
-
-      if (response.ok) {
-        setCurrentSession(null);
-        fetchTodaySessions(token!);
-      }
+      mutate();
     } catch (error) {
+      console.error('Failed to end session', error);
     }
   };
 
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
-      </div>
-    );
+  if (!user || (!sessionData && !sessionError)) { // Show skeleton while checking auth OR fetching initial data
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -128,7 +109,9 @@ export default function DashboardPage() {
             <FocusTimer
               onSessionStart={handleSessionStart}
               onSessionEnd={handleSessionEnd}
+              onSessionUpdate={() => mutate()}
               currentSession={currentSession}
+              defaultDuration={user?.preferences?.preferredDuration || 25}
             />
 
             {/* Today's Sessions */}
@@ -140,7 +123,7 @@ export default function DashboardPage() {
                 <p className="text-gray-500 dark:text-gray-400">No sessions yet today</p>
               ) : (
                 <div className="space-y-3">
-                  {todaySessions.map((session) => (
+                  {todaySessions.map((session: any) => (
                     <div
                       key={session.id}
                       className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
@@ -171,6 +154,17 @@ export default function DashboardPage() {
 
           {/* Stats Sidebar */}
           <div className="space-y-6">
+            <GoalsWidget
+              currentMinutes={totalFocusTime}
+              onGoalUpdate={() => mutate()}
+            />
+
+            <GamificationStats
+              totalMinutes={totalFocusTime}
+              totalSessions={completedSessions.length}
+              currentStreak={currentStreak}
+            />
+
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
                 Today&apos;s Stats
@@ -178,19 +172,19 @@ export default function DashboardPage() {
               <div className="space-y-4">
                 <div>
                   <div className="text-3xl font-bold text-primary-600">
-                    {Math.floor(stats.totalFocusTime / 60)}h {stats.totalFocusTime % 60}m
+                    {Math.floor(totalFocusTime / 60)}h {totalFocusTime % 60}m
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Focus Time</div>
                 </div>
                 <div className="pt-4 border-t dark:border-gray-700">
                   <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {stats.sessionsCompleted}
+                    {completedSessions.length}
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Sessions Completed</div>
                 </div>
                 <div className="pt-4 border-t dark:border-gray-700">
                   <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {stats.currentStreak} days
+                    {currentStreak} days
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Current Streak</div>
                 </div>
@@ -205,6 +199,9 @@ export default function DashboardPage() {
                 <li>Stay hydrated during focus time</li>
               </ul>
             </div>
+
+            {/* Notification Manager */}
+            {/* Moved to Profile Page */}
           </div>
         </div>
       </main>

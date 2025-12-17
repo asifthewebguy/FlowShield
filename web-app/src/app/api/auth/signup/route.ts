@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hashPassword, validateEmail, validatePassword } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import crypto from 'crypto';
+import { sendEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,6 +45,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Create verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     // Hash password and create user
     const hashedPassword = await hashPassword(password);
     const user = await prisma.user.create({
@@ -50,6 +56,8 @@ export async function POST(request: NextRequest) {
         email,
         hashedPassword,
         name: name || null,
+        verificationToken,
+        verificationTokenExpires,
         preferences: {
           create: {
             preferredDuration: 25, // Default Pomodoro
@@ -65,6 +73,34 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Send verification email
+    const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/verify?token=${verificationToken}`;
+
+    await sendEmail({
+      to: email,
+      subject: 'Verify your email - FlowShield',
+      html: `
+        <h1>Welcome to FlowShield!</h1>
+        <p>Please click the link below to verify your email address:</p>
+        <a href="${verificationUrl}">${verificationUrl}</a>
+        <p>This link will expire in 24 hours.</p>
+      `,
+    });
+
+    // Send admin notification
+    if (process.env.ADMIN_EMAIL) {
+      await sendEmail({
+        to: process.env.ADMIN_EMAIL,
+        subject: 'New User Registration - FlowShield',
+        html: `
+          <h1>New User Registered</h1>
+          <p>Email: ${email}</p>
+          <p>Name: ${name || 'N/A'}</p>
+          <p>Time: ${new Date().toLocaleString()}</p>
+        `,
+      });
+    }
+
     return NextResponse.json(
       { message: 'User created successfully', user },
       { status: 201 }
@@ -72,7 +108,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Signup error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

@@ -180,3 +180,111 @@ function formatPeakPeriod(hour: number): string {
 
   return `${timeOfDay} (${displayHour} ${period})`;
 }
+
+// Gamification Logic
+
+export interface UserLevel {
+  level: number;
+  title: string;
+  nextLevelMinutes: number;
+  currentLevelMinutes: number; // Minutes into this level
+  progressPercent: number;
+}
+
+export const LEVELS = [
+  { level: 1, minMinutes: 0, title: 'Novice Focus' },
+  { level: 2, minMinutes: 120, title: 'Apprentice' }, // 2 hours
+  { level: 3, minMinutes: 600, title: 'Focus Initiate' }, // 10 hours
+  { level: 4, minMinutes: 1500, title: 'Deep Worker' }, // 25 hours
+  { level: 5, minMinutes: 3000, title: 'Flow Walker' }, // 50 hours
+  { level: 6, minMinutes: 6000, title: 'Time Master' }, // 100 hours
+  { level: 7, minMinutes: 12000, title: 'Grandmaster' }, // 200 hours
+  { level: 8, minMinutes: 30000, title: 'Zen Focused' }, // 500 hours
+];
+
+export function calculateUserLevel(totalMinutes: number): UserLevel {
+  let currentLevel = LEVELS[0];
+  let nextLevel = LEVELS[1];
+
+  for (let i = 0; i < LEVELS.length; i++) {
+    if (totalMinutes >= LEVELS[i].minMinutes) {
+      currentLevel = LEVELS[i];
+      nextLevel = LEVELS[i + 1];
+    } else {
+      break;
+    }
+  }
+
+  // Cap at max level
+  if (!nextLevel) {
+    return {
+      level: currentLevel.level,
+      title: currentLevel.title,
+      nextLevelMinutes: totalMinutes, // No next level
+      currentLevelMinutes: totalMinutes - currentLevel.minMinutes,
+      progressPercent: 100,
+    };
+  }
+
+  const minutesInLevel = totalMinutes - currentLevel.minMinutes;
+  const minutesNeeded = nextLevel.minMinutes - currentLevel.minMinutes;
+  const progress = Math.min(100, (minutesInLevel / minutesNeeded) * 100);
+
+  return {
+    level: currentLevel.level,
+    title: currentLevel.title,
+    nextLevelMinutes: nextLevel.minMinutes,
+    currentLevelMinutes: minutesInLevel,
+    progressPercent: progress,
+  };
+}
+
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  achieved: boolean;
+}
+
+export function checkBadges(totalSessions: number, totalMinutes: number, streak: number): Badge[] {
+  const badges: Badge[] = [
+    {
+      id: 'first_step',
+      name: 'First Step',
+      description: 'Completed your first focus session',
+      icon: '🌱',
+      achieved: totalSessions >= 1,
+    },
+    {
+      id: 'on_fire',
+      name: 'On Fire',
+      description: 'Reached a 3-day streak',
+      icon: '🔥',
+      achieved: streak >= 3,
+    },
+    {
+      id: 'unstoppable',
+      name: 'Unstoppable',
+      description: 'Reached a 7-day streak',
+      icon: '🚀',
+      achieved: streak >= 7,
+    },
+    {
+      id: 'marathon',
+      name: 'Marathoner',
+      description: 'Focused for over 10 hours total',
+      icon: '🏃',
+      achieved: totalMinutes >= 600,
+    },
+    {
+      id: 'dedication',
+      name: 'Pure Dedication',
+      description: 'Completed 50 sessions',
+      icon: '🏆',
+      achieved: totalSessions >= 50,
+    },
+  ];
+
+  return badges;
+}

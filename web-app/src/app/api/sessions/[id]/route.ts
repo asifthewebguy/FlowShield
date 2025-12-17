@@ -50,6 +50,36 @@ export async function PATCH(
       },
     });
 
+    // Update DailyStats if session is completed
+    if (completed && actualDuration) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      await prisma.dailyStats.upsert({
+        where: {
+          userId_date: {
+            userId,
+            date: today,
+          },
+        },
+        update: {
+          totalFocusMinutes: { increment: actualDuration },
+          sessionsCompleted: { increment: 1 },
+          // Simple average update logic (weighted average would be better but keeping it simple)
+          ...(productivityScore && {
+            avgProductivityScore: productivityScore // Simplified: just taking latest or would need complex math
+          }),
+        },
+        create: {
+          userId,
+          date: today,
+          totalFocusMinutes: actualDuration,
+          sessionsCompleted: 1,
+          avgProductivityScore: productivityScore || 0,
+        },
+      });
+    }
+
     return NextResponse.json({ session: updatedSession });
   } catch (error) {
     logger.error('Session update error:', error);

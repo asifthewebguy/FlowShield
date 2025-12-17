@@ -1,0 +1,17 @@
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": PostgreSQL database "neondb", schema "public" at "ep-late-king-adkm0h55-pooler.c-2.us-east-1.aws.neon.tech"
+
+Your local migration history and the migrations table from your database are different:
+
+The last common migration is: 20251216114550_init
+
+The migration have not yet been applied:
+20251217133923_add_email_verification_fields
+
+The migrations from the database are not found locally in prisma/migrations:
+20251126181627_init
+20251129081522_update_activity_logs
+20251129103045_add_activity_level
+20251130171755_add_device_connections
+2 migrations found in prisma/migrations
