@@ -35,7 +35,7 @@ export async function sendEmail({ to, subject, html }: SendEmailParams): Promise
         }
 
         const { data, error } = await resend.emails.send({
-            from: 'FlowShield <onboarding@resend.dev>', // Update this with your verified domain in production
+            from: 'FlowShield <info@flowshield.app>', // Update this with your verified domain in production
             to: [to],
             subject,
             html,
