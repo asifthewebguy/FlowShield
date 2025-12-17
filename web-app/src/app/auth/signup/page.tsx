@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { validatePassword } from '@/lib/auth';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -12,15 +13,79 @@ export default function SignupPage() {
     password: '',
     confirmPassword: '',
   });
+  const [validationErrors, setValidationErrors] = useState({
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Realtime Email Validation
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const email = e.target.value;
+    setFormData({ ...formData, email });
+
+    if (email.split('@').length > 2) {
+      setValidationErrors(prev => ({ ...prev, email: 'Email cannot contain multiple "@" symbols' }));
+    } else {
+      setValidationErrors(prev => ({ ...prev, email: '' }));
+    }
+  };
+
+  // On-Blur Password Validation
+  const handlePasswordBlur = () => {
+    const result = validatePassword(formData.password);
+    if (!result.valid) {
+      setValidationErrors(prev => ({ ...prev, password: result.error || 'Invalid password' }));
+    } else {
+      setValidationErrors(prev => ({ ...prev, password: '' }));
+    }
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, password: e.target.value });
+    if (validationErrors.password) {
+      // Clear error while typing if they fix it (optional better UX, but sticking to on-blur for check)
+      // Actually, let's clear it to avoid annoyance, but full re-check happens on blur
+      setValidationErrors(prev => ({ ...prev, password: '' }));
+    }
+  };
+
+  // On-Blur Confirm Password Validation
+  const handleConfirmBlur = () => {
+    if (formData.password !== formData.confirmPassword) {
+      setValidationErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+    } else {
+      setValidationErrors(prev => ({ ...prev, confirmPassword: '' }));
+    }
+  };
+
+  const handleConfirmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, confirmPassword: e.target.value });
+    if (validationErrors.confirmPassword) {
+      // Clear error if they start typing again to fix it
+      setValidationErrors(prev => ({ ...prev, confirmPassword: '' }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
+    // Final check before submit
+    const passResult = validatePassword(formData.password);
+    if (!passResult.valid) {
+      setValidationErrors(prev => ({ ...prev, password: passResult.error || 'Invalid password' }));
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setValidationErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+      return;
+    }
+
+    if (validationErrors.email || validationErrors.password || validationErrors.confirmPassword) {
       return;
     }
 
@@ -100,10 +165,13 @@ export default function SignupPage() {
                 type="email"
                 required
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-800 dark:text-white"
+                onChange={handleEmailChange}
+                className={`mt-1 block w-full px-3 py-2 border ${validationErrors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-800 dark:text-white`}
                 placeholder="you@example.com"
               />
+              {validationErrors.email && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -116,10 +184,14 @@ export default function SignupPage() {
                 type="password"
                 required
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-800 dark:text-white"
+                onChange={handlePasswordChange}
+                onBlur={handlePasswordBlur}
+                className={`mt-1 block w-full px-3 py-2 border ${validationErrors.password ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-800 dark:text-white`}
                 placeholder="Min. 8 characters, 1 uppercase, 1 number"
               />
+              {validationErrors.password && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.password}</p>
+              )}
             </div>
 
             <div>
@@ -132,16 +204,20 @@ export default function SignupPage() {
                 type="password"
                 required
                 value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-800 dark:text-white"
+                onChange={handleConfirmChange}
+                onBlur={handleConfirmBlur}
+                className={`mt-1 block w-full px-3 py-2 border ${validationErrors.confirmPassword ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-800 dark:text-white`}
               />
+              {validationErrors.confirmPassword && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.confirmPassword}</p>
+              )}
             </div>
           </div>
 
           <div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !!validationErrors.email || !!validationErrors.password}
               className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating account...' : 'Create account'}

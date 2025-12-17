@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { plannedDuration, sessionType = 'WORK' } = body;
+    const { plannedDuration, sessionType = 'WORK', projectId } = body;
 
     if (!plannedDuration) {
       return NextResponse.json(
@@ -28,6 +28,10 @@ export async function POST(request: NextRequest) {
         startTime: new Date(),
         plannedDuration,
         sessionType,
+        projectId: projectId || null,
+      },
+      include: {
+        project: true,
       },
     });
 
@@ -70,6 +74,9 @@ export async function GET(request: NextRequest) {
       where,
       orderBy: { startTime: 'desc' },
       take: limit,
+      include: {
+        project: true,
+      },
     });
 
     return NextResponse.json({ sessions });

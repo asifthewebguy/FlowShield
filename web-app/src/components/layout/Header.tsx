@@ -41,6 +41,9 @@ export default function Header() {
             <Link href="/activity" className={linkClassName('/activity')}>
               Activity
             </Link>
+            <Link href="/community" className={linkClassName('/community')}>
+              Community
+            </Link>
             <Link href="/profile" className={linkClassName('/profile')}>
               Profile
             </Link>
