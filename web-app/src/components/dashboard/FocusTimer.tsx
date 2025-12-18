@@ -18,9 +18,13 @@ interface FocusTimerProps {
   defaultDuration?: number;
 }
 
-const fetcher = (url: string) => {
+const fetcher = async (url: string) => {
   const token = localStorage.getItem('token');
-  return fetch(url, { headers: { Authorization: `Bearer ${token}` } }).then(res => res.json());
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    throw new Error('An error occurred while fetching the data.');
+  }
+  return res.json();
 };
 
 export default function FocusTimer({
