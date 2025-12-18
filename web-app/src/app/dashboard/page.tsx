@@ -15,7 +15,12 @@ const fetcher = (url: string) => {
 
   return fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
-  }).then(res => res.json());
+  }).then(async res => {
+    if (!res.ok) {
+      throw new Error('An error occurred while fetching the data.');
+    }
+    return res.json();
+  });
 };
 
 export default function DashboardPage() {
