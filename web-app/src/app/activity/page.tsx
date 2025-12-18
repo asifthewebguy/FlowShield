@@ -57,6 +57,7 @@ interface AnalysisData {
 export default function ActivityAnalysisPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<AnalysisData | null>(null);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'all'>('week');
 
@@ -72,6 +73,7 @@ export default function ActivityAnalysisPage() {
 
   const fetchAnalysis = useCallback(async (token: string, range: string) => {
     setLoading(true);
+    setError(null);
     try {
       const now = new Date();
       let startDate: Date;
@@ -107,8 +109,15 @@ export default function ActivityAnalysisPage() {
       } else if (response.status === 401) {
         localStorage.removeItem('token');
         router.push('/auth/login');
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        setError(errData.error || 'Failed to fetch analysis data');
       }
     } catch (error) {
+      console.error('Error fetching analysis:', error);
+      setError('An unexpected error occurred while loading data');
+    } finally {
+      setLoading(false);
     }
   }, [router]);
 
@@ -152,6 +161,27 @@ export default function ActivityAnalysisPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-xl text-gray-600 dark:text-gray-400">Loading analysis...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center">
+          <div className="text-xl text-red-600 mb-4">{error}</div>
+          <button
+            onClick={() => fetchAnalysis(localStorage.getItem('token') || '', timeRange)}
+            className="text-primary-600 hover:text-primary-700 font-medium"
+          >
+            Try Again
+          </button>
+          <div className="mt-4">
+            <Link href="/dashboard" className="text-gray-600 hover:text-gray-700">
+              Go to Dashboard
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
