@@ -30,7 +30,7 @@ jobs:
       run: dotnet build desktop-app/FlowShield.Desktop.csproj --configuration Release --no-restore
       
     - name: Publish
-      run: dotnet publish desktop-app/FlowShield.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o ./publish
+      run: dotnet publish desktop-app/FlowShield.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish
       
     - name: Zip Release
       run: Compress-Archive -Path ./publish/* -DestinationPath ./FlowShield-Windows-x64.zip
