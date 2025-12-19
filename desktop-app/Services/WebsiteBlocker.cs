@@ -104,6 +104,12 @@ namespace FlowShield.Desktop.Services
                 throw new UnauthorizedAccessException("Administrator privileges required to modify hosts file");
             }
 
+            // Defaults if not configured
+            if (_blockedDomains.Count == 0)
+            {
+                SetBlockedDistractions(new List<string> { "Social Media", "Video Streaming", "News Sites", "Messaging" });
+            }
+
             // Always check the actual state from the hosts file
             var actuallyBlocking = IsBlocking();
             if (actuallyBlocking)

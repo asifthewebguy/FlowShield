@@ -34,6 +34,8 @@ namespace FlowShield.Desktop.Services
             _inputMonitor = new InputMonitor();
         }
 
+        public string? CurrentSessionId { get; set; }
+
         public void Start()
         {
             if (_isTracking) return;
@@ -53,10 +55,8 @@ namespace FlowShield.Desktop.Services
             TrackingStopped?.Invoke(this, EventArgs.Empty);
         }
 
-        public bool IsIdle()
-        {
-            return _inputMonitor.IsIdle();
-        }
+
+
 
         public int GetIdleTimeSeconds()
         {
@@ -119,7 +119,8 @@ namespace FlowShield.Desktop.Services
                                 Url = ExtractUrl(_lastWindowTitle, _lastProcessName),
                                 DurationSeconds = duration,
                                 Category = CategorizeActivity(_lastProcessName, _lastWindowTitle),
-                                ActivityLevel = inputStats.GetActivityLevel()
+                                ActivityLevel = inputStats.GetActivityLevel(),
+                                SessionId = CurrentSessionId
                             };
 
                             _dbService.LogActivity(log);

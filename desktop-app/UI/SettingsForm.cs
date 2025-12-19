@@ -55,7 +55,8 @@ namespace FlowShield.Desktop.UI
             {
                 Location = new System.Drawing.Point(20, 85),
                 Width = 440,
-                Text = "http://localhost:3000"
+                Text = "https://flowshield.app",
+                ReadOnly = true
             };
             Controls.Add(_apiUrlTextBox);
 
@@ -185,8 +186,13 @@ namespace FlowShield.Desktop.UI
             if (_apiUrlTextBox != null)
             {
                 var apiUrl = _dbService.GetSetting("ApiBaseUrl");
-                if (!string.IsNullOrEmpty(apiUrl))
-                    _apiUrlTextBox.Text = apiUrl;
+                // Auto-migrate localhost to production
+                if (string.IsNullOrEmpty(apiUrl) || apiUrl == "http://localhost:3000")
+                {
+                    apiUrl = "https://flowshield.app";
+                    _dbService.SaveSetting("ApiBaseUrl", apiUrl);
+                }
+                _apiUrlTextBox.Text = apiUrl;
             }
 
             if (_trackingIntervalInput != null)

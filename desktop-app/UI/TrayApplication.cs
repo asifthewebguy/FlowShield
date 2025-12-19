@@ -15,33 +15,46 @@ namespace FlowShield.Desktop.UI
         private readonly SyncService _syncService;
         private readonly NotificationService _notificationService;
         private readonly WebsiteBlocker _websiteBlocker;
+        private readonly ApplicationBlocker _appBlocker;
+        private readonly SessionManager _sessionManager;
         private ContextMenuStrip? _contextMenu;
+        private MainWindow? _mainWindow;
 
         public TrayApplication(ActivityTracker activityTracker, DatabaseService dbService)
         {
             _activityTracker = activityTracker;
             _dbService = dbService;
+
+            // 1. Create Tray Icon first (needed for notifications)
+            _trayIcon = new NotifyIcon();
+
+            // 2. Initialize Services
             _apiClient = new ApiClient(_dbService);
             _syncService = new SyncService(_apiClient, _dbService);
-            _websiteBlocker = new WebsiteBlocker();
-
-            // Create system tray icon
-            _trayIcon = new NotifyIcon
-            {
-                Icon = LoadIcon(),
-                Text = "FlowShield - Tracking Active",
-                Visible = true
-            };
-
-            // Initialize notification service
             _notificationService = new NotificationService(_trayIcon, _dbService);
+            _websiteBlocker = new WebsiteBlocker();
+            _appBlocker = new ApplicationBlocker();
+
+            // 3. Initialize SessionManager (needs NotificationService and Blockers)
+            _sessionManager = new SessionManager(_apiClient, _activityTracker, _notificationService, _websiteBlocker, _appBlocker);
+            _sessionManager.TimerTick += (s, time) => { /* Optional: Update tray tooltip */ };
+            _sessionManager.SessionStarted += OnSessionStarted;
+            _sessionManager.SessionEnded += OnSessionEnded;
+
+            // 4. Configure Tray Icon
+            _trayIcon.Icon = LoadIcon();
+            _trayIcon.Text = "FlowShield - Tracking Active";
+            _trayIcon.Visible = true;
+            _trayIcon.DoubleClick += OnTrayIconDoubleClick;
+
+            // 5. Initialize Session State
+            _ = _sessionManager.InitializeAsync();
 
             // Subscribe to events
             SubscribeToEvents();
 
             BuildContextMenu();
             _trayIcon.ContextMenuStrip = _contextMenu;
-            _trayIcon.DoubleClick += OnTrayIconDoubleClick;
 
             // Check if authenticated
             if (_apiClient.IsAuthenticated())
@@ -70,6 +83,9 @@ namespace FlowShield.Desktop.UI
             _syncService.SyncStarted += OnSyncStarted;
             _syncService.SyncCompleted += OnSyncCompleted;
             _syncService.SyncFailed += OnSyncFailed;
+
+            // Api Client events
+            _apiClient.SessionExpired += OnSessionExpired;
         }
 
         private Icon LoadIcon()
@@ -102,6 +118,31 @@ namespace FlowShield.Desktop.UI
                 Enabled = false
             };
             _contextMenu.Items.Add(statusItem);
+            _contextMenu.Items.Add(new ToolStripSeparator());
+
+            _contextMenu.Items.Add(new ToolStripSeparator());
+
+            // Show Widget
+            var showWidgetItem = new ToolStripMenuItem { Text = "Show Widget" };
+            showWidgetItem.Click += (s, e) => ShowMainWindow();
+            _contextMenu.Items.Add(showWidgetItem);
+
+            // Start Focus Session
+            var startSessionItem = new ToolStripMenuItem { Text = "Start Focus Session" };
+
+            var duration25 = new ToolStripMenuItem { Text = "25 Minutes" };
+            duration25.Click += async (s, e) => await _sessionManager.StartSessionAsync(25);
+            startSessionItem.DropDownItems.Add(duration25);
+
+            var duration45 = new ToolStripMenuItem { Text = "45 Minutes" };
+            duration45.Click += async (s, e) => await _sessionManager.StartSessionAsync(45);
+            startSessionItem.DropDownItems.Add(duration45);
+
+            var duration60 = new ToolStripMenuItem { Text = "60 Minutes" };
+            duration60.Click += async (s, e) => await _sessionManager.StartSessionAsync(60);
+            startSessionItem.DropDownItems.Add(duration60);
+
+            _contextMenu.Items.Add(startSessionItem);
             _contextMenu.Items.Add(new ToolStripSeparator());
 
             // Toggle Tracking
@@ -200,6 +241,19 @@ namespace FlowShield.Desktop.UI
             settingsForm.ShowDialog();
         }
 
+        private void OnSessionStarted(object? sender, SessionInfo session)
+        {
+            BuildContextMenu();
+            _trayIcon.ContextMenuStrip = _contextMenu;
+            ShowMainWindow();
+        }
+
+        private void OnSessionEnded(object? sender, EventArgs e)
+        {
+            BuildContextMenu();
+            _trayIcon.ContextMenuStrip = _contextMenu;
+        }
+
         private void ToggleAuth(object? sender, EventArgs e)
         {
             if (_apiClient.IsAuthenticated())
@@ -242,7 +296,23 @@ namespace FlowShield.Desktop.UI
 
         private void OnTrayIconDoubleClick(object? sender, EventArgs e)
         {
-            ShowStats(sender, e);
+            ShowMainWindow();
+        }
+
+        private void ShowMainWindow()
+        {
+            if (_mainWindow == null || !_mainWindow.IsLoaded)
+            {
+                _mainWindow = new MainWindow(_sessionManager);
+                _mainWindow.Show();
+            }
+            else
+            {
+                _mainWindow.Show();
+                if (_mainWindow.WindowState == System.Windows.WindowState.Minimized)
+                    _mainWindow.WindowState = System.Windows.WindowState.Normal;
+                _mainWindow.Activate();
+            }
         }
 
         // Event handlers
@@ -295,12 +365,22 @@ namespace FlowShield.Desktop.UI
             _notificationService.NotifySyncFailed(e.ErrorMessage ?? "Unknown error");
         }
 
+        private void OnSessionExpired(object? sender, EventArgs e)
+        {
+            _syncService.Stop();
+            _notificationService.NotifyLogout(); // Or a specific session expired notification
+            BuildContextMenu();
+            _trayIcon.ContextMenuStrip = _contextMenu;
+        }
+
         private async void RegisterDeviceAndLoadPreferencesAsync()
         {
             try
             {
                 // Register this device with the server
                 await _apiClient.RegisterDeviceAsync();
+
+                // SessionManager now handles active session check on init
 
                 // Load user preferences
                 var preferences = await _apiClient.GetUserPreferencesAsync();
@@ -478,7 +558,9 @@ namespace FlowShield.Desktop.UI
             if (disposing)
             {
                 _trayIcon?.Dispose();
+                _trayIcon?.Dispose();
                 _contextMenu?.Dispose();
+                _mainWindow?.Close();
             }
             base.Dispose(disposing);
         }
