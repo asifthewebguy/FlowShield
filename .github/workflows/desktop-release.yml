@@ -46,5 +46,5 @@ jobs:
       with:
         files: |
           FlowShield-Windows-x64.zip
-          desktop-app/installer/FlowShield-Setup-v1.1.2.exe
+          desktop-app/installer/FlowShield-Setup-v1.1.3.exe
         generate_release_notes: true
