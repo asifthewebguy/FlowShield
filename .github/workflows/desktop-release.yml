@@ -33,7 +33,7 @@ jobs:
       run: dotnet publish desktop-app/FlowShield.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish
       
     - name: Compile Installer (Inno Setup)
-      uses: Minionguyjosh/inno-setup-action@v1.2.2
+      uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
       with:
         path: desktop-app/FlowShield-Setup.iss
         
