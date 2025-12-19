@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using System.Net;
 using Newtonsoft.Json;
 using FlowShield.Desktop.Models;
 
@@ -12,6 +13,7 @@ namespace FlowShield.Desktop.Services
     {
         private readonly HttpClient _httpClient;
         private readonly DatabaseService _dbService;
+        public event EventHandler? SessionExpired;
         private string? _authToken;
 
         public ApiClient(DatabaseService dbService, string? baseUrl = null)
@@ -72,51 +74,51 @@ namespace FlowShield.Desktop.Services
 
         public async Task<bool> SyncActivitiesAsync()
         {
-            try
+            if (string.IsNullOrEmpty(_authToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            var unsyncedLogs = _dbService.GetUnsyncedLogs();
+            if (unsyncedLogs.Count == 0)
+                return true;
+
+            // Prepare data for sync
+            var syncData = new
             {
-                if (string.IsNullOrEmpty(_authToken))
-                    return false;
-
-                var unsyncedLogs = _dbService.GetUnsyncedLogs();
-                if (unsyncedLogs.Count == 0)
-                    return true;
-
-                // Prepare data for sync
-                var syncData = new
+                activities = unsyncedLogs.ConvertAll(log => new
                 {
-                    activities = unsyncedLogs.ConvertAll(log => new
-                    {
-                        timestamp = log.Timestamp.ToString("o"),
-                        windowTitle = log.WindowTitle,
-                        processName = log.ProcessName,
-                        applicationName = log.ApplicationName,
-                        url = log.Url,
-                        durationSeconds = log.DurationSeconds,
-                        activityLevel = log.ActivityLevel,
-                        category = log.Category.ToString()
-                    })
-                };
+                    timestamp = log.Timestamp.ToString("o"),
+                    windowTitle = log.WindowTitle,
+                    processName = log.ProcessName,
+                    applicationName = log.ApplicationName,
+                    url = log.Url,
+                    durationSeconds = log.DurationSeconds,
+                    activityLevel = log.ActivityLevel,
+                    category = log.Category.ToString(),
+                    sessionId = log.SessionId
+                })
+            };
 
-                var json = JsonConvert.SerializeObject(syncData);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var json = JsonConvert.SerializeObject(syncData);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync("/api/activity/sync", content);
-                if (response.IsSuccessStatusCode)
-                {
-                    // Mark logs as synced
-                    var logIds = unsyncedLogs.ConvertAll(log => log.Id);
-                    _dbService.MarkAsSynced(logIds);
-
-                    _dbService.SaveSetting("LastSyncTime", DateTime.Now.ToString("o"));
-                    return true;
-                }
-
-                return false;
-            }
-            catch
+            var response = await _httpClient.PostAsync("/api/activity/sync", content);
+            if (response.IsSuccessStatusCode)
             {
-                return false;
+                // Mark logs as synced
+                var logIds = unsyncedLogs.ConvertAll(log => log.Id);
+                _dbService.MarkAsSynced(logIds);
+
+                _dbService.SaveSetting("LastSyncTime", DateTime.Now.ToString("o"));
+                return true;
             }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Logout();
+                throw new UnauthorizedAccessException("Sync failed: Session expired.");
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"Sync failed {response.StatusCode}: {errorContent}");
         }
 
         public async Task<SessionInfo?> GetActiveSessionAsync()
@@ -126,11 +128,33 @@ namespace FlowShield.Desktop.Services
                 if (string.IsNullOrEmpty(_authToken))
                     return null;
 
-                var response = await _httpClient.GetAsync("/api/sessions/active");
+                // Fallback used: Fetch latest session and check if it's active
+                // This works even if /api/sessions/active endpoint is missing on server
+                var response = await _httpClient.GetAsync("/api/sessions?limit=1");
+
                 if (response.IsSuccessStatusCode)
                 {
                     var responseData = await response.Content.ReadAsStringAsync();
-                    return JsonConvert.DeserializeObject<SessionInfo>(responseData);
+                    var list = JsonConvert.DeserializeObject<SessionListResponse>(responseData);
+
+                    if (list != null && list.Sessions.Count > 0)
+                    {
+                        var latest = list.Sessions[0];
+
+                        // Calculate expected end time if actual EndTime is null (common for running sessions)
+                        var endTime = latest.EndTime ?? latest.StartTime.AddMinutes(latest.PlannedDuration);
+
+                        // Update the object so the UI has a valid EndTime to count down to
+                        latest.EndTime = endTime;
+
+                        // Check if it is actually active
+                        // 1. Not completed
+                        // 2. EndTime (calculated) is in the future
+                        if (!latest.Completed && endTime > DateTime.UtcNow)
+                        {
+                            return latest;
+                        }
+                    }
                 }
 
                 return null;
@@ -138,6 +162,70 @@ namespace FlowShield.Desktop.Services
             catch
             {
                 return null;
+            }
+        }
+
+        public async Task<SessionInfo?> StartSessionAsync(int durationMinutes, string sessionType = "WORK")
+        {
+            if (string.IsNullOrEmpty(_authToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            var sessionData = new
+            {
+                plannedDuration = durationMinutes,
+                sessionType
+            };
+
+            var json = JsonConvert.SerializeObject(sessionData);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync("/api/sessions", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var responseData = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<SessionResponse>(responseData);
+                return result?.Session;
+            }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Logout();
+                throw new UnauthorizedAccessException("Session expired. Please login again.");
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"Server returned {response.StatusCode}: {errorContent}");
+        }
+
+        public async Task<bool> EndSessionAsync(string sessionId)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_authToken))
+                    return false;
+
+                var updateData = new
+                {
+                    completed = true,
+                    endTime = DateTime.UtcNow
+                };
+
+                var json = JsonConvert.SerializeObject(updateData);
+                var content = new StringContent(json, Encoding.UTF8, "application/json"); // PATCH request body
+
+                // HttpClient doesn't have PatchAsync in older versions, but .NET 8 has it.
+                // Or use SendAsync with HttpMethod.Patch
+                var request = new HttpRequestMessage(new HttpMethod("PATCH"), $"/api/sessions/{sessionId}")
+                {
+                    Content = content
+                };
+
+                var response = await _httpClient.SendAsync(request);
+                return response.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -248,6 +336,8 @@ namespace FlowShield.Desktop.Services
             _httpClient.DefaultRequestHeaders.Remove("Authorization");
             _dbService.SaveSetting("AuthToken", string.Empty);
             _dbService.SaveSetting("UserId", string.Empty);
+
+            SessionExpired?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -288,6 +378,18 @@ namespace FlowShield.Desktop.Services
 
         [JsonProperty("startTime")]
         public DateTime StartTime { get; set; }
+
+        [JsonProperty("endTime")]
+        public DateTime? EndTime { get; set; }
+
+        [JsonProperty("completed")]
+        public bool Completed { get; set; }
+    }
+
+    public class SessionListResponse
+    {
+        [JsonProperty("sessions")]
+        public List<SessionInfo> Sessions { get; set; } = new List<SessionInfo>();
     }
 
     public class PreferencesResponse
@@ -324,5 +426,11 @@ namespace FlowShield.Desktop.Services
 
         [JsonProperty("darkMode")]
         public bool DarkMode { get; set; }
+    }
+
+    public class SessionResponse
+    {
+        [JsonProperty("session")]
+        public SessionInfo? Session { get; set; }
     }
 }

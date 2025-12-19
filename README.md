@@ -57,6 +57,7 @@ The web application is live and packed with features to boost your productivity 
 - **Automatic Tracking**: Monitors active window/app usage
 - **Idle Detection**: Smart pause/resume based on activity
 - **Cloud Sync**: Seamless synchronization with the web app
+- **Deep Work Mode**: Block distractions during focus sessions
 - **Privacy Focused**: Local-first architecture (SQLite)
 
 ---

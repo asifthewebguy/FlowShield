@@ -4,12 +4,13 @@ Windows desktop application for automatic activity tracking and productivity mon
 
 ## Features
 
+- **Desktop Widget**: Floating widget for quick access to timer and Deep Work controls
 - **Automatic Activity Tracking**: Tracks active window titles and application usage
 - **Process Monitoring**: Records which applications you're using and for how long
 - **Idle Time Detection**: Detects when you're idle (no keyboard/mouse activity) and pauses tracking
 - **Activity Level Tracking**: Measures keyboard and mouse activity intensity (0-100 scale)
 - **Smart Categorization**: Automatically categorizes activities (Development, Communication, Entertainment, etc.)
-- **Website Blocking**: Block distracting websites based on your preferences (requires Administrator)
+- **Deep Work Mode**: One-click blocking of distracting websites and apps (requires Administrator)
 - **Offline-First**: Stores activity logs locally in SQLite database
 - **Cloud Sync**: Syncs activity data with FlowShield web app when online
 - **System Tray Integration**: Runs quietly in the background with system tray icon
@@ -184,7 +185,15 @@ Contains:
 - **ActivityLogs**: All tracked activities with timestamps
 - **Settings**: User preferences and configuration
 
-## Website Blocking
+## Desktop Widget
+
+The new Desktop Widget provides a focused, always-on-top interface for your deep work sessions:
+
+- **Focus Timer**: Visual timer for your current session
+- **Deep Work Mode**: Toggle website blocking instantly
+- **Quick Actions**: Start/Pause sessions and minimize to tray
+
+## Deep Work Mode (Website Blocking)
 
 FlowShield can block distracting websites by modifying the Windows hosts file. This feature integrates with your web app preferences.
 

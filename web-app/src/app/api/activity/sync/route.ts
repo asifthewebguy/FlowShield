@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
       durationSeconds: activity.durationSeconds,
       activityLevel: activity.activityLevel || 0,
       category: activity.category,
+      sessionId: activity.sessionId || null,
     }));
 
     // Batch insert activities

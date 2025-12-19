@@ -8,7 +8,7 @@ namespace FlowShield.Desktop.Services
 {
     public class DatabaseService
     {
-        private readonly string _connectionString;
+        private string _connectionString;
         private readonly string _dbPath;
 
         public DatabaseService()
@@ -23,8 +23,51 @@ namespace FlowShield.Desktop.Services
             _connectionString = $"Data Source={_dbPath}";
         }
 
-        public void Initialize()
+        public void Initialize(string password = null)
         {
+            var targetConnectionString = $"Data Source={_dbPath}";
+            if (!string.IsNullOrEmpty(password))
+            {
+                targetConnectionString += $";Password={password}";
+            }
+
+            // check if we need to migrate from unencrypted to encrypted
+            if (!string.IsNullOrEmpty(password) && File.Exists(_dbPath))
+            {
+                try
+                {
+                    // Try to open with the password
+                    using var testConnection = new SqliteConnection(targetConnectionString);
+                    testConnection.Open();
+                    using var cmd = testConnection.CreateCommand();
+                    cmd.CommandText = "SELECT count(*) FROM sqlite_master;";
+                    cmd.ExecuteScalar();
+                }
+                catch (SqliteException ex) when (ex.SqliteErrorCode == 26) // file is not a database
+                {
+                    // This error indicates the file exists but isn't readable with the key.
+                    // It likely means it's unencrypted. Let's try to encrypt it.
+                    try
+                    {
+                        var plainConnectionString = $"Data Source={_dbPath}";
+                        using var plainConnection = new SqliteConnection(plainConnectionString);
+                        plainConnection.Open();
+
+                        using var cmd = plainConnection.CreateCommand();
+                        cmd.CommandText = $"PRAGMA rekey = '{password}';";
+                        cmd.ExecuteNonQuery();
+                    }
+                    catch
+                    {
+                        // If that fails too, just throw the original exception
+                        throw ex;
+                    }
+                }
+            }
+
+            // Update the instance connection string so all subsequent calls use the password
+            _connectionString = targetConnectionString;
+
             using var connection = new SqliteConnection(_connectionString);
             connection.Open();
 
@@ -66,16 +109,14 @@ namespace FlowShield.Desktop.Services
             checkColumnCmd.CommandText = "PRAGMA table_info(ActivityLogs)";
 
             bool hasActivityLevel = false;
+            bool hasSessionId = false;
             using (var reader = checkColumnCmd.ExecuteReader())
             {
                 while (reader.Read())
                 {
                     var columnName = reader.GetString(1); // Column name is at index 1
-                    if (columnName == "ActivityLevel")
-                    {
-                        hasActivityLevel = true;
-                        break;
-                    }
+                    if (columnName == "ActivityLevel") hasActivityLevel = true;
+                    if (columnName == "SessionId") hasSessionId = true;
                 }
             }
 
@@ -84,6 +125,14 @@ namespace FlowShield.Desktop.Services
             {
                 var alterTableCmd = connection.CreateCommand();
                 alterTableCmd.CommandText = "ALTER TABLE ActivityLogs ADD COLUMN ActivityLevel INTEGER NOT NULL DEFAULT 0";
+                alterTableCmd.ExecuteNonQuery();
+            }
+
+            // Add SessionId column if it doesn't exist
+            if (!hasSessionId)
+            {
+                var alterTableCmd = connection.CreateCommand();
+                alterTableCmd.CommandText = "ALTER TABLE ActivityLogs ADD COLUMN SessionId TEXT";
                 alterTableCmd.ExecuteNonQuery();
             }
         }
