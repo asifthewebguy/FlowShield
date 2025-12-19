@@ -25,7 +25,7 @@ namespace FlowShield.Desktop.UI
         {
             Text = "FlowShield Login";
             Width = 400;
-            Height = 250;
+            Height = 320;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -86,7 +86,7 @@ namespace FlowShield.Desktop.UI
             // Status Label
             _statusLabel = new Label
             {
-                Location = new System.Drawing.Point(20, 170),
+                Location = new System.Drawing.Point(20, 175),
                 Width = 340,
                 ForeColor = System.Drawing.Color.Red,
                 Text = ""
@@ -97,7 +97,7 @@ namespace FlowShield.Desktop.UI
             _loginButton = new Button
             {
                 Text = "Login",
-                Location = new System.Drawing.Point(180, 175),
+                Location = new System.Drawing.Point(180, 210),
                 Width = 85,
                 Height = 30
             };
@@ -108,7 +108,7 @@ namespace FlowShield.Desktop.UI
             _cancelButton = new Button
             {
                 Text = "Cancel",
-                Location = new System.Drawing.Point(275, 175),
+                Location = new System.Drawing.Point(275, 210),
                 Width = 85,
                 Height = 30
             };
