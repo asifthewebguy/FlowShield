@@ -47,4 +47,5 @@ jobs:
         files: |
           FlowShield-Windows-x64.zip
           desktop-app/installer/FlowShield-Setup-v*.exe
-        generate_release_notes: true
+        body_path: RELEASE_NOTES.md
+        generate_release_notes: false
