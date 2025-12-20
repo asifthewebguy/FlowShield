@@ -8,16 +8,19 @@ namespace FlowShield.Desktop.UI
     {
         private readonly ApiClient _apiClient;
         private readonly SyncService _syncService;
+        private readonly DatabaseService _dbService;
         private TextBox? _emailTextBox;
         private TextBox? _passwordTextBox;
+        private CheckBox? _rememberMeCheckbox;
         private Button? _loginButton;
         private Button? _cancelButton;
         private Label? _statusLabel;
 
-        public LoginForm(ApiClient apiClient, SyncService syncService)
+        public LoginForm(ApiClient apiClient, SyncService syncService, DatabaseService dbService)
         {
             _apiClient = apiClient;
             _syncService = syncService;
+            _dbService = dbService;
             InitializeComponents();
         }
 
@@ -25,7 +28,7 @@ namespace FlowShield.Desktop.UI
         {
             Text = "FlowShield Login";
             Width = 400;
-            Height = 320;
+            Height = 360; // Increased height for checkbox
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -56,6 +59,14 @@ namespace FlowShield.Desktop.UI
                 Width = 340,
                 PlaceholderText = "your@email.com"
             };
+            
+            // Pre-fill email if saved
+            var savedEmail = _dbService.GetSetting("UserEmail");
+            if (!string.IsNullOrEmpty(savedEmail))
+            {
+                _emailTextBox.Text = savedEmail;
+            }
+            
             Controls.Add(_emailTextBox);
 
             // Password
@@ -93,11 +104,20 @@ namespace FlowShield.Desktop.UI
             };
             Controls.Add(_statusLabel);
 
+            // Remember Me Checkbox
+            _rememberMeCheckbox = new CheckBox
+            {
+                Text = "Remember me for 30 days",
+                Location = new System.Drawing.Point(20, 205),
+                AutoSize = true
+            };
+            Controls.Add(_rememberMeCheckbox);
+
             // Login Button
             _loginButton = new Button
             {
                 Text = "Login",
-                Location = new System.Drawing.Point(180, 210),
+                Location = new System.Drawing.Point(180, 240),
                 Width = 85,
                 Height = 30
             };
@@ -108,7 +128,7 @@ namespace FlowShield.Desktop.UI
             _cancelButton = new Button
             {
                 Text = "Cancel",
-                Location = new System.Drawing.Point(275, 210),
+                Location = new System.Drawing.Point(275, 240),
                 Width = 85,
                 Height = 30
             };
@@ -140,7 +160,8 @@ namespace FlowShield.Desktop.UI
 
             try
             {
-                var success = await _apiClient.LoginAsync(email, password);
+                var rememberMe = _rememberMeCheckbox?.Checked ?? false;
+                var success = await _apiClient.LoginAsync(email, password, rememberMe);
 
                 if (success)
                 {

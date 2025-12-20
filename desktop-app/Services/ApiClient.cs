@@ -36,11 +36,11 @@ namespace FlowShield.Desktop.Services
             }
         }
 
-        public async Task<bool> LoginAsync(string email, string password)
+        public async Task<bool> LoginAsync(string email, string password, bool rememberMe)
         {
             try
             {
-                var loginData = new { email, password };
+                var loginData = new { email, password, rememberMe };
                 var json = JsonConvert.SerializeObject(loginData);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
@@ -59,6 +59,9 @@ namespace FlowShield.Desktop.Services
                         // Save credentials
                         _dbService.SaveSetting("AuthToken", _authToken);
                         _dbService.SaveSetting("UserId", result.UserId ?? string.Empty);
+                        
+                        // Save email for pre-filling next time
+                        _dbService.SaveSetting("UserEmail", email);
 
                         return true;
                     }

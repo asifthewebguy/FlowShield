@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password } = body;
+    const { email, password, rememberMe } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     const token = sign(
       { userId: user.id, email: user.email },
       getJwtSecret(),
-      { expiresIn: '1h' } // Reduced from 7d for better security
+      { expiresIn: rememberMe ? '30d' : '1h' } // 30 days if rememberMe is true, else 1 hour
     );
 
     // Return user data (excluding password) and token
