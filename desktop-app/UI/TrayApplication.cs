@@ -282,7 +282,7 @@ namespace FlowShield.Desktop.UI
 
         private void ShowLoginDialog()
         {
-            var loginForm = new LoginForm(_apiClient, _syncService);
+            var loginForm = new LoginForm(_apiClient, _syncService, _dbService);
             if (loginForm.ShowDialog() == DialogResult.OK)
             {
                 _notificationService.NotifyLoginSuccess();
