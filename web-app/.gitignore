@@ -16,6 +16,8 @@
 # misc
 .DS_Store
 *.pem
+.env
+.env.production
 
 next-env.d.ts
 
