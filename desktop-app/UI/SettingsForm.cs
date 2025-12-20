@@ -8,16 +8,18 @@ namespace FlowShield.Desktop.UI
     {
         private readonly DatabaseService _dbService;
         private readonly ApiClient _apiClient;
+        private readonly NotificationService _notificationService;
         private TextBox? _apiUrlTextBox;
         private NumericUpDown? _trackingIntervalInput;
         private NumericUpDown? _syncIntervalInput;
         private CheckBox? _startWithWindowsCheckBox;
         private CheckBox? _showNotificationsCheckBox;
 
-        public SettingsForm(DatabaseService dbService, ApiClient apiClient)
+        public SettingsForm(DatabaseService dbService, ApiClient apiClient, NotificationService notificationService)
         {
             _dbService = dbService;
             _apiClient = apiClient;
+            _notificationService = notificationService;
             InitializeComponents();
             LoadSettings();
         }
@@ -239,10 +241,14 @@ namespace FlowShield.Desktop.UI
                 _dbService.SaveSetting("StartWithWindows", _startWithWindowsCheckBox.Checked.ToString());
 
             if (_showNotificationsCheckBox != null)
-                _dbService.SaveSetting("ShowNotifications", _showNotificationsCheckBox.Checked.ToString());
+            {
+                var show = _showNotificationsCheckBox.Checked;
+                _dbService.SaveSetting("ShowNotifications", show.ToString());
+                _notificationService.SetEnabled(show);
+            }
 
             MessageBox.Show(
-                "Settings saved successfully!\n\nPlease restart FlowShield for changes to take effect.",
+                "Settings saved successfully!",
                 "Settings Saved",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information

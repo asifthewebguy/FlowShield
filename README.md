@@ -58,6 +58,7 @@ The web application is live and packed with features to boost your productivity 
 - **Idle Detection**: Smart pause/resume based on activity
 - **Cloud Sync**: Seamless synchronization with the web app
 - **Deep Work Mode**: Block distractions during focus sessions
+- **Customizable Notifications**: Toggle system alerts to suit your workflow
 - **Privacy Focused**: Local-first architecture (SQLite)
 
 ---
