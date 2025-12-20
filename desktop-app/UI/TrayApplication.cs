@@ -237,7 +237,7 @@ namespace FlowShield.Desktop.UI
 
         private void ShowSettings(object? sender, EventArgs e)
         {
-            var settingsForm = new SettingsForm(_dbService, _apiClient);
+            var settingsForm = new SettingsForm(_dbService, _apiClient, _notificationService);
             settingsForm.ShowDialog();
         }
 
@@ -338,12 +338,16 @@ namespace FlowShield.Desktop.UI
             }
         }
 
+        private DateTime _lastProductivityNotificationTime = DateTime.MinValue;
+
         private void OnActivityLogged(object? sender, ActivityLoggedEventArgs e)
         {
             // Optional: Notify on high productivity
-            if (e.ActivityLevel >= 80)
+            // Rate limit to once every 30 minutes to avoid spamming
+            if (e.ActivityLevel >= 80 && (DateTime.Now - _lastProductivityNotificationTime).TotalMinutes >= 30)
             {
                 _notificationService.NotifyHighProductivity();
+                _lastProductivityNotificationTime = DateTime.Now;
             }
         }
 

@@ -123,10 +123,10 @@ The app provides real-time notifications for important events:
 - **Idle Detection**: Alert when user goes idle and when activity resumes
 - **Sync Status**: Start, success, and failure notifications with counts
 - **Login/Logout**: Authentication status updates
-- **High Productivity**: Congratulatory messages when activity level is high (≥80)
+- **High Productivity**: Congratulatory messages when activity level is high (smartly rate-limited)
 - **Daily Summary**: Optional daily stats notifications
 
-All notifications can be toggled on/off in Settings.
+All notifications can be toggled on/off instantly in Settings.
 
 ### Settings
 
