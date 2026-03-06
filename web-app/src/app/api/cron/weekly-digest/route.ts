@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       const [thisWeekSessions, thisWeekStats, lastWeekStats] = await Promise.all([
         prisma.session.findMany({
           where: { userId: user.id, startTime: { gte: sevenDaysAgo }, completed: true },
-          select: { plannedDuration: true, actualDuration: true, productivityScore: true, startTime: true },
+          select: { plannedDuration: true, actualDuration: true, productivityScore: true, startTime: true, completed: true },
         }),
         prisma.dailyStats.findMany({
           where: { userId: user.id, date: { gte: sevenDaysAgo } },

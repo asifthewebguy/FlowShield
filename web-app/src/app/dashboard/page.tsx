@@ -25,19 +25,20 @@ const fetcher = (url: string) => {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-
-  // Initialize user from local storage
-  useEffect(() => {
-    const userData = localStorage.getItem('user');
+  const [user] = useState<any>(() => {
+    if (typeof window === 'undefined') return null;
     const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    if (!token || !userData) return null;
+    return JSON.parse(userData);
+  });
 
-    if (!token || !userData) {
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!user) {
       router.push('/auth/login');
-    } else {
-      setUser(JSON.parse(userData));
     }
-  }, [router]);
+  }, [router, user]);
 
   const today = new Date().toISOString().split('T')[0];
   const { data: sessionData, error: sessionError, mutate } = useSWR(

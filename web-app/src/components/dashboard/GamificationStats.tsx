@@ -1,12 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import {
-    calculateUserLevel,
-    checkBadges,
-    UserLevel,
-    Badge
-} from '@/lib/productivity';
+import { calculateUserLevel, checkBadges } from '@/lib/productivity';
 
 interface GamificationStatsProps {
     totalMinutes: number;
@@ -19,21 +13,8 @@ export default function GamificationStats({
     totalSessions,
     currentStreak
 }: GamificationStatsProps) {
-    const [level, setLevel] = useState<UserLevel | null>(null);
-    const [badges, setBadges] = useState<Badge[]>([]);
-
-    useEffect(() => {
-        // Calculate level
-        const userLevel = calculateUserLevel(totalMinutes);
-        setLevel(userLevel);
-
-        // Check badges
-        const userBadges = checkBadges(totalSessions, totalMinutes, currentStreak);
-        setBadges(userBadges);
-    }, [totalMinutes, totalSessions, currentStreak]);
-
-    if (!level) return null;
-
+    const level = calculateUserLevel(totalMinutes);
+    const badges = checkBadges(totalSessions, totalMinutes, currentStreak);
     const earnedBadges = badges.filter(b => b.achieved);
 
     return (
