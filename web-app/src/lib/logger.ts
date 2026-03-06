@@ -1,13 +1,9 @@
-/**
- * Server-side logging utility
- * In production, this could be extended to send logs to a logging service
- */
+import * as Sentry from '@sentry/nextjs';
 
 type LogLevel = 'info' | 'warn' | 'error';
 
 class Logger {
   private shouldLog(level: LogLevel): boolean {
-    // Only log errors in production, all in development
     if (process.env.NODE_ENV === 'production') {
       return level === 'error';
     }
@@ -29,8 +25,13 @@ class Logger {
   error(message: string, error?: any): void {
     if (this.shouldLog('error')) {
       console.error(`[ERROR] ${message}`, error);
-      // In production, you could send this to a logging service
-      // Example: sendToLoggingService({ level: 'error', message, error });
+    }
+    if (error instanceof Error) {
+      Sentry.captureException(error, { extra: { message } });
+    } else if (error) {
+      Sentry.captureMessage(`${message}: ${String(error)}`, 'error');
+    } else {
+      Sentry.captureMessage(message, 'error');
     }
   }
 }
