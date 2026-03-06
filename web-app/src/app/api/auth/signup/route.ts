@@ -1,37 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { hashPassword, validateEmail, validatePassword } from '@/lib/auth';
+import { hashPassword } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import crypto from 'crypto';
 import { sendEmail } from '@/lib/email';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { SignupSchema } from '@/lib/schemas';
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 5 signups per hour per IP
+    const ip = getClientIp(request);
+    const rl = rateLimit(`signup:${ip}`, 5, 60 * 60 * 1000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many signup attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.resetInMs / 1000)) } }
+      );
+    }
+
     const body = await request.json();
-    const { email, password, name } = body;
-
-    // Validation
-    if (!email || !password) {
+    const parsed = SignupSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: parsed.error.issues[0].message },
         { status: 400 }
       );
     }
-
-    if (!validateEmail(email)) {
-      return NextResponse.json(
-        { error: 'Invalid email format' },
-        { status: 400 }
-      );
-    }
-
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.valid) {
-      return NextResponse.json(
-        { error: passwordValidation.error },
-        { status: 400 }
-      );
-    }
+    const { email, password, name } = parsed.data;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -60,7 +56,7 @@ export async function POST(request: NextRequest) {
         verificationTokenExpires,
         preferences: {
           create: {
-            preferredDuration: 25, // Default Pomodoro
+            preferredDuration: 25,
             primaryDistractions: [],
           },
         },
@@ -87,7 +83,6 @@ export async function POST(request: NextRequest) {
       `,
     });
 
-    // Send admin notification
     if (process.env.ADMIN_EMAIL) {
       await sendEmail({
         to: process.env.ADMIN_EMAIL,
@@ -106,9 +101,9 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    logger.error('Signup error:', error);
+    logger.error('Signup error', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

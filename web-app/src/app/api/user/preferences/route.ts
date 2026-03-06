@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
+import { UpdatePreferencesSchema } from '@/lib/schemas';
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,18 +50,16 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { darkMode } = body;
+    const parsed = UpdatePreferencesSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    }
+    const updates = parsed.data;
 
-    // Update or create preferences
     const updatedPreferences = await prisma.userPreferences.upsert({
       where: { userId },
-      update: {
-        ...(typeof darkMode === 'boolean' && { darkMode }),
-      },
-      create: {
-        userId,
-        darkMode: darkMode ?? false,
-      },
+      update: updates,
+      create: { userId, ...updates },
     });
 
     return NextResponse.json({

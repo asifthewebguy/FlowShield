@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
+import { CreateProjectSchema } from '@/lib/schemas';
 
 export async function GET(request: NextRequest) {
     try {
@@ -22,7 +24,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json(projects);
     } catch (error) {
-        console.error('Error fetching projects:', error);
+        logger.error('Error fetching projects:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
@@ -36,23 +38,23 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { name, color } = body;
-
-        if (!name) {
-            return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
+        const parsed = CreateProjectSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
         }
+        const { name, color } = parsed.data;
 
         const project = await prisma.project.create({
             data: {
                 userId,
                 name,
-                color: color || '#3b82f6', // Default blue
+                color: color || '#3b82f6',
             },
         });
 
         return NextResponse.json(project, { status: 201 });
     } catch (error) {
-        console.error('Error creating project:', error);
+        logger.error('Error creating project:', error);
         // Unique constraint violation (P2002)
         if ((error as any).code === 'P2002') {
             return NextResponse.json({ error: 'Project with this name already exists' }, { status: 409 });

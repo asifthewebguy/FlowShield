@@ -6,16 +6,14 @@ import { logger } from '@/lib/logger';
 export async function GET(request: NextRequest) {
   try {
     const userId = getUserIdFromToken(request);
-
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
-    const format = searchParams.get('format') || 'json'; // 'json' or 'csv'
-    const period = searchParams.get('period') || 'month'; // 'week', 'month', or 'all'
+    const format = searchParams.get('format') || 'json';
+    const period = searchParams.get('period') || 'all';
 
-    // Calculate date range
     let startDate: Date | undefined;
     const now = new Date();
 
@@ -26,43 +24,49 @@ export async function GET(request: NextRequest) {
       startDate = new Date(now);
       startDate.setDate(now.getDate() - 30);
     }
-    // If 'all', startDate remains undefined (no filter)
 
-    // Fetch sessions
-    const sessions = await prisma.session.findMany({
-      where: {
-        userId,
-        ...(startDate && {
-          startTime: {
-            gte: startDate,
-          },
+    const dateFilter = startDate ? { gte: startDate } : undefined;
+
+    // Fetch all user data in parallel
+    const [user, preferences, sessions, activityLogs, goals, dailyStats, projects, devices] =
+      await Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, email: true, name: true, timezone: true, createdAt: true },
         }),
-      },
-      orderBy: { startTime: 'desc' },
-    });
+        prisma.userPreferences.findUnique({ where: { userId } }),
+        prisma.session.findMany({
+          where: { userId, ...(dateFilter && { startTime: dateFilter }) },
+          orderBy: { startTime: 'desc' },
+        }),
+        prisma.activityLog.findMany({
+          where: { userId, ...(dateFilter && { timestamp: dateFilter }) },
+          orderBy: { timestamp: 'desc' },
+        }),
+        prisma.goal.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
+        prisma.dailyStats.findMany({
+          where: { userId, ...(dateFilter && { date: dateFilter }) },
+          orderBy: { date: 'desc' },
+        }),
+        prisma.project.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
+        prisma.deviceConnection.findMany({ where: { userId } }),
+      ]);
 
     if (format === 'csv') {
-      // Generate CSV
+      // CSV export: sessions only (activity logs are too large for a flat CSV)
       const headers = [
-        'Session ID',
-        'Start Time',
-        'End Time',
-        'Session Type',
-        'Planned Duration (min)',
-        'Actual Duration (min)',
-        'Completed',
-        'Productivity Score',
+        'Session ID', 'Start Time', 'End Time', 'Session Type',
+        'Planned Duration (min)', 'Actual Duration (min)', 'Completed', 'Productivity Score',
       ];
-
-      const rows = sessions.map((session) => [
-        session.id,
-        session.startTime.toISOString(),
-        session.endTime?.toISOString() || 'N/A',
-        session.sessionType,
-        session.plannedDuration.toString(),
-        session.actualDuration?.toString() || 'N/A',
-        session.completed ? 'Yes' : 'No',
-        session.productivityScore?.toString() || 'N/A',
+      const rows = sessions.map((s) => [
+        s.id,
+        s.startTime.toISOString(),
+        s.endTime?.toISOString() || 'N/A',
+        s.sessionType,
+        s.plannedDuration.toString(),
+        s.actualDuration?.toString() || 'N/A',
+        s.completed ? 'Yes' : 'No',
+        s.productivityScore?.toString() || 'N/A',
       ]);
 
       const csvContent = [
@@ -73,39 +77,75 @@ export async function GET(request: NextRequest) {
       return new NextResponse(csvContent, {
         headers: {
           'Content-Type': 'text/csv',
-          'Content-Disposition': `attachment; filename="flowshield-sessions-${period}-${new Date().toISOString().split('T')[0]}.csv"`,
-        },
-      });
-    } else {
-      // Return JSON
-      const exportData = {
-        exportDate: new Date().toISOString(),
-        period,
-        totalSessions: sessions.length,
-        sessions: sessions.map((session) => ({
-          id: session.id,
-          startTime: session.startTime.toISOString(),
-          endTime: session.endTime?.toISOString() || null,
-          sessionType: session.sessionType,
-          plannedDuration: session.plannedDuration,
-          actualDuration: session.actualDuration,
-          completed: session.completed,
-          productivityScore: session.productivityScore,
-        })),
-      };
-
-      return new NextResponse(JSON.stringify(exportData, null, 2), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Disposition': `attachment; filename="flowshield-sessions-${period}-${new Date().toISOString().split('T')[0]}.json"`,
+          'Content-Disposition': `attachment; filename="flowshield-sessions-${period}-${now.toISOString().split('T')[0]}.csv"`,
         },
       });
     }
+
+    // Full JSON export — all user data (GDPR-compliant)
+    const exportData = {
+      exportDate: now.toISOString(),
+      period,
+      account: user,
+      preferences,
+      sessions: sessions.map((s) => ({
+        id: s.id,
+        startTime: s.startTime.toISOString(),
+        endTime: s.endTime?.toISOString() || null,
+        sessionType: s.sessionType,
+        plannedDuration: s.plannedDuration,
+        actualDuration: s.actualDuration,
+        completed: s.completed,
+        productivityScore: s.productivityScore,
+        projectId: s.projectId,
+      })),
+      activityLogs: activityLogs.map((a) => ({
+        id: a.id,
+        timestamp: a.timestamp.toISOString(),
+        applicationName: a.applicationName,
+        windowTitle: a.windowTitle,
+        url: a.url,
+        category: a.category,
+        durationSeconds: a.durationSeconds,
+        activityLevel: a.activityLevel,
+      })),
+      goals: goals.map((g) => ({
+        id: g.id,
+        goalType: g.goalType,
+        targetValue: g.targetValue,
+        currentValue: g.currentValue,
+        startDate: g.startDate.toISOString(),
+        endDate: g.endDate?.toISOString() || null,
+        active: g.active,
+      })),
+      dailyStats: dailyStats.map((d) => ({
+        date: d.date.toISOString(),
+        totalFocusMinutes: d.totalFocusMinutes,
+        avgProductivityScore: d.avgProductivityScore,
+        sessionsCompleted: d.sessionsCompleted,
+        peakFocusHour: d.peakFocusHour,
+      })),
+      projects: projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        color: p.color,
+        createdAt: p.createdAt.toISOString(),
+      })),
+      devices: devices.map((d) => ({
+        deviceName: d.deviceName,
+        platform: d.platform,
+        lastSyncAt: d.lastSyncAt.toISOString(),
+      })),
+    };
+
+    return new NextResponse(JSON.stringify(exportData, null, 2), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Disposition': `attachment; filename="flowshield-export-${period}-${now.toISOString().split('T')[0]}.json"`,
+      },
+    });
   } catch (error) {
-    logger.error('Export error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Export error', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

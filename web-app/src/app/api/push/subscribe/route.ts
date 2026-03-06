@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
     try {
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error saving subscription:', error);
+        logger.error('Error saving subscription', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }

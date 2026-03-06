@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import CookieConsent from "@/components/CookieConsent";
 
 export const metadata: Metadata = {
   title: "FlowShield - AI-Powered Productivity & Focus Management",
@@ -20,6 +21,7 @@ export default function RootLayout({
       <body className="antialiased">
         <ThemeProvider>
           {children}
+          <CookieConsent />
         </ThemeProvider>
       </body>
     </html>

@@ -4,18 +4,30 @@ import { verifyPassword } from '@/lib/auth';
 import { sign } from 'jsonwebtoken';
 import { getJwtSecret } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { LoginSchema } from '@/lib/schemas';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { email, password, rememberMe } = body;
-
-    if (!email || !password) {
+    // Rate limit: 10 attempts per 15 minutes per IP
+    const ip = getClientIp(request);
+    const rl = rateLimit(`login:${ip}`, 10, 15 * 60 * 1000);
+    if (!rl.allowed) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Too many login attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.resetInMs / 1000)) } }
+      );
+    }
+
+    const body = await request.json();
+    const parsed = LoginSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
         { status: 400 }
       );
     }
+    const { email, password, rememberMe } = parsed.data;
 
     // Find user
     const user = await prisma.user.findUnique({

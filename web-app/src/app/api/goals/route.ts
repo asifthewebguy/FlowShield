@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
+import { CreateGoalSchema } from '@/lib/schemas';
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,7 +32,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ goals });
   } catch (error: any) {
-    console.error('Error fetching goals:', error);
+    logger.error('Error fetching goals', error);
     return NextResponse.json(
       { error: 'Internal server error', details: error.message },
       { status: 500 }
@@ -46,7 +48,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { targetValue, type = 'DAILY_TIME' } = body;
+    const parsed = CreateGoalSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    }
+    const { targetValue, type } = parsed.data;
 
     // Check if an active goal of this type already exists
     const existingGoal = await prisma.goal.findFirst({
@@ -81,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ goal: newGoal });
   } catch (error) {
-    console.error('Error creating/updating goal:', error);
+    logger.error('Error creating/updating goal', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
