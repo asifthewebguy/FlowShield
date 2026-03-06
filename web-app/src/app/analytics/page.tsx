@@ -60,6 +60,10 @@ export default function AnalyticsPage() {
     { refreshInterval: 300000 } // Refresh every 5 minutes
   );
 
+  const { data: insightsData } = useSWR('/api/analytics/insights', fetcher, {
+    refreshInterval: 300000,
+  });
+
   const handleExport = (format: 'json' | 'csv') => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -270,7 +274,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Sessions Completed Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
             Sessions Completed Per Day
           </h3>
@@ -284,6 +288,57 @@ export default function AnalyticsPage() {
             </BarChart>
           </ResponsiveContainer>
         </div>
+
+        {/* Insights Panel */}
+        {insightsData?.insights && insightsData.insights.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <span className="text-2xl">💡</span>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                Your Insights
+              </h3>
+              {insightsData.streak > 0 && (
+                <span className="ml-auto text-sm font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-3 py-1 rounded-full">
+                  🔥 {insightsData.streak}-day streak
+                </span>
+              )}
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {insightsData.insights.map((insight: { id: string; type: string; title: string; description: string }) => {
+                const iconMap: Record<string, string> = {
+                  streak: '🔥',
+                  trend: insight.title.includes('up') ? '📈' : '📉',
+                  best_day: '🏆',
+                  peak_hour: '⚡',
+                  completion: '✅',
+                  consistency: '📅',
+                };
+                const colorMap: Record<string, string> = {
+                  streak: 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/10',
+                  trend: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10',
+                  best_day: 'border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/10',
+                  peak_hour: 'border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/10',
+                  completion: 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10',
+                  consistency: 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30',
+                };
+                return (
+                  <div
+                    key={insight.id}
+                    className={`rounded-lg border p-4 ${colorMap[insight.type] ?? colorMap.consistency}`}
+                  >
+                    <div className="text-2xl mb-2">{iconMap[insight.type] ?? '💡'}</div>
+                    <div className="font-semibold text-gray-900 dark:text-white text-sm mb-1">
+                      {insight.title}
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                      {insight.description}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

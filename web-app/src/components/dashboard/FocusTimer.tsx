@@ -1,8 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import useSWR from 'swr';
 import { soundManager } from '@/lib/SoundManager';
+
+type BreakPhase = 'none' | 'suggested' | 'active';
+
+function suggestedBreakMinutes(plannedDurationMin: number): number {
+  if (plannedDurationMin >= 90) return 15;
+  if (plannedDurationMin >= 50) return 10;
+  return 5;
+}
 
 interface Project {
   id: string;
@@ -50,6 +58,12 @@ export default function FocusTimer({
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [soundType, setSoundType] = useState<'white' | 'pink' | 'brown'>('brown');
   const [volume, setVolume] = useState(0.5);
+
+  // Break phase state machine
+  const [breakPhase, setBreakPhase] = useState<BreakPhase>('none');
+  const [breakTimeRemaining, setBreakTimeRemaining] = useState(0);
+  const [breakDurationSecs, setBreakDurationSecs] = useState(0);
+  const timerWasRunning = useRef(false);
 
   // Project Creation State
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -105,23 +119,70 @@ export default function FocusTimer({
     }
   }, [currentSession, onSessionEnd, onSessionUpdate]);
 
+  // Main focus timer countdown
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
-    if (currentSession && !currentSession.isPaused && timeRemaining > 0) {
+    if (currentSession && !currentSession.isPaused && timeRemaining > 0 && breakPhase === 'none') {
+      timerWasRunning.current = true;
       interval = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            handleEndSession();
-            return 0;
-          }
-          return prev - 1;
-        });
+        setTimeRemaining((prev) => Math.max(0, prev - 1));
       }, 1000);
+    } else if (
+      timerWasRunning.current &&
+      timeRemaining === 0 &&
+      currentSession &&
+      !currentSession.isPaused &&
+      breakPhase === 'none'
+    ) {
+      // Timer ran out naturally — suggest a break for WORK sessions ≥ 15 min
+      timerWasRunning.current = false;
+      const plannedMin: number = currentSession.plannedDuration ?? 0;
+      if (currentSession.sessionType === 'WORK' && plannedMin >= 15) {
+        const breakSecs = suggestedBreakMinutes(plannedMin) * 60;
+        setBreakDurationSecs(breakSecs);
+        setBreakTimeRemaining(breakSecs);
+        setBreakPhase('suggested');
+      } else {
+        handleEndSession();
+      }
     }
 
     return () => clearInterval(interval);
-  }, [currentSession, timeRemaining, handleEndSession]);
+  }, [currentSession, timeRemaining, handleEndSession, breakPhase]);
+
+  // Break countdown timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (breakPhase === 'active' && breakTimeRemaining > 0) {
+      interval = setInterval(() => {
+        setBreakTimeRemaining((prev) => Math.max(0, prev - 1));
+      }, 1000);
+    } else if (breakPhase === 'active' && breakTimeRemaining === 0) {
+      // Break finished naturally
+      handleEndSession();
+      setBreakPhase('none');
+    }
+
+    return () => clearInterval(interval);
+  }, [breakPhase, breakTimeRemaining, handleEndSession]);
+
+  const handleStartBreak = () => {
+    setBreakPhase('active');
+  };
+
+  const handleSkipBreak = useCallback(async () => {
+    setBreakPhase('none');
+    timerWasRunning.current = false;
+    await handleEndSession();
+  }, [handleEndSession]);
+
+  const handleEndBreak = useCallback(async () => {
+    setBreakPhase('none');
+    setBreakTimeRemaining(0);
+    await handleEndSession();
+  }, [handleEndSession]);
 
   const handleStartSession = async () => {
     try {
@@ -246,7 +307,63 @@ export default function FocusTimer({
         </div>
       </div>
 
-      {!currentSession ? (
+      {/* Break suggestion overlay — shown after a WORK session ends naturally */}
+      {currentSession && breakPhase === 'suggested' && (
+        <div className="space-y-6 text-center">
+          <div className="text-5xl mb-2">☕</div>
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+              Great work! Take a break?
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">
+              You just completed a {currentSession.plannedDuration}-minute session.
+              A {Math.round(breakDurationSecs / 60)}-minute break is recommended.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={handleStartBreak}
+              className="py-3 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors"
+            >
+              Take {Math.round(breakDurationSecs / 60)}-min Break
+            </button>
+            <button
+              onClick={handleSkipBreak}
+              className="py-3 px-4 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Skip Break
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Active break timer */}
+      {currentSession && breakPhase === 'active' && (
+        <div className="space-y-6">
+          <div className="text-center">
+            <div className="text-4xl font-bold mb-2 text-green-600 dark:text-green-400">
+              {formatTime(breakTimeRemaining)}
+            </div>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Break time — step away from the screen</p>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-4">
+              <div
+                className="h-2 rounded-full bg-green-500 transition-all duration-1000"
+                style={{
+                  width: `${breakDurationSecs > 0 ? ((breakDurationSecs - breakTimeRemaining) / breakDurationSecs) * 100 : 0}%`,
+                }}
+              />
+            </div>
+          </div>
+          <button
+            onClick={handleEndBreak}
+            className="w-full py-3 px-4 border-2 border-green-500 text-green-600 dark:text-green-400 rounded-lg font-semibold hover:bg-green-50 dark:hover:bg-green-900/20"
+          >
+            End Break Early
+          </button>
+        </div>
+      )}
+
+      {!currentSession && breakPhase === 'none' ? (
         <div className="space-y-6">
           {/* Project Selector */}
           <div>
@@ -366,7 +483,7 @@ export default function FocusTimer({
             {isProcessing ? 'Starting...' : 'Start Focus Session'}
           </button>
         </div>
-      ) : (
+      ) : currentSession && breakPhase === 'none' ? (
         <div className="space-y-6">
           <div className="text-center">
             <div className={`text-6xl font-bold mb-4 ${currentSession.isPaused ? 'text-gray-400' : 'text-primary-600'}`}>
@@ -413,7 +530,7 @@ export default function FocusTimer({
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
