@@ -27,6 +27,7 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@netlify/functions": "^5.1.2",
     "@playwright/test": "^1.57.0",
     "@prisma/client": "^5.22.0",
     "@types/bcryptjs": "^2.4.6",
