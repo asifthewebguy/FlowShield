@@ -63,6 +63,9 @@ async function checkAuth() {
   if (token) {
     showScreen('main');
     await refreshState();
+    // Background may have cleared a stale/expired token during refreshState
+    const { token: current } = await chrome.storage.local.get('token');
+    if (!current) showScreen('auth');
   } else {
     showScreen('auth');
   }

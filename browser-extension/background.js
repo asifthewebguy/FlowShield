@@ -113,8 +113,12 @@ async function syncActivities() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body:    JSON.stringify({ source: 'browser', activities: logsToSend }),
     });
-    if (!res.ok) {
-      // Put logs back if sync failed
+    if (res.status === 401) {
+      // Stale token — clear it so popup shows login screen
+      await chrome.storage.local.remove('token');
+      pendingLogs = []; // discard; user must re-auth
+    } else if (!res.ok) {
+      // Transient error — put logs back for next sync
       pendingLogs = [...logsToSend, ...pendingLogs];
     }
   } catch {
@@ -131,6 +135,13 @@ async function fetchActiveSession() {
     const res = await fetch(`${API_BASE}/api/sessions?date=${today}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (res.status === 401) {
+      // Token expired or logged out — clear stored token
+      await chrome.storage.local.remove('token');
+      activeSession = null;
+      updateBadge();
+      return;
+    }
     if (!res.ok) return;
     const data = await res.json();
     const sessions = data.sessions || [];
@@ -218,8 +229,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   if (msg.type === 'TOKEN_UPDATED') {
-    fetchActiveSession();
-    fetchUserPreferences();
+    // Content script sends the actual token; popup just signals an update
+    (msg.token
+      ? chrome.storage.local.set({ token: msg.token })
+      : Promise.resolve()
+    ).then(() => {
+      fetchActiveSession();
+      fetchUserPreferences();
+    });
+    sendResponse({ ok: true });
+    return true;
+  }
+  if (msg.type === 'TOKEN_CLEARED') {
+    chrome.storage.local.remove('token').then(() => {
+      activeSession = null;
+      updateBadge();
+    });
     sendResponse({ ok: true });
     return true;
   }
