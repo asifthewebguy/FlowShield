@@ -11,11 +11,20 @@ import Header from '@/components/layout/Header';
 
 const fetcher = (url: string) => {
   const token = localStorage.getItem('token');
-  if (!token) throw new Error('No token');
+  if (!token) {
+    window.location.href = '/auth/login';
+    throw new Error('No token');
+  }
 
   return fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
   }).then(async res => {
+    if (res.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/auth/login';
+      throw new Error('Session expired');
+    }
     if (!res.ok) {
       throw new Error('An error occurred while fetching the data.');
     }
