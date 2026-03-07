@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
+import { triggerUserEvent } from '@/lib/pusher';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -80,6 +81,7 @@ export async function PATCH(
       });
     }
 
+    triggerUserEvent(userId, 'session-update');
     return NextResponse.json({ session: updatedSession });
   } catch (error) {
     logger.error('Session update error:', error);

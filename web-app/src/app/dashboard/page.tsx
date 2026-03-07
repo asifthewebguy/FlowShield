@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import FocusTimer from '@/components/dashboard/FocusTimer';
@@ -8,6 +8,7 @@ import GoalsWidget from '@/components/dashboard/GoalsWidget';
 import GamificationStats from '@/components/dashboard/GamificationStats';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 import Header from '@/components/layout/Header';
+import { getPusherClient } from '@/lib/pusher-client';
 
 const fetcher = (url: string) => {
   const token = localStorage.getItem('token');
@@ -53,8 +54,24 @@ export default function DashboardPage() {
   const { data: sessionData, error: sessionError, mutate } = useSWR(
     user ? `/api/sessions?date=${today}` : null,
     fetcher,
-    { refreshInterval: 60000 } // Auto-refresh every minute
+    { refreshInterval: 30000 }
   );
+
+  // Stable mutate reference for Pusher effect
+  const stableMutate = useCallback(() => { mutate(); }, [mutate]);
+
+  // Real-time updates via Pusher
+  useEffect(() => {
+    if (!user?.id) return;
+    const pusherClient = getPusherClient();
+    const channel = pusherClient.subscribe(`user-${user.id}`);
+    channel.bind('session-update', stableMutate);
+    channel.bind('activity-synced', stableMutate);
+    return () => {
+      channel.unbind_all();
+      pusherClient.unsubscribe(`user-${user.id}`);
+    };
+  }, [user?.id, stableMutate]);
 
   const todaySessions = sessionData?.sessions || [];
 

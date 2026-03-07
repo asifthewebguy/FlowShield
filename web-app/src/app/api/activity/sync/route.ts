@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
+import { triggerUserEvent } from '@/lib/pusher';
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
       skipDuplicates: true,
     });
 
+    triggerUserEvent(userId, 'activity-synced');
     return NextResponse.json({
       message: 'Activities synced successfully',
       count: activities.length,

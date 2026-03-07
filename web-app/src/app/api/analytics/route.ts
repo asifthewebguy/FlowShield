@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { calculateProductivityScore, detectPeakTimes } from '@/lib/productivity';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
+import { redis, CACHE_TTL } from '@/lib/redis';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,6 +15,10 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period') || 'week'; // 'week' or 'month'
+
+    const cacheKey = `analytics:${userId}:${period}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) return NextResponse.json(cached);
 
     // Calculate date range
     const now = new Date();
@@ -116,7 +121,7 @@ export async function GET(request: NextRequest) {
       }))
     );
 
-    return NextResponse.json({
+    const responseData = {
       period,
       dailyStats: filledStats,
       summary: {
@@ -133,7 +138,10 @@ export async function GET(request: NextRequest) {
         peakPeriod: peakTimeData.peakPeriod,
         hourlyStats: peakTimeData.hourlyStats,
       },
-    });
+    };
+
+    await redis.set(cacheKey, responseData, { ex: CACHE_TTL });
+    return NextResponse.json(responseData);
   } catch (error) {
     logger.error('Analytics error:', error);
     return NextResponse.json(

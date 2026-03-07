@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
+import { redis, CACHE_TTL } from '@/lib/redis';
+
+type RawLeaderboardEntry = {
+    rank: number;
+    userId: string;
+    name: string;
+    minutes: number;
+};
 
 export async function GET(request: NextRequest) {
     try {
@@ -13,6 +21,14 @@ export async function GET(request: NextRequest) {
 
         const { searchParams } = new URL(request.url);
         const period = searchParams.get('period') || 'week'; // 'week' | 'all-time'
+
+        const cacheKey = `leaderboard:${period}`;
+        const cached = await redis.get<RawLeaderboardEntry[]>(cacheKey);
+        if (cached) {
+            return NextResponse.json({
+                leaderboard: cached.map(e => ({ ...e, isCurrentUser: e.userId === userId })),
+            });
+        }
 
         let dateFilter = {};
         if (period === 'week') {
@@ -53,19 +69,22 @@ export async function GET(request: NextRequest) {
             },
         });
 
-        // Combine data
-        const formattedLeaderboard = leaderboard.map((entry, index) => {
+        // Combine data (raw = no isCurrentUser; applied at read time so cache serves all users)
+        const rawEntries: RawLeaderboardEntry[] = leaderboard.map((entry, index) => {
             const user = users.find((u) => u.id === entry.userId);
             return {
                 rank: index + 1,
                 userId: entry.userId,
                 name: user?.name || 'Anonymous User',
                 minutes: entry._sum.totalFocusMinutes || 0,
-                isCurrentUser: entry.userId === userId,
             };
         });
 
-        return NextResponse.json({ leaderboard: formattedLeaderboard });
+        await redis.set(cacheKey, rawEntries, { ex: CACHE_TTL });
+
+        return NextResponse.json({
+            leaderboard: rawEntries.map(e => ({ ...e, isCurrentUser: e.userId === userId })),
+        });
 
     } catch (error) {
         logger.error('Leaderboard fetch error:', error);
