@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { sendEmail } from '@/lib/email';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { SignupSchema } from '@/lib/schemas';
+import { getSettings, applyTemplate } from '@/lib/settings';
 
 export async function POST(request: NextRequest) {
   try {
@@ -69,19 +70,30 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Send verification email
-    const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/verify?token=${verificationToken}`;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const verificationUrl = `${appUrl}/api/auth/verify?token=${verificationToken}`;
+    const emailSettings = await getSettings();
+    const vars = { name: name || 'there', email, appUrl };
 
-    await sendEmail({
-      to: email,
-      subject: 'Verify your email - FlowShield',
-      html: `
-        <h1>Welcome to FlowShield!</h1>
-        <p>Please click the link below to verify your email address:</p>
+    // Send verification email (if enabled in settings)
+    if (emailSettings.email.verification.enabled) {
+      await sendEmail({
+        to: email,
+        subject: emailSettings.email.verification.subject,
+        html: `<p>Please click the link below to verify your email address:</p>
         <a href="${verificationUrl}">${verificationUrl}</a>
-        <p>This link will expire in 24 hours.</p>
-      `,
-    });
+        <p>This link will expire in 24 hours.</p>`,
+      });
+    }
+
+    // Send welcome email (if enabled in settings)
+    if (emailSettings.email.welcome.enabled) {
+      await sendEmail({
+        to: email,
+        subject: applyTemplate(emailSettings.email.welcome.subject, vars),
+        html: applyTemplate(emailSettings.email.welcome.body, vars),
+      });
+    }
 
     if (process.env.ADMIN_EMAIL) {
       await sendEmail({

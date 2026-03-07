@@ -226,3 +226,12 @@ model Subscription {
   @@index([userId])
   @@map("subscriptions")
 }
+
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("app_settings")
+}

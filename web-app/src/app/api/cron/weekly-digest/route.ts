@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { sendEmail } from '@/lib/email';
 import { logger } from '@/lib/logger';
 import { generateInsights } from '@/lib/insights';
+import { getSettings } from '@/lib/settings';
 
 /**
  * GET /api/cron/weekly-digest
@@ -15,6 +16,13 @@ export async function GET(request: NextRequest) {
   const secret = request.headers.get('x-cron-secret') ?? request.nextUrl.searchParams.get('secret');
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Check if digest is enabled in admin settings
+  const appSettings = await getSettings();
+  if (!appSettings.email.digest.enabled) {
+    logger.info('Weekly digest is disabled in admin settings — skipping');
+    return NextResponse.json({ sent: 0, failed: 0, total: 0, skipped: true });
   }
 
   const now = new Date();
@@ -144,11 +152,10 @@ export async function GET(request: NextRequest) {
 </body>
 </html>`;
 
-      const ok = await sendEmail({
-        to: user.email,
-        subject: `Your FlowShield week: ${focusHours}h ${focusMins}m focused`,
-        html,
-      });
+      const subject = appSettings.email.digest.subject
+        || `Your FlowShield week: ${focusHours}h ${focusMins}m focused`;
+
+      const ok = await sendEmail({ to: user.email, subject, html });
 
       if (ok) sent++;
       else failed++;
