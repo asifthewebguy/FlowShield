@@ -44,3 +44,26 @@ export function getUserIdFromToken(request: NextRequest): string | null {
     return null;
   }
 }
+
+/**
+ * Extract and verify JWT token, returning userId only if the user is an ADMIN.
+ * @param request NextRequest object
+ * @returns userId if role === 'ADMIN', otherwise null
+ */
+export function getAdminFromToken(request: NextRequest): string | null {
+  try {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = verify(token, getJwtSecret()) as { userId: string; role?: string };
+    if (decoded.role !== 'ADMIN') {
+      return null;
+    }
+    return decoded.userId;
+  } catch (error) {
+    return null;
+  }
+}

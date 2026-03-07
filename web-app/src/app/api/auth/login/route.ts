@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     // Create JWT token
     const token = sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id, email: user.email, role: user.role },
       getJwtSecret(),
       { expiresIn: rememberMe ? '30d' : '1h' } // 30 days if rememberMe is true, else 1 hour
     );

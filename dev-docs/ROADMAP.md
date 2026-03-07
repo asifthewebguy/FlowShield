@@ -15,6 +15,7 @@ FlowShield is at v1.1.6 with a working web dashboard (Next.js/Prisma/PostgreSQL 
 | 1 | v1.2.0 | Reliability: error tracking, CI, first unit tests | Low |
 | 2 | v1.3.0 | Trust: Google OAuth, GDPR, input validation | Medium |
 | 3 | v1.4.0 | Intelligence: smart breaks, insights, weekly email | Medium |
+| 3.5 | v1.4.5 | Monetization: admin dashboard, roles, subscriptions | Medium |
 | 4 | v1.5.0 | Reach: Chrome browser extension | High |
 | 5 | v1.6.0 | Polish: real-time updates, Redis caching | Medium |
 | 6 | v1.7.0 | Resilience: offline sync, auto-updater, Firefox ext | Medium |
@@ -65,6 +66,31 @@ FlowShield is at v1.1.6 with a working web dashboard (Next.js/Prisma/PostgreSQL 
 - [x] Insights panel on `/analytics` page — fetched via SWR, renders up to 6 insight cards with color-coded icons
 - [x] `/api/cron/weekly-digest` — secured with `CRON_SECRET`; queries active users, sends personalized HTML email with focus stats, trend, and top 3 insights via Resend
 - [x] 22 unit tests for insights logic (all 6 functions + `generateInsights`) — 51 total tests passing
+
+---
+
+## Sprint 3.5 — v1.4.5: Admin Dashboard & Subscriptions ✓ COMPLETE
+
+**Goal:** Enable monetization with subscription tiers and give admins visibility into the platform.
+
+- [x] Added `UserRole` (USER/ADMIN), `SubscriptionTier` (FREE/PRO/TEAM), `SubscriptionStatus` (ACTIVE/CANCELLED/EXPIRED/TRIAL) enums to Prisma schema
+- [x] Added `role` and `subscriptionTier` fields to `User` model; new `Subscription` model for history tracking
+- [x] Migration: `20260307000000_add_roles_and_subscriptions`
+- [x] Updated JWT payload to include `role` — login and Google OAuth callback updated
+- [x] Added `getAdminFromToken()` helper to `src/lib/jwt.ts`
+- [x] Next.js edge middleware (`src/middleware.ts`) protecting all `/api/admin/*` routes
+- [x] Admin API routes: `/api/admin/stats`, `/api/admin/users`, `/api/admin/users/[id]` (GET/PATCH/DELETE), `/api/admin/email/digest`, `/api/admin/email/announce`
+- [x] Admin UI at `/admin` — overview with stat cards, signups bar chart, tier pie chart
+- [x] Admin UI at `/admin/users` — searchable/filterable paginated user table with inline tier change
+- [x] Admin UI at `/admin/users/[id]` — user detail, subscription management, email actions, danger zone
+- [x] Admin UI at `/admin/subscriptions` — tier breakdown, manual upgrade form, Pro users list
+- [x] Admin layout with dark sidebar, role-based client-side auth guard
+
+**Phase B (next sprint):** Lemon Squeezy webhook, bKash payment gateway, feature gating by tier
+
+**Key files:** `web-app/prisma/schema.prisma`, `web-app/src/middleware.ts`, `web-app/src/app/api/admin/`, `web-app/src/app/admin/`
+
+---
 
 **New env vars needed:** `CRON_SECRET` (set same value in Netlify scheduled function config)
 

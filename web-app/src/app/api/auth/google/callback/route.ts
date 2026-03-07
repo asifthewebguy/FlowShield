@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
 
     // Issue our standard JWT
     const jwtToken = sign(
-      { userId: user.id, email: user.email },
+      { userId: user.id, email: user.email, role: user.role },
       getJwtSecret(),
       { expiresIn: '1h' }
     );

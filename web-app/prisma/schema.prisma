@@ -26,6 +26,9 @@ model User {
   emailVerified     DateTime?
   verificationToken String?          @unique
   verificationTokenExpires DateTime?
+  role              UserRole         @default(USER)
+  subscriptionTier  SubscriptionTier @default(FREE)
+  subscriptions     Subscription[]
 
   @@map("users")
 }
@@ -158,6 +161,24 @@ enum GoalType {
   PRODUCTIVITY_SCORE
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum SubscriptionTier {
+  FREE
+  PRO
+  TEAM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  TRIAL
+}
+
 model PushSubscription {
   id        String   @id @default(uuid())
   userId    String
@@ -186,4 +207,22 @@ model Project {
   @@unique([userId, name])
   @@index([userId])
   @@map("projects")
+}
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  userId             String
+  tier               SubscriptionTier
+  status             SubscriptionStatus @default(ACTIVE)
+  provider           String?
+  providerId         String?
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("subscriptions")
 }
