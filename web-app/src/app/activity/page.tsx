@@ -61,16 +61,6 @@ export default function ActivityAnalysisPage() {
   const [data, setData] = useState<AnalysisData | null>(null);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'all'>('week');
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/auth/login');
-      return;
-    }
-
-    fetchAnalysis(token, timeRange);
-  }, [router, timeRange]);
-
   const fetchAnalysis = useCallback(async (token: string, range: string) => {
     setLoading(true);
     setError(null);
@@ -120,6 +110,15 @@ export default function ActivityAnalysisPage() {
       setLoading(false);
     }
   }, [router]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/auth/login');
+      return;
+    }
+    fetchAnalysis(token, timeRange);
+  }, [router, timeRange, fetchAnalysis]);
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {

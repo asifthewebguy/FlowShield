@@ -7,27 +7,31 @@ import Link from 'next/link';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [adminEmail, setAdminEmail] = useState<string | null>(null);
+
+  const [adminEmail] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const token = localStorage.getItem('token');
+      const userData = localStorage.getItem('user');
+      if (!token || !userData) return null;
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.role !== 'ADMIN') return null;
+      const user = JSON.parse(userData);
+      return user.email as string;
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
+    if (adminEmail !== null) return;
     const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-    if (!token || !userData) {
+    if (!token) {
       router.push('/auth/login?redirect=/admin');
-      return;
+    } else {
+      router.push('/dashboard?error=forbidden');
     }
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      if (payload.role !== 'ADMIN') {
-        router.push('/dashboard?error=forbidden');
-        return;
-      }
-      const user = JSON.parse(userData);
-      setAdminEmail(user.email);
-    } catch {
-      router.push('/auth/login?redirect=/admin');
-    }
-  }, [router]);
+  }, [adminEmail, router]);
 
   if (!adminEmail) {
     return (
