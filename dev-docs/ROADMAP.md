@@ -1,4 +1,4 @@
-# FlowShield - Development Roadmap (v1.1.6 → v2.0)
+# FlowShield - Development Roadmap (v1.6.0 → v2.0)
 
 > Last updated: 2026-03-07
 
@@ -115,16 +115,21 @@ FlowShield is at v1.1.6 with a working web dashboard (Next.js/Prisma/PostgreSQL 
 
 ---
 
-## Sprint 5 — v1.6.0: Real-Time & Caching
+## Sprint 5 — v1.6.0: Real-Time & Caching ✓ COMPLETE
 
 **Goal:** Make the dashboard feel alive.
 
-- [ ] Add Server-Sent Events (SSE) or Pusher/Ably for real-time updates (Netlify doesn't support raw WebSockets)
-- [ ] Real-time session sync across tabs and between web/extension
-- [ ] Live dashboard stat updates when desktop/extension syncs new data
-- [ ] Add Upstash Redis (serverless, Netlify-compatible) for caching
-- [ ] Cache leaderboard results (5-min TTL) and analytics aggregations
-- [ ] Add database indexes for common `ActivityLog` query patterns
+- [x] Pusher integration — `src/lib/pusher.ts` (server singleton + `triggerUserEvent` helper), `src/lib/pusher-client.ts` (client singleton)
+- [x] Real-time session sync — `POST /api/sessions` and `PATCH /api/sessions/[id]` fire `session-update` Pusher event after DB write
+- [x] Live dashboard stat updates — `POST /api/activity/sync` fires `activity-synced` event; dashboard subscribes to both and calls `mutate()` instantly
+- [x] Dashboard Pusher subscription via `useEffect` on per-user channel `user-${userId}`, cleans up on unmount; SWR `refreshInterval` reduced 60s → 30s
+- [x] Upstash Redis caching — `src/lib/redis.ts`; leaderboard cached globally by period (5-min TTL, `isCurrentUser` applied at read time); analytics cached per `userId:period`
+
+**New env vars needed:** `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER`, `NEXT_PUBLIC_PUSHER_KEY`, `NEXT_PUBLIC_PUSHER_CLUSTER`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
+
+**Netlify note:** Add `PUSHER_KEY` to `SECRETS_SCAN_OMIT_KEYS` (its value appears in client bundle via `NEXT_PUBLIC_PUSHER_KEY` — intentional)
+
+**Key files:** `web-app/src/lib/pusher.ts`, `web-app/src/lib/pusher-client.ts`, `web-app/src/lib/redis.ts`, `web-app/src/app/dashboard/page.tsx`, `web-app/src/app/api/leaderboard/route.ts`, `web-app/src/app/api/analytics/route.ts`
 
 ---
 
