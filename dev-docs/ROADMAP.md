@@ -96,17 +96,22 @@ FlowShield is at v1.1.6 with a working web dashboard (Next.js/Prisma/PostgreSQL 
 
 ---
 
-## Sprint 4 — v1.5.0: Chrome Browser Extension
+## Sprint 4 — v1.5.0: Chrome Browser Extension ✓ COMPLETE
 
 **Goal:** Track browser activity where most distractions happen.
 
-- [ ] Create `browser-extension/` directory with Manifest V3 structure
-- [ ] Popup UI showing current session timer (synced via API)
-- [ ] Background service worker tracking active tab domains and durations
-- [ ] Send tab activity to `/api/activity/sync` with `source: "browser"` field
-- [ ] Toolbar badge showing remaining session time
-- [ ] Flag distracting domains based on user's `primaryDistractions` preference
-- [ ] Add `source` field to `ActivityLog` model via Prisma migration
+- [x] `browser-extension/` directory with Manifest V3 structure — `manifest.json`, `background.js`, `popup/`
+- [x] Popup UI — animated ring timer, session info, login form, current tab display, distraction warning banner
+- [x] Background service worker — tab change tracking, 1-min activity sync alarm, 30s session poll alarm
+- [x] Send tab activity to `/api/activity/sync` with `source: "browser"` — API updated to accept top-level `source` field
+- [x] Toolbar badge showing remaining session minutes; turns orange when < 20% remains; red on distraction sites
+- [x] Distraction detection — checks current domain against `user.preferences.primaryDistractions`; popup shows banner + badge turns red
+- [x] `source` field added to `ActivityLog` model (migration `20260307020000_add_activity_source`); `/api/activity/sync` accepts optional `domain` field for browser entries
+
+**Key files:** `browser-extension/`, `web-app/prisma/schema.prisma`, `web-app/src/app/api/activity/sync/route.ts`
+
+**To load in Chrome:** chrome://extensions → Developer mode → Load unpacked → select `browser-extension/`
+**Icons:** Generate PNGs from `browser-extension/icons/icon.svg` at 16, 48, 128 px (see `icons/README.md`)
 
 ---
 

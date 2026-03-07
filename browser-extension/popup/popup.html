@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlowShield</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <span class="logo">⚡ Flow<strong>Shield</strong></span>
+    <button id="btn-logout" class="btn-icon" title="Sign out" style="display:none">↩</button>
+  </div>
+
+  <!-- Auth screen -->
+  <div id="screen-auth">
+    <p class="subtitle">Sign in to start tracking your focus</p>
+    <form id="form-login">
+      <input id="input-email"    type="email"    placeholder="Email"    required autocomplete="email" />
+      <input id="input-password" type="password" placeholder="Password" required autocomplete="current-password" />
+      <button type="submit" id="btn-login" class="btn-primary">Sign In</button>
+    </form>
+    <div id="auth-error" class="error-msg" style="display:none"></div>
+    <a class="link-small" href="https://flowshield.app/auth/signup" target="_blank">
+      Don't have an account? Sign up →
+    </a>
+  </div>
+
+  <!-- Main screen (logged in) -->
+  <div id="screen-main" style="display:none">
+
+    <!-- Distraction warning -->
+    <div id="distraction-banner" class="distraction-banner" style="display:none">
+      <span>⚠️ Distraction site detected</span>
+      <span id="distraction-domain" class="distraction-domain"></span>
+    </div>
+
+    <!-- Active session -->
+    <div id="section-session">
+
+      <!-- No session -->
+      <div id="state-no-session">
+        <p class="no-session-msg">No active session</p>
+        <a class="btn-primary btn-block" href="https://flowshield.app/dashboard" target="_blank">
+          Start Session on Dashboard →
+        </a>
+      </div>
+
+      <!-- Session active -->
+      <div id="state-active-session" style="display:none">
+        <div class="session-type" id="session-type-label">WORK</div>
+        <div class="timer-ring-container">
+          <svg class="timer-ring" viewBox="0 0 100 100">
+            <circle class="ring-bg"       cx="50" cy="50" r="42" />
+            <circle class="ring-progress" cx="50" cy="50" r="42" id="ring-progress" />
+          </svg>
+          <div class="timer-text">
+            <div id="timer-display" class="timer-value">25:00</div>
+            <div class="timer-label">remaining</div>
+          </div>
+        </div>
+        <div class="session-meta">
+          <span id="session-elapsed">0 min elapsed</span>
+          <span id="session-planned">of 25 min</span>
+        </div>
+        <button id="btn-sync" class="btn-secondary btn-block">Sync Activity Now</button>
+      </div>
+    </div>
+
+    <!-- Current tab info -->
+    <div class="current-tab-section">
+      <div class="section-title">Current Tab</div>
+      <div class="tab-domain-row">
+        <span class="tab-dot" id="tab-dot">●</span>
+        <span id="tab-domain-display" class="tab-domain">—</span>
+      </div>
+    </div>
+
+    <!-- Footer links -->
+    <div class="footer-links">
+      <a href="https://flowshield.app/analytics" target="_blank">Analytics</a>
+      <span>·</span>
+      <a href="https://flowshield.app/dashboard" target="_blank">Dashboard</a>
+      <span>·</span>
+      <a href="https://flowshield.app/settings" target="_blank">Settings</a>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

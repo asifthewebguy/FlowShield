@@ -87,6 +87,7 @@ model ActivityLog {
   windowTitle     String
   category        String   @default("Unknown")
   activityLevel   Int      @default(0)
+  source          String   @default("desktop")
   session         Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

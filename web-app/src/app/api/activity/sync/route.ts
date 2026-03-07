@@ -24,18 +24,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Source identifies the client sending data: desktop | browser | mobile
+    const source: string = (body.source as string) || 'desktop';
+
     // Store activities in database
     const activityLogs = activities.map((activity: any) => ({
       userId,
       timestamp: new Date(activity.timestamp),
-      windowTitle: activity.windowTitle,
-      processName: activity.processName,
-      applicationName: activity.applicationName,
+      windowTitle: activity.windowTitle || activity.url || 'Unknown',
+      processName: activity.processName || source,
+      applicationName: activity.applicationName || activity.domain || 'Unknown',
       url: activity.url || null,
       durationSeconds: activity.durationSeconds,
       activityLevel: activity.activityLevel || 0,
-      category: activity.category,
+      category: activity.category || 'Unknown',
       sessionId: activity.sessionId || null,
+      source,
     }));
 
     // Batch insert activities
