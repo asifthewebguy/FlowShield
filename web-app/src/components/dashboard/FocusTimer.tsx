@@ -6,6 +6,9 @@ import { soundManager } from '@/lib/SoundManager';
 
 type BreakPhase = 'none' | 'suggested' | 'active';
 
+const COOLDOWN_MS = 5 * 60 * 1000; // 5-minute cooldown between sessions
+const COOLDOWN_KEY = 'flowshield_cooldown_until';
+
 function suggestedBreakMinutes(plannedDurationMin: number): number {
   if (plannedDurationMin >= 90) return 15;
   if (plannedDurationMin >= 50) return 10;
@@ -58,6 +61,13 @@ export default function FocusTimer({
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [soundType, setSoundType] = useState<'white' | 'pink' | 'brown'>('brown');
   const [volume, setVolume] = useState(0.5);
+
+  // Post-session cooldown
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0;
+    const until = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0', 10);
+    return Math.max(0, until - Date.now());
+  });
 
   // Break phase state machine
   const [breakPhase, setBreakPhase] = useState<BreakPhase>('none');
@@ -113,6 +123,9 @@ export default function FocusTimer({
         setTimeRemaining(0);
         onSessionUpdate?.();
         setSoundEnabled(false);
+        const until = Date.now() + COOLDOWN_MS;
+        localStorage.setItem(COOLDOWN_KEY, String(until));
+        setCooldownRemaining(COOLDOWN_MS);
       } catch (error) {
         console.error('Failed to end session:', error);
       }
@@ -167,6 +180,18 @@ export default function FocusTimer({
 
     return () => clearInterval(interval);
   }, [breakPhase, breakTimeRemaining, handleEndSession]);
+
+  // Cooldown countdown tick
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return;
+    const interval = setInterval(() => {
+      const until = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0', 10);
+      const remaining = Math.max(0, until - Date.now());
+      setCooldownRemaining(remaining);
+      if (remaining === 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldownRemaining]);
 
   const handleStartBreak = () => {
     setBreakPhase('active');
@@ -475,13 +500,24 @@ export default function FocusTimer({
             </div>
           </div>
 
-          <button
-            onClick={handleStartSession}
-            disabled={isProcessing}
-            className="w-full bg-primary-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
-          >
-            {isProcessing ? 'Starting...' : 'Start Focus Session'}
-          </button>
+          {cooldownRemaining > 0 ? (
+            <div className="w-full py-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-center">
+              <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Cooldown — rest before next session
+              </div>
+              <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">
+                {formatTime(Math.ceil(cooldownRemaining / 1000))}
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleStartSession}
+              disabled={isProcessing}
+              className="w-full bg-primary-600 text-white py-4 rounded-lg font-semibold text-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+            >
+              {isProcessing ? 'Starting...' : 'Start Focus Session'}
+            </button>
+          )}
         </div>
       ) : currentSession && breakPhase === 'none' ? (
         <div className="space-y-6">
