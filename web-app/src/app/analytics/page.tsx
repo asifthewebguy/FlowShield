@@ -225,7 +225,12 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Productivity Message */}
-        <div className={`mb-8 p-4 rounded-lg border ${productivityInfo.color} bg-opacity-10 border-opacity-50`}>
+        <div className={`mb-8 p-4 rounded-lg border ${productivityInfo.color} ${
+          productivityInfo.color === 'text-green-600' ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' :
+          productivityInfo.color === 'text-blue-600'  ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' :
+          productivityInfo.color === 'text-yellow-600' ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800' :
+          'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
+        }`}>
           <p className="text-center font-medium">
             {productivityInfo.message}
           </p>

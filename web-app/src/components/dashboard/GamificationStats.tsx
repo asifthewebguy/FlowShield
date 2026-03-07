@@ -56,7 +56,7 @@ export default function GamificationStats({
                             key={badge.id}
                             className={`aspect-square rounded-lg flex items-center justify-center text-xl cursor-help relative group ${badge.achieved
                                     ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-300 grayscale'
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 grayscale'
                                 }`}
                             title={badge.name}
                         >
