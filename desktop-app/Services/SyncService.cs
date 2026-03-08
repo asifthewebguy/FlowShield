@@ -1,5 +1,7 @@
 using System;
+using System.Net.Http;
 using System.Net.NetworkInformation;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -11,7 +13,7 @@ namespace FlowShield.Desktop.Services
         private readonly ApiClient _apiClient;
         private readonly DatabaseService _dbService;
         private Timer? _syncTimer;
-        private bool _isSyncing = false;
+        private readonly SemaphoreSlim _syncLock = new(1, 1);
         private bool _wasOffline = false;
 
         public event EventHandler<SyncEventArgs>? SyncStarted;
@@ -61,7 +63,7 @@ namespace FlowShield.Desktop.Services
 
         public async Task<bool> SyncNowAsync()
         {
-            if (_isSyncing || !_apiClient.IsAuthenticated())
+            if (!_apiClient.IsAuthenticated())
                 return false;
 
             if (!IsNetworkAvailable)
@@ -70,7 +72,9 @@ namespace FlowShield.Desktop.Services
                 return false;
             }
 
-            _isSyncing = true;
+            // Prevent concurrent syncs — if another sync is running, skip
+            if (!await _syncLock.WaitAsync(0))
+                return false;
 
             var initialUnsyncedCount = _dbService.GetUnsyncedLogs().Count;
 
@@ -84,7 +88,8 @@ namespace FlowShield.Desktop.Services
 
             try
             {
-                // Replay any pending session operations first
+                // Replay any pending session operations first (calls API directly,
+                // bypassing the offline-queuing logic in ApiClient to avoid re-queuing)
                 await ReplayPendingOperationsAsync();
 
                 var success = await _apiClient.SyncActivitiesAsync();
@@ -124,10 +129,14 @@ namespace FlowShield.Desktop.Services
             }
             finally
             {
-                _isSyncing = false;
+                _syncLock.Release();
             }
         }
 
+        /// <summary>
+        /// Replays queued session operations directly via the ApiClient's HTTP methods,
+        /// bypassing StartSessionAsync/EndSessionAsync to avoid re-queuing on transient failures.
+        /// </summary>
         private async Task ReplayPendingOperationsAsync()
         {
             var pending = _dbService.GetPendingOperations();
@@ -139,13 +148,13 @@ namespace FlowShield.Desktop.Services
                     {
                         var payload = JsonConvert.DeserializeObject<StartSessionPayload>(op.Payload);
                         if (payload != null)
-                            await _apiClient.StartSessionAsync(payload.PlannedDuration, payload.SessionType);
+                            await _apiClient.ReplayStartSessionAsync(payload.PlannedDuration, payload.SessionType);
                     }
                     else if (op.OperationType == "END_SESSION")
                     {
                         var payload = JsonConvert.DeserializeObject<EndSessionPayload>(op.Payload);
                         if (payload != null)
-                            await _apiClient.EndSessionAsync(payload.SessionId);
+                            await _apiClient.ReplayEndSessionAsync(payload.SessionId);
                     }
 
                     _dbService.RemovePendingOperation(op.Id);

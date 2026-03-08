@@ -2,6 +2,7 @@ using System;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
@@ -19,9 +20,12 @@ namespace FlowShield.Desktop.Services
     {
         private const string ReleasesApiUrl = "https://api.github.com/repos/asifthewebguy/FlowShield/releases/latest";
         private readonly HttpClient _http;
+        private readonly SynchronizationContext? _syncContext;
 
         public UpdateService()
         {
+            // Capture the UI SynchronizationContext so we can marshal dialogs to the UI thread
+            _syncContext = SynchronizationContext.Current;
             _http = new HttpClient();
             _http.DefaultRequestHeaders.Add("User-Agent", "FlowShield-Desktop");
         }
@@ -89,6 +93,19 @@ namespace FlowShield.Desktop.Services
             var update = await CheckForUpdateAsync();
             if (update == null) return;
 
+            // Marshal the dialog to the UI thread so it appears as a proper modal
+            if (_syncContext != null)
+            {
+                _syncContext.Post(_ => ShowUpdateDialog(update), null);
+            }
+            else
+            {
+                ShowUpdateDialog(update);
+            }
+        }
+
+        private void ShowUpdateDialog(UpdateInfo update)
+        {
             var message = $"A new version of FlowShield is available!\n\n" +
                           $"Current version: {CurrentVersion}\n" +
                           $"Latest version:  {update.LatestVersion}\n\n" +

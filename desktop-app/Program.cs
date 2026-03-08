@@ -43,7 +43,8 @@ namespace FlowShield.Desktop
                 o.Dsn = "YOUR_SENTRY_DSN";
                 o.TracesSampleRate = 0.1;
                 o.IsGlobalModeEnabled = true;
-                o.Release = $"flowshield-desktop@1.7.0";
+                var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                o.Release = $"flowshield-desktop@{version?.ToString(3) ?? "0.0.0"}";
             });
 
             try

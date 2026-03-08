@@ -247,6 +247,34 @@ namespace FlowShield.Desktop.Services
             }
         }
 
+        /// <summary>Replay a queued START_SESSION directly (no offline re-queuing).</summary>
+        internal async Task ReplayStartSessionAsync(int durationMinutes, string sessionType)
+        {
+            if (string.IsNullOrEmpty(_authToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            var json = JsonConvert.SerializeObject(new { plannedDuration = durationMinutes, sessionType });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync("/api/sessions", content);
+            response.EnsureSuccessStatusCode();
+        }
+
+        /// <summary>Replay a queued END_SESSION directly (no offline re-queuing).</summary>
+        internal async Task ReplayEndSessionAsync(string sessionId)
+        {
+            if (string.IsNullOrEmpty(_authToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            var json = JsonConvert.SerializeObject(new { completed = true, endTime = DateTime.UtcNow });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var request = new HttpRequestMessage(new HttpMethod("PATCH"), $"/api/sessions/{sessionId}")
+            {
+                Content = content
+            };
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+        }
+
         public async Task<UserPreferences?> GetUserPreferencesAsync()
         {
             try
