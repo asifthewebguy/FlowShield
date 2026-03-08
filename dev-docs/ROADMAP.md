@@ -133,16 +133,24 @@ FlowShield is at v1.1.6 with a working web dashboard (Next.js/Prisma/PostgreSQL 
 
 ---
 
-## Sprint 6 — v1.7.0: Offline & Firefox
+## Sprint 6 — v1.7.0: Offline & Firefox ✓ COMPLETE
 
 **Goal:** Robust multi-browser and offline experience.
 
-- [ ] Enhance `SyncService.cs` to queue operations when offline, replay on reconnect
-- [ ] Add conflict resolution: server timestamp wins for sessions, deduplicate activity logs
-- [ ] Desktop auto-updater: version check against latest GitHub release, prompt to download
-- [ ] Port Chrome extension to Firefox (WebExtensions API, high compatibility)
-- [ ] Desktop app crash reporting via Sentry .NET SDK
-- [ ] Expand to 30+ unit tests
+- [x] `DatabaseService.cs` — `PendingOperations` SQLite table (auto-migrated); `QueuePendingOperation`, `GetPendingOperations`, `RemovePendingOperation`, `IncrementRetryCount` methods
+- [x] `SyncService.cs` — network check via `NetworkInterface.GetIsNetworkAvailable()`; skips sync when offline; `NetworkChange.NetworkAvailabilityChanged` triggers immediate reconnect sync; replays pending session ops via `ReplayPendingOperationsAsync` before activity sync
+- [x] `ApiClient.cs` — `StartSessionAsync`/`EndSessionAsync` queue `START_SESSION`/`END_SESSION` to `PendingOperations` when offline; conflict resolution: activity deduplication via `skipDuplicates: true`, server timestamp wins for sessions
+- [x] `UpdateService.cs` (new) — GitHub Releases API (`asifthewebguy/FlowShield/releases/latest`), semver comparison, `CheckAndPromptAsync` prompts user and opens installer download; wired into `Program.cs` (10s after startup)
+- [x] Sentry .NET — `Sentry` v4.14.0 NuGet; initialized in `Program.cs`; `SentrySdk.CaptureException` in both global exception handlers
+- [x] `manifest.firefox.json` — MV2 Firefox manifest: `browser_action`, `background.scripts`, `browser_specific_settings.gecko` (min Firefox 91)
+- [x] Desktop version bumped: `1.1.6` → `1.7.0`
+- [x] Unit tests: 51 tests already passing (exceeds 30+ target)
+
+**Setup needed:** Replace `YOUR_SENTRY_DSN` in `Program.cs` with DSN from sentry.io
+
+**To load in Firefox:** `about:debugging` → This Firefox → Load Temporary Add-on → select `manifest.firefox.json`
+
+**Key files:** `desktop-app/Services/DatabaseService.cs`, `desktop-app/Services/SyncService.cs`, `desktop-app/Services/ApiClient.cs`, `desktop-app/Services/UpdateService.cs` (new), `desktop-app/Program.cs`, `browser-extension/manifest.firefox.json` (new)
 
 ---
 

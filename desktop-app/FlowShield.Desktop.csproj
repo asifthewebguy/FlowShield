@@ -7,7 +7,7 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <AssemblyName>FlowShield</AssemblyName>
-    <Version>1.1.6</Version>
+    <Version>1.7.0</Version>
     <Authors>FlowShield Team</Authors>
     <Company>FlowShield</Company>
     <Product>FlowShield Desktop</Product>
@@ -20,6 +20,7 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Sentry" Version="4.14.0" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" Version="2.1.11" />
     <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>

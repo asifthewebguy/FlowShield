@@ -1,6 +1,8 @@
 using System;
+using System.Net.NetworkInformation;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace FlowShield.Desktop.Services
 {
@@ -10,15 +12,34 @@ namespace FlowShield.Desktop.Services
         private readonly DatabaseService _dbService;
         private Timer? _syncTimer;
         private bool _isSyncing = false;
+        private bool _wasOffline = false;
 
         public event EventHandler<SyncEventArgs>? SyncStarted;
         public event EventHandler<SyncEventArgs>? SyncCompleted;
         public event EventHandler<SyncEventArgs>? SyncFailed;
 
+        public bool IsNetworkAvailable => NetworkInterface.GetIsNetworkAvailable();
+
         public SyncService(ApiClient apiClient, DatabaseService dbService)
         {
             _apiClient = apiClient;
             _dbService = dbService;
+
+            // Trigger immediate sync when network comes back online
+            NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
+        }
+
+        private void OnNetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs e)
+        {
+            if (e.IsAvailable && _wasOffline)
+            {
+                _wasOffline = false;
+                _ = Task.Run(async () => await SyncNowAsync());
+            }
+            else if (!e.IsAvailable)
+            {
+                _wasOffline = true;
+            }
         }
 
         public void Start(int intervalMinutes = 5)
@@ -33,6 +54,7 @@ namespace FlowShield.Desktop.Services
 
         public void Stop()
         {
+            NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailabilityChanged;
             _syncTimer?.Dispose();
             _syncTimer = null;
         }
@@ -42,12 +64,16 @@ namespace FlowShield.Desktop.Services
             if (_isSyncing || !_apiClient.IsAuthenticated())
                 return false;
 
+            if (!IsNetworkAvailable)
+            {
+                _wasOffline = true;
+                return false;
+            }
+
             _isSyncing = true;
 
-            // Get initial count
             var initialUnsyncedCount = _dbService.GetUnsyncedLogs().Count;
 
-            // Raise sync started event
             SyncStarted?.Invoke(this, new SyncEventArgs
             {
                 Success = false,
@@ -58,9 +84,11 @@ namespace FlowShield.Desktop.Services
 
             try
             {
+                // Replay any pending session operations first
+                await ReplayPendingOperationsAsync();
+
                 var success = await _apiClient.SyncActivitiesAsync();
 
-                // Also update device status during sync
                 await _apiClient.RegisterDeviceAsync();
 
                 var remainingUnsyncedCount = _dbService.GetUnsyncedLogs().Count;
@@ -75,13 +103,9 @@ namespace FlowShield.Desktop.Services
                 };
 
                 if (success)
-                {
                     SyncCompleted?.Invoke(this, eventArgs);
-                }
                 else
-                {
                     SyncFailed?.Invoke(this, eventArgs);
-                }
 
                 return success;
             }
@@ -103,6 +127,35 @@ namespace FlowShield.Desktop.Services
                 _isSyncing = false;
             }
         }
+
+        private async Task ReplayPendingOperationsAsync()
+        {
+            var pending = _dbService.GetPendingOperations();
+            foreach (var op in pending)
+            {
+                try
+                {
+                    if (op.OperationType == "START_SESSION")
+                    {
+                        var payload = JsonConvert.DeserializeObject<StartSessionPayload>(op.Payload);
+                        if (payload != null)
+                            await _apiClient.StartSessionAsync(payload.PlannedDuration, payload.SessionType);
+                    }
+                    else if (op.OperationType == "END_SESSION")
+                    {
+                        var payload = JsonConvert.DeserializeObject<EndSessionPayload>(op.Payload);
+                        if (payload != null)
+                            await _apiClient.EndSessionAsync(payload.SessionId);
+                    }
+
+                    _dbService.RemovePendingOperation(op.Id);
+                }
+                catch
+                {
+                    _dbService.IncrementRetryCount(op.Id);
+                }
+            }
+        }
     }
 
     public class SyncEventArgs : EventArgs
@@ -112,5 +165,16 @@ namespace FlowShield.Desktop.Services
         public int RemainingUnsyncedCount { get; set; }
         public int SyncedCount { get; set; }
         public string? ErrorMessage { get; set; }
+    }
+
+    internal class StartSessionPayload
+    {
+        public int PlannedDuration { get; set; }
+        public string SessionType { get; set; } = "WORK";
+    }
+
+    internal class EndSessionPayload
+    {
+        public string SessionId { get; set; } = string.Empty;
     }
 }

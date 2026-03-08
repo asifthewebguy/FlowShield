@@ -1,7 +1,9 @@
 using System;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using FlowShield.Desktop.Services;
 using FlowShield.Desktop.UI;
+using Sentry;
 
 namespace FlowShield.Desktop
 {
@@ -35,6 +37,15 @@ namespace FlowShield.Desktop
                 }
             }
 
+            SentrySdk.Init(o =>
+            {
+                // Replace with your actual Sentry DSN from sentry.io
+                o.Dsn = "YOUR_SENTRY_DSN";
+                o.TracesSampleRate = 0.1;
+                o.IsGlobalModeEnabled = true;
+                o.Release = $"flowshield-desktop@1.7.0";
+            });
+
             try
             {
                 Application.EnableVisualStyles();
@@ -54,6 +65,14 @@ namespace FlowShield.Desktop
                 // Start activity tracker
                 var activityTracker = new ActivityTracker(dbService);
                 activityTracker.Start();
+
+                // Check for updates in the background after startup
+                var updateService = new UpdateService();
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(10));
+                    await updateService.CheckAndPromptAsync();
+                });
 
                 // Create system tray application
                 var trayApp = new TrayApplication(activityTracker, dbService);
@@ -80,6 +99,7 @@ namespace FlowShield.Desktop
 
         private static void Application_ThreadException(object sender, System.Threading.ThreadExceptionEventArgs e)
         {
+            SentrySdk.CaptureException(e.Exception);
             MessageBox.Show(
                 $"Application error:\n\n{e.Exception.Message}\n\nStack trace:\n{e.Exception.StackTrace}",
                 "FlowShield Error",
@@ -91,6 +111,7 @@ namespace FlowShield.Desktop
         private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             var exception = e.ExceptionObject as Exception;
+            if (exception != null) SentrySdk.CaptureException(exception);
             MessageBox.Show(
                 $"Unhandled error:\n\n{exception?.Message}\n\nStack trace:\n{exception?.StackTrace}",
                 "FlowShield Error",

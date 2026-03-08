@@ -95,6 +95,14 @@ namespace FlowShield.Desktop.Services
                     Key TEXT PRIMARY KEY,
                     Value TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS PendingOperations (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    OperationType TEXT NOT NULL,
+                    Payload TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    RetryCount INTEGER NOT NULL DEFAULT 0
+                );
             ";
             createTableCmd.ExecuteNonQuery();
 
@@ -246,10 +254,76 @@ namespace FlowShield.Desktop.Services
             return result?.ToString();
         }
 
+        public void QueuePendingOperation(string operationType, string payload)
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+
+            var command = connection.CreateCommand();
+            command.CommandText = @"
+                INSERT INTO PendingOperations (OperationType, Payload, CreatedAt)
+                VALUES (@type, @payload, @createdAt)
+            ";
+            command.Parameters.AddWithValue("@type", operationType);
+            command.Parameters.AddWithValue("@payload", payload);
+            command.Parameters.AddWithValue("@createdAt", DateTime.UtcNow.ToString("o"));
+            command.ExecuteNonQuery();
+        }
+
+        public List<PendingOperation> GetPendingOperations(int maxRetries = 5)
+        {
+            var ops = new List<PendingOperation>();
+
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+
+            var command = connection.CreateCommand();
+            command.CommandText = "SELECT Id, OperationType, Payload, CreatedAt, RetryCount FROM PendingOperations WHERE RetryCount < @maxRetries ORDER BY CreatedAt ASC";
+            command.Parameters.AddWithValue("@maxRetries", maxRetries);
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                ops.Add(new PendingOperation
+                {
+                    Id = reader.GetInt32(0),
+                    OperationType = reader.GetString(1),
+                    Payload = reader.GetString(2),
+                    CreatedAt = DateTime.Parse(reader.GetString(3)),
+                    RetryCount = reader.GetInt32(4),
+                });
+            }
+
+            return ops;
+        }
+
+        public void RemovePendingOperation(int id)
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+
+            var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM PendingOperations WHERE Id = @id";
+            command.Parameters.AddWithValue("@id", id);
+            command.ExecuteNonQuery();
+        }
+
+        public void IncrementRetryCount(int id)
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+
+            var command = connection.CreateCommand();
+            command.CommandText = "UPDATE PendingOperations SET RetryCount = RetryCount + 1 WHERE Id = @id";
+            command.Parameters.AddWithValue("@id", id);
+            command.ExecuteNonQuery();
+        }
+
         public Dictionary<string, int> GetTodayStats()
         {
             var stats = new Dictionary<string, int>();
             var today = DateTime.Today.ToString("yyyy-MM-dd");
+
 
             using var connection = new SqliteConnection(_connectionString);
             connection.Open();
@@ -275,5 +349,14 @@ namespace FlowShield.Desktop.Services
 
             return stats;
         }
+    }
+
+    public class PendingOperation
+    {
+        public int Id { get; set; }
+        public string OperationType { get; set; } = string.Empty;
+        public string Payload { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public int RetryCount { get; set; }
     }
 }

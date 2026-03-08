@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading.Tasks;
-using System.Net;
 using Newtonsoft.Json;
 using FlowShield.Desktop.Models;
 
@@ -173,6 +174,13 @@ namespace FlowShield.Desktop.Services
             if (string.IsNullOrEmpty(_authToken))
                 throw new InvalidOperationException("Not authenticated");
 
+            if (!NetworkInterface.GetIsNetworkAvailable())
+            {
+                var payload = JsonConvert.SerializeObject(new { PlannedDuration = durationMinutes, SessionType = sessionType });
+                _dbService.QueuePendingOperation("START_SESSION", payload);
+                return null; // Queued for later
+            }
+
             var sessionData = new
             {
                 plannedDuration = durationMinutes,
@@ -206,6 +214,13 @@ namespace FlowShield.Desktop.Services
             {
                 if (string.IsNullOrEmpty(_authToken))
                     return false;
+
+                if (!NetworkInterface.GetIsNetworkAvailable())
+                {
+                    var payload = JsonConvert.SerializeObject(new { SessionId = sessionId });
+                    _dbService.QueuePendingOperation("END_SESSION", payload);
+                    return true; // Queued — treat as success so UI can continue
+                }
 
                 var updateData = new
                 {
