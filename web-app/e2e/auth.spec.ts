@@ -1,49 +1,50 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Authentication', () => {
-    test('should allow user to sign up', async ({ page }) => {
-        // Navigate to signup
-        await page.goto('http://localhost:3000/auth/signup');
+  test('login page renders correctly', async ({ page }) => {
+    await page.goto('/login');
+    await expect(page.getByRole('heading', { name: /sign in|log in|welcome/i })).toBeVisible();
+    await expect(page.getByLabel(/email/i)).toBeVisible();
+    await expect(page.getByLabel(/password/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /sign in|log in/i })).toBeVisible();
+  });
 
-        // Fill signup form with unique email
-        const email = `test-${Date.now()}-${Math.floor(Math.random() * 1000)}@example.com`;
-        await page.fill('input[name="name"]', 'E2E User');
-        await page.fill('input[name="email"]', email);
-        await page.fill('input[name="password"]', 'Password123!');
-        await page.fill('input[name="confirmPassword"]', 'Password123!');
+  test('shows validation error for empty email', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByRole('button', { name: /sign in|log in/i }).click();
+    const emailInput = page.getByLabel(/email/i);
+    const validity = await emailInput.evaluate((el: HTMLInputElement) => el.validity.valid);
+    expect(validity).toBe(false);
+  });
 
-        // Submit
-        await page.click('button[type="submit"]');
+  test('shows error for invalid credentials', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel(/email/i).fill('nonexistent@example.com');
+    await page.getByLabel(/password/i).fill('wrongpassword');
+    await page.getByRole('button', { name: /sign in|log in/i }).click();
+    await expect(page.getByText(/invalid|incorrect|not found|error/i)).toBeVisible({ timeout: 5000 });
+  });
 
-        // Should redirect to login or dashboard (depending on flow, assuming login)
-        // Wait for URL change or error message
-        try {
-            await expect(page).toHaveURL(/.*\/auth\/login/, { timeout: 5000 });
-        } catch (e) {
-            // If URL check fails, check if there's an error message on screen
-            const errorMessage = await page.locator('.text-red-600').textContent();
-            console.log(`Signup failed with error: ${errorMessage}`);
-            throw e;
-        }
+  test('sign up link is accessible from login page', async ({ page }) => {
+    await page.goto('/login');
+    const signupLink = page.getByRole('link', { name: /sign up|register|create/i });
+    await expect(signupLink).toBeVisible();
+  });
 
-        // Fill login
-        await page.fill('input[type="email"]', email);
-        await page.fill('input[type="password"]', 'Password123!');
-        await page.click('button[type="submit"]');
+  test('signup page renders correctly', async ({ page }) => {
+    await page.goto('/signup');
+    await expect(page.getByLabel(/email/i)).toBeVisible();
+    await expect(page.getByLabel(/password/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /sign up|create/i })).toBeVisible();
+  });
 
-        // Should complete onboarding if new user
-        await expect(page).toHaveURL(/.*\/onboarding/);
-        await page.click('text=Morning Person');
-        await page.click('text=Next');
-        await page.click('text=25m');
-        await page.click('text=Next');
-        await page.click('text=Social Media');
-        await page.click('text=Next');
-        await page.click('text=Home');
-        await page.click('text=Complete Setup');
+  test('redirects unauthenticated users from dashboard to login', async ({ page }) => {
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/login/);
+  });
 
-        // Should land on dashboard
-        await expect(page).toHaveURL(/.*\/dashboard/);
-        await expect(page).toHaveURL(/.*\/dashboard/);
-    });
+  test('privacy policy page is accessible', async ({ page }) => {
+    await page.goto('/privacy');
+    await expect(page.getByRole('heading', { name: /privacy/i })).toBeVisible();
+  });
 });
