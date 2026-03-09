@@ -54,12 +54,19 @@ interface AnalysisData {
   hourlyStats: HourlyStat[];
 }
 
+const ALL_CATEGORIES = [
+  'Development', 'Work', 'Communication', 'Entertainment',
+  'Social Media', 'Browsing', 'Creative', 'Study', 'Unknown',
+];
+
 export default function ActivityAnalysisPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<AnalysisData | null>(null);
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'all'>('week');
+  const [editingApp, setEditingApp] = useState<string | null>(null);
+  const [correcting, setCorrecting] = useState(false);
 
   const fetchAnalysis = useCallback(async (token: string, range: string) => {
     setLoading(true);
@@ -119,6 +126,44 @@ export default function ActivityAnalysisPage() {
     }
     fetchAnalysis(token, timeRange);
   }, [router, timeRange, fetchAnalysis]);
+
+  const correctCategory = useCallback(async (appName: string, newCategory: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setCorrecting(true);
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      };
+
+      // Create a user rule so future activities get this category
+      await fetch('/api/categories', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          keyword: appName.toLowerCase(),
+          matchField: 'applicationName',
+          category: newCategory,
+        }),
+      });
+
+      // Re-categorize existing activities with this app name
+      await fetch('/api/activity/recategorize', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ applicationName: appName, newCategory }),
+      });
+
+      setEditingApp(null);
+      fetchAnalysis(token, timeRange);
+    } catch (err) {
+      console.error('Error correcting category:', err);
+    } finally {
+      setCorrecting(false);
+    }
+  }, [fetchAnalysis, timeRange]);
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
@@ -362,9 +407,30 @@ export default function ActivityAnalysisPage() {
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                        {getCategoryEmoji(app.category)} {app.category}
-                      </span>
+                      {editingApp === app.name ? (
+                        <select
+                          className="text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-2 py-1"
+                          defaultValue={app.category}
+                          disabled={correcting}
+                          onChange={(e) => correctCategory(app.name, e.target.value)}
+                          onBlur={() => setEditingApp(null)}
+                          autoFocus
+                        >
+                          {ALL_CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {getCategoryEmoji(cat)} {cat}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <button
+                          onClick={() => setEditingApp(app.name)}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:ring-2 hover:ring-primary-400 transition-all"
+                          title="Click to change category"
+                        >
+                          {getCategoryEmoji(app.category)} {app.category}
+                        </button>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="font-bold text-gray-900 dark:text-white">

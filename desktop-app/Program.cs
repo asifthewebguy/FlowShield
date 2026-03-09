@@ -40,7 +40,7 @@ namespace FlowShield.Desktop
             SentrySdk.Init(o =>
             {
                 // Replace with your actual Sentry DSN from sentry.io
-                o.Dsn = "YOUR_SENTRY_DSN";
+                o.Dsn = "https://226677065985c8b9189a6abb7b277cc7@o4504301862649856.ingest.us.sentry.io/4511010287583232";
                 o.TracesSampleRate = 0.1;
                 o.IsGlobalModeEnabled = true;
                 var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
+import { normalizeCategory } from '@/app/api/categories/route';
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       url: activity.url || null,
       durationSeconds: activity.durationSeconds,
       activityLevel: activity.activityLevel || 0,
-      category: activity.category || 'Unknown',
+      category: normalizeCategory(activity.category || 'Unknown'),
       sessionId: activity.sessionId || null,
       source,
     }));

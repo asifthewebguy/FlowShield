@@ -43,6 +43,103 @@ function HeatmapSection({ token }: { token: string | null }) {
   );
 }
 
+function DistractionTrends({ period }: { period: 'week' | 'month' }) {
+  const { data, isLoading } = useSWR(
+    `/api/analytics/distractions?period=${period}`,
+    fetcher,
+    { refreshInterval: 300000 }
+  );
+
+  if (isLoading || !data || data.error) {
+    return <div className="mb-8 h-48 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse"></div>;
+  }
+
+  const trendColor = data.trendChange <= 0 ? 'text-green-600' : 'text-red-600';
+  const trendIcon = data.trendChange <= 0 ? '↓' : '↑';
+  const trendLabel = data.trendChange <= 0 ? 'improvement' : 'increase';
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🚫</span>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+            Distraction Analysis
+          </h3>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">
+              {data.distractionPercentage}%
+            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">of total time</div>
+          </div>
+          {data.trendChange !== 0 && (
+            <div className={`text-sm font-medium ${trendColor}`}>
+              {trendIcon} {Math.abs(data.trendChange)}% {trendLabel}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Daily distraction trend mini-chart */}
+        <div>
+          <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
+            Daily Distraction Time (min)
+          </h4>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={data.dailyTrend}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                tickFormatter={(d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                fontSize={11}
+              />
+              <YAxis fontSize={11} />
+              <Tooltip
+                labelFormatter={(d: string) => new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+              />
+              <Bar dataKey="minutes" fill="#ef4444" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Top distracting apps */}
+        <div>
+          <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
+            Top Distracting Apps
+          </h4>
+          {data.topDistractions.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No distraction data yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {data.topDistractions.map((app: { name: string; category: string; minutes: number; percentage: number }) => (
+                <div key={app.name}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[60%]">
+                      {app.name}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {app.minutes} min ({app.percentage}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-red-500 h-2 rounded-full transition-all"
+                      style={{ width: `${Math.min(app.percentage * 3, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AnalyticsPage() {
   const router = useRouter();
   const [period, setPeriod] = useState<'week' | 'month'>('week');
@@ -293,6 +390,9 @@ export default function AnalyticsPage() {
             </BarChart>
           </ResponsiveContainer>
         </div>
+
+        {/* Distraction Trends */}
+        <DistractionTrends period={period} />
 
         {/* Insights Panel */}
         {insightsData?.insights && insightsData.insights.length > 0 && (

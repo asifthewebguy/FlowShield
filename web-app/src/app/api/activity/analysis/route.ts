@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
+import { PRODUCTIVE_CATEGORIES } from '@/app/api/categories/route';
 
 export async function GET(request: NextRequest) {
   try {
@@ -122,10 +123,9 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => a.hour - b.hour);
 
-    // Calculate productivity score
-    const productiveCategories = ['Development', 'Work', 'Creative', 'Study'];
+    // Calculate productivity score using shared category list
     const productiveMinutes = activities
-      .filter(log => productiveCategories.includes(log.category))
+      .filter(log => PRODUCTIVE_CATEGORIES.includes(log.category))
       .reduce((sum, log) => sum + (log.durationSeconds / 60), 0);
 
     const productivityScore = totalMinutes > 0

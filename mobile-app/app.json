@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "FlowShield",
+    "slug": "flowshield",
+    "version": "1.9.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0ea5e9"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.flowshield.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0ea5e9",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.flowshield.app",
+      "permissions": [
+        "android.permission.PACKAGE_USAGE_STATS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-notifications"
+    ],
+    "extra": {
+      "apiUrl": "https://flowshield.app"
+    }
+  }
+}
