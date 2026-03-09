@@ -6,6 +6,7 @@ import {
   getCompletionRate,
   getStreakInsight,
   getConsistencyInsight,
+  getPredictiveSchedule,
   generateInsights,
 } from './insights';
 
@@ -235,5 +236,28 @@ describe('generateInsights', () => {
       expect(insight).toHaveProperty('title');
       expect(insight).toHaveProperty('description');
     }
+  });
+});
+
+// ─── getPredictiveSchedule ────────────────────────────────────────────────────
+
+describe('getPredictiveSchedule', () => {
+  it('returns null when fewer than 5 sessions', () => {
+    expect(getPredictiveSchedule(makeDailyStats(7), makeSessions(4))).toBeNull();
+  });
+
+  it('returns a schedule insight with 5+ sessions', () => {
+    const result = getPredictiveSchedule(makeDailyStats(14), makeSessions(10));
+    expect(result).not.toBeNull();
+    expect(result?.type).toBe('schedule');
+    expect(result?.id).toBe('schedule');
+    expect(result?.title).toMatch(/Best focus window/i);
+    expect(result?.description).toMatch(/schedule/i);
+  });
+
+  it('value is a valid hour (0–23)', () => {
+    const result = getPredictiveSchedule(makeDailyStats(14), makeSessions(10));
+    expect(result?.value).toBeGreaterThanOrEqual(0);
+    expect(result?.value).toBeLessThanOrEqual(23);
   });
 });

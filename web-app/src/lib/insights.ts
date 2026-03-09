@@ -1,6 +1,6 @@
 export interface Insight {
   id: string;
-  type: 'best_day' | 'peak_hour' | 'trend' | 'completion' | 'streak' | 'consistency';
+  type: 'best_day' | 'peak_hour' | 'trend' | 'completion' | 'streak' | 'consistency' | 'schedule';
   title: string;
   description: string;
   value?: number;
@@ -211,6 +211,54 @@ export function getConsistencyInsight(dailyStats: DailyStatInput[]): Insight | n
   };
 }
 
+/** Suggests the optimal time for the next session based on historical peak-hour + day patterns. */
+export function getPredictiveSchedule(dailyStats: DailyStatInput[], sessions: SessionInput[]): Insight | null {
+  if (sessions.length < 5) return null;
+
+  const hourMinutes: Record<number, number> = {};
+  for (const s of sessions) {
+    const h = new Date(s.startTime).getHours();
+    hourMinutes[h] = (hourMinutes[h] || 0) + (s.actualDuration || s.plannedDuration);
+  }
+  const hourEntries = Object.entries(hourMinutes);
+  if (hourEntries.length === 0) return null;
+
+  const [bestHourStr] = hourEntries.sort(([, a], [, b]) => b - a)[0];
+  const bestHour = Number(bestHourStr);
+
+  const dayMinutes: Record<number, number> = {};
+  for (const stat of dailyStats) {
+    const dow = new Date(stat.date).getDay();
+    dayMinutes[dow] = (dayMinutes[dow] || 0) + stat.totalFocusMinutes;
+  }
+  const dayEntries = Object.entries(dayMinutes);
+  if (dayEntries.length === 0) return null;
+
+  const [bestDowStr] = dayEntries.sort(([, a], [, b]) => b - a)[0];
+  const bestDow = Number(bestDowStr);
+
+  const now = new Date();
+  const today = now.getDay();
+  const currentHour = now.getHours();
+
+  let when: string;
+  if (today === bestDow && currentHour < bestHour) {
+    when = `today at ${formatHour(bestHour)}`;
+  } else if ((bestDow - today + 7) % 7 === 1) {
+    when = `tomorrow at ${formatHour(bestHour)}`;
+  } else {
+    when = `${DAY_NAMES[bestDow]} at ${formatHour(bestHour)}`;
+  }
+
+  return {
+    id: 'schedule',
+    type: 'schedule',
+    title: `Best focus window: ${formatHour(bestHour)}`,
+    description: `Based on your history, schedule your next deep work session ${when} for best results.`,
+    value: bestHour,
+  };
+}
+
 /** Master function: generates all applicable insights, sorted by relevance. */
 export function generateInsights(data: InsightsInput): Insight[] {
   const insights: Insight[] = [];
@@ -232,6 +280,9 @@ export function generateInsights(data: InsightsInput): Insight[] {
 
   const consistency = getConsistencyInsight(data.dailyStats);
   if (consistency) insights.push(consistency);
+
+  const schedule = getPredictiveSchedule(data.dailyStats, data.sessions);
+  if (schedule) insights.push(schedule);
 
   return insights;
 }

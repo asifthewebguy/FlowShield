@@ -1,6 +1,6 @@
 # FlowShield - Development Roadmap (v1.6.0 → v2.0)
 
-> Last updated: 2026-03-09
+> Last updated: 2026-03-10
 
 ## Context
 
@@ -214,14 +214,21 @@ FlowShield is at v1.1.6 with a working web dashboard (Next.js/Prisma/PostgreSQL 
 
 ---
 
-## Sprint 10 — v2.0.0: AI Coach & Teams
+## Sprint 10 — v2.0.0: AI Coach & Teams ✓ COMPLETE
 
-**Goal:** Phase 2 differentiators.
+**Goal:** Phase 2 differentiators — AI coaching and team productivity.
 
-- [ ] AI Productivity Coach: integrate LLM API for personalized advice
-- [ ] `/api/coach/advice` endpoint + "Coach" card on dashboard
-- [ ] Team features: `Team` and `TeamMembership` models, invite flow, shared leaderboard
-- [ ] Predictive scheduling based on historical peak-hour data
+- [x] `@anthropic-ai/sdk` installed; `/api/coach/advice` streams personalized advice via SSE using Claude Opus 4.6 with adaptive thinking — builds context from last 7 days of sessions, activity logs, and daily stats
+- [x] `/coach` page — real-time streaming UI (fetch + ReadableStream reader), shows typed-out AI advice with cursor animation; includes Teams section (create/join/list)
+- [x] "AI Coach" card on dashboard (replaces static Quick Tips) — links to `/coach` page
+- [x] `Team` and `TeamMembership` Prisma models (`teams`, `team_memberships` tables); migration `20260310000000_add_teams`; `TeamRole` enum (OWNER/ADMIN/MEMBER)
+- [x] Team API routes: `GET/POST /api/teams`, `GET/PATCH/DELETE /api/teams/[id]` (team leaderboard by week), `POST /api/teams/join` (invite code flow)
+- [x] `getPredictiveSchedule()` insight in `src/lib/insights.ts` — suggests optimal session time based on historical peak-hour + best-day-of-week analysis; included in `generateInsights()`
+- [x] 3 new unit tests for `getPredictiveSchedule` — 115 total tests passing (up from 112)
+
+**New env vars needed:** `ANTHROPIC_API_KEY` (Anthropic console → API Keys)
+
+**Key files:** `web-app/src/app/api/coach/advice/route.ts` (new), `web-app/src/app/coach/page.tsx` (new), `web-app/src/app/api/teams/` (new), `web-app/prisma/schema.prisma`, `web-app/prisma/migrations/20260310000000_add_teams/`, `web-app/src/lib/insights.ts`, `web-app/src/app/dashboard/page.tsx`
 
 ---
 
