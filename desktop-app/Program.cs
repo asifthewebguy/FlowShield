@@ -12,6 +12,8 @@ namespace FlowShield.Desktop
     static class Program
     {
         private const string LegacyEncryptionKey = "FlowShield-Secure-Local-Storage-Key-2024";
+        private static TrayApplication? _trayApp;
+        private static WebsiteBlocker? _websiteBlocker;
 
         [STAThread]
         static void Main()
@@ -68,6 +70,10 @@ namespace FlowShield.Desktop
                 Application.ThreadException += Application_ThreadException;
                 AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
+                // Graceful shutdown handlers
+                AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+                Console.CancelKeyPress += OnCancelKeyPress;
+
                 // Initialize database with DPAPI-protected encryption key
                 var dbService = new DatabaseService();
                 var dbPath = Path.Combine(
@@ -91,6 +97,10 @@ namespace FlowShield.Desktop
                 var encryptionKey = KeyProtectionService.GetOrCreateKey();
                 dbService.Initialize(encryptionKey);
 
+                // Recover any stale hosts file blocks left by a prior crash
+                _websiteBlocker = new WebsiteBlocker();
+                _websiteBlocker.RecoverStaleBlocks();
+
                 // Start activity tracker
                 var activityTracker = new ActivityTracker(dbService);
                 activityTracker.Start();
@@ -104,9 +114,9 @@ namespace FlowShield.Desktop
                 });
 
                 // Create system tray application
-                var trayApp = new TrayApplication(activityTracker, dbService);
+                _trayApp = new TrayApplication(activityTracker, dbService);
 
-                Application.Run(trayApp);
+                Application.Run(_trayApp);
             }
             catch (Exception ex)
             {
@@ -145,6 +155,30 @@ namespace FlowShield.Desktop
             catch { }
 
             return string.Empty;
+        }
+
+        private static void OnProcessExit(object? sender, EventArgs e)
+        {
+            try
+            {
+                // Restore hosts file if blocking was active (crash-safe cleanup)
+                if (_websiteBlocker != null && _websiteBlocker.HasStaleBlocks())
+                {
+                    _websiteBlocker.RecoverStaleBlocks();
+                }
+                LoggingService.Logger.Information("FlowShield process exiting — cleanup complete");
+            }
+            catch (Exception ex)
+            {
+                LoggingService.Logger.Warning(ex, "Error during process exit cleanup");
+            }
+        }
+
+        private static void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+        {
+            e.Cancel = true; // Prevent immediate termination; let ProcessExit run cleanup
+            LoggingService.Logger.Information("CancelKeyPress received — initiating graceful shutdown");
+            Application.Exit();
         }
 
         private static bool IsAdministrator()

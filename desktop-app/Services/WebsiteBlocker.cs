@@ -4,12 +4,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Principal;
+using Serilog;
 
 namespace FlowShield.Desktop.Services
 {
     public class WebsiteBlocker : IWebsiteBlocker
     {
         private readonly string _hostsFilePath;
+        private readonly string _backupPath;
         private readonly string _blockMarker = "# FlowShield Block";
         private List<string> _blockedDomains = new();
         private bool _isBlocking = false;
@@ -69,6 +71,17 @@ namespace FlowShield.Desktop.Services
                 Environment.GetFolderPath(Environment.SpecialFolder.System),
                 "drivers", "etc", "hosts"
             );
+            _backupPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "FlowShield", "hosts.backup"
+            );
+        }
+
+        /// <summary>Test-only constructor with injectable file paths.</summary>
+        internal WebsiteBlocker(string hostsFilePath, string backupPath)
+        {
+            _hostsFilePath = hostsFilePath;
+            _backupPath = backupPath;
         }
 
         public bool IsRunningAsAdministrator()
@@ -98,6 +111,66 @@ namespace FlowShield.Desktop.Services
             }
         }
 
+        /// <summary>
+        /// Creates a backup of the hosts file before modification.
+        /// Backup is stored at %LOCALAPPDATA%\FlowShield\hosts.backup.
+        /// </summary>
+        public void BackupHostsFile()
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(_backupPath);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                File.Copy(_hostsFilePath, _backupPath, overwrite: true);
+                Log.Debug("Hosts file backed up to {Path}", _backupPath);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to backup hosts file to {Path}", _backupPath);
+            }
+        }
+
+        /// <summary>Checks if the hosts file contains stale FlowShield markers.</summary>
+        internal bool HasStaleBlocks()
+        {
+            try
+            {
+                if (!File.Exists(_hostsFilePath)) return false;
+                var lines = File.ReadAllLines(_hostsFilePath);
+                return lines.Any(l => l.Contains(_blockMarker));
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not read hosts file to check for stale blocks");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Called on startup to clean up stale FlowShield entries left by a crash.
+        /// Returns true if recovery was performed.
+        /// </summary>
+        public bool RecoverStaleBlocks()
+        {
+            try
+            {
+                if (!HasStaleBlocks()) return false;
+
+                Log.Warning("Stale FlowShield hosts file entries detected — attempting crash recovery");
+                return DisableBlocking();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Log.Warning("Stale blocks detected but cannot recover without admin privileges");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to recover stale hosts file blocks");
+                return false;
+            }
+        }
+
         public bool EnableBlocking()
         {
             if (!IsRunningAsAdministrator())
@@ -120,6 +193,9 @@ namespace FlowShield.Desktop.Services
 
             try
             {
+                // Backup before modifying
+                BackupHostsFile();
+
                 // Read current hosts file
                 var lines = File.ReadAllLines(_hostsFilePath).ToList();
 
@@ -144,8 +220,9 @@ namespace FlowShield.Desktop.Services
                 _isBlocking = true;
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Warning(ex, "Failed to enable website blocking");
                 return false;
             }
         }
@@ -232,8 +309,9 @@ namespace FlowShield.Desktop.Services
                 _isBlocking = hasFlowShieldBlocks;
                 return hasFlowShieldBlocks;
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Warning(ex, "Could not read hosts file to determine blocking state");
                 return _isBlocking; // Fallback to in-memory state if file can't be read
             }
         }
@@ -261,8 +339,9 @@ namespace FlowShield.Desktop.Services
                 process.Start();
                 process.WaitForExit();
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Warning(ex, "Failed to flush DNS cache");
             }
         }
 

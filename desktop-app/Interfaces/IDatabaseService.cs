@@ -16,5 +16,7 @@ public interface IDatabaseService
     List<PendingOperation> GetPendingOperations(int maxRetries = 5);
     void RemovePendingOperation(int id);
     void IncrementRetryCount(int id);
+    void PurgeOldPendingOperations(int maxAgeDays = 7);
+    void EnforceQueueLimit(int maxEntries = 500);
     Dictionary<string, int> GetTodayStats();
 }

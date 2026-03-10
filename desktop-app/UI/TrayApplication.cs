@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using FlowShield.Desktop.Services;
+using Serilog;
 
 namespace FlowShield.Desktop.UI
 {
@@ -401,8 +402,9 @@ namespace FlowShield.Desktop.UI
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Warning(ex, "Failed to register device or load preferences");
             }
         }
 
@@ -541,6 +543,16 @@ namespace FlowShield.Desktop.UI
             _activityTracker.Stop();
             _syncService.Stop();
 
+            // Flush any remaining activities synchronously before exit
+            try
+            {
+                _syncService.SyncNowAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to flush sync on exit");
+            }
+
             // Disable website blocking on exit
             try
             {
@@ -549,8 +561,9 @@ namespace FlowShield.Desktop.UI
                     _websiteBlocker.DisableBlocking();
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Log.Warning(ex, "Failed to disable website blocking on exit");
             }
 
             _trayIcon.Visible = false;
@@ -561,7 +574,6 @@ namespace FlowShield.Desktop.UI
         {
             if (disposing)
             {
-                _trayIcon?.Dispose();
                 _trayIcon?.Dispose();
                 _contextMenu?.Dispose();
                 _mainWindow?.Close();

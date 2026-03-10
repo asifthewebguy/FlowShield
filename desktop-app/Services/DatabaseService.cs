@@ -4,6 +4,7 @@ using System.IO;
 using Microsoft.Data.Sqlite;
 using FlowShield.Desktop.Models;
 using FlowShield.Desktop.Interfaces;
+using Serilog;
 
 namespace FlowShield.Desktop.Services
 {
@@ -278,6 +279,48 @@ namespace FlowShield.Desktop.Services
             command.Parameters.AddWithValue("@payload", payload);
             command.Parameters.AddWithValue("@createdAt", DateTime.UtcNow.ToString("o"));
             command.ExecuteNonQuery();
+
+            // Enforce bounds after every insert
+            PurgeOldPendingOperations();
+            EnforceQueueLimit();
+        }
+
+        /// <summary>Removes pending operations older than <paramref name="maxAgeDays"/> days.</summary>
+        public void PurgeOldPendingOperations(int maxAgeDays = 7)
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+
+            var cutoff = DateTime.UtcNow.AddDays(-maxAgeDays).ToString("o");
+            var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM PendingOperations WHERE CreatedAt < @cutoff";
+            command.Parameters.AddWithValue("@cutoff", cutoff);
+            var deleted = command.ExecuteNonQuery();
+
+            if (deleted > 0)
+                Log.Warning("Purged {Count} pending operations older than {Days} days", deleted, maxAgeDays);
+        }
+
+        /// <summary>
+        /// Trims the pending operations queue to at most <paramref name="maxEntries"/> entries,
+        /// keeping the most recent ones.
+        /// </summary>
+        public void EnforceQueueLimit(int maxEntries = 500)
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+
+            var command = connection.CreateCommand();
+            command.CommandText = @"
+                DELETE FROM PendingOperations
+                WHERE Id NOT IN (
+                    SELECT Id FROM PendingOperations ORDER BY CreatedAt DESC LIMIT @max
+                )";
+            command.Parameters.AddWithValue("@max", maxEntries);
+            var deleted = command.ExecuteNonQuery();
+
+            if (deleted > 0)
+                Log.Warning("Trimmed {Count} oldest pending operations to enforce {Max}-entry limit", deleted, maxEntries);
         }
 
         public List<PendingOperation> GetPendingOperations(int maxRetries = 5)

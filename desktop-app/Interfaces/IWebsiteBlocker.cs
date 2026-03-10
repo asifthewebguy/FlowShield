@@ -9,6 +9,8 @@ public interface IWebsiteBlocker
     bool EnableBlocking();
     bool DisableBlocking();
     bool IsBlocking();
+    bool RecoverStaleBlocks();
+    void BackupHostsFile();
     List<string> GetBlockedDomains();
     Dictionary<string, string[]> GetAvailableDistractionTypes();
 }

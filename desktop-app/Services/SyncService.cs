@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Serilog;
 
 namespace FlowShield.Desktop.Services
 {
@@ -16,6 +17,11 @@ namespace FlowShield.Desktop.Services
         private System.Threading.Timer? _syncTimer;
         private readonly SemaphoreSlim _syncLock = new(1, 1);
         private bool _wasOffline = false;
+        private int _consecutiveFailures = 0;
+        private int _normalIntervalMinutes = 5;
+
+        internal static readonly TimeSpan BaseInterval = TimeSpan.FromMinutes(5);
+        internal static readonly TimeSpan MaxInterval = TimeSpan.FromMinutes(30);
 
         public event EventHandler<SyncEventArgs>? SyncStarted;
         public event EventHandler<SyncEventArgs>? SyncCompleted;
@@ -45,8 +51,22 @@ namespace FlowShield.Desktop.Services
             }
         }
 
+        /// <summary>
+        /// Calculates exponential backoff delay: min(base * 2^(failures-1), max).
+        /// Returns base interval when failures is 0.
+        /// </summary>
+        internal static TimeSpan CalculateBackoffDelay(int failures, TimeSpan baseInterval, TimeSpan maxInterval)
+        {
+            if (failures <= 0) return baseInterval;
+            // Use double arithmetic to avoid long overflow when failures is large
+            var delaySeconds = baseInterval.TotalSeconds * Math.Pow(2, failures - 1);
+            var cappedSeconds = Math.Min(delaySeconds, maxInterval.TotalSeconds);
+            return TimeSpan.FromSeconds(cappedSeconds);
+        }
+
         public void Start(int intervalMinutes = 5)
         {
+            _normalIntervalMinutes = intervalMinutes;
             _syncTimer = new Timer(
                 async _ => await SyncNowAsync(),
                 null,
@@ -109,14 +129,30 @@ namespace FlowShield.Desktop.Services
                 };
 
                 if (success)
+                {
+                    _consecutiveFailures = 0;
+                    // Restore normal interval after recovery from backoff
+                    _syncTimer?.Change(TimeSpan.FromMinutes(_normalIntervalMinutes), TimeSpan.FromMinutes(_normalIntervalMinutes));
                     SyncCompleted?.Invoke(this, eventArgs);
+                }
                 else
+                {
+                    _consecutiveFailures++;
+                    var backoff = CalculateBackoffDelay(_consecutiveFailures, BaseInterval, MaxInterval);
+                    Log.Warning("Sync failed ({Failures} consecutive). Next retry in {Backoff:mm\\:ss}", _consecutiveFailures, backoff);
+                    _syncTimer?.Change(backoff, backoff);
                     SyncFailed?.Invoke(this, eventArgs);
+                }
 
                 return success;
             }
             catch (Exception ex)
             {
+                _consecutiveFailures++;
+                var backoff = CalculateBackoffDelay(_consecutiveFailures, BaseInterval, MaxInterval);
+                Log.Warning(ex, "Sync exception ({Failures} consecutive). Next retry in {Backoff:mm\\:ss}", _consecutiveFailures, backoff);
+                _syncTimer?.Change(backoff, backoff);
+
                 SyncFailed?.Invoke(this, new SyncEventArgs
                 {
                     Success = false,
@@ -160,8 +196,9 @@ namespace FlowShield.Desktop.Services
 
                     _dbService.RemovePendingOperation(op.Id);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Log.Warning(ex, "Failed to replay pending operation {Id} ({Type})", op.Id, op.OperationType);
                     _dbService.IncrementRetryCount(op.Id);
                 }
             }
