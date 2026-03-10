@@ -1,3 +1,4 @@
+using FlowShield.Desktop.Interfaces;
 using System;
 using System.Net.Http;
 using System.Reflection;
@@ -16,7 +17,7 @@ namespace FlowShield.Desktop.Services
         public string ReleaseNotes { get; set; } = string.Empty;
     }
 
-    public class UpdateService
+    public class UpdateService : IUpdateService
     {
         private const string ReleasesApiUrl = "https://api.github.com/repos/asifthewebguy/FlowShield/releases/latest";
         private readonly HttpClient _http;
@@ -129,7 +130,7 @@ namespace FlowShield.Desktop.Services
         }
 
         // Returns true if `latest` is strictly greater than `current` (semver major.minor.patch)
-        private static bool IsNewerVersion(string latest, string current)
+        internal static bool IsNewerVersion(string latest, string current)
         {
             if (string.IsNullOrEmpty(latest)) return false;
 
@@ -145,7 +146,7 @@ namespace FlowShield.Desktop.Services
             return false; // equal
         }
 
-        private static int[] ParseVersion(string version)
+        internal static int[] ParseVersion(string version)
         {
             var parts = new int[3];
             var segments = Regex.Replace(version, "[^0-9.]", "").Split('.');

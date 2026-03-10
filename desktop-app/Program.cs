@@ -1,14 +1,18 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FlowShield.Desktop.Services;
 using FlowShield.Desktop.UI;
+using Newtonsoft.Json.Linq;
 using Sentry;
 
 namespace FlowShield.Desktop
 {
     static class Program
     {
+        private const string LegacyEncryptionKey = "FlowShield-Secure-Local-Storage-Key-2024";
+
         [STAThread]
         static void Main()
         {
@@ -37,15 +41,22 @@ namespace FlowShield.Desktop
                 }
             }
 
-            SentrySdk.Init(o =>
+            // Initialize file logging before anything else
+            LoggingService.Initialize();
+
+            // Read Sentry DSN from env var or appsettings.json (no more hardcoded DSN)
+            var sentryDsn = GetSentryDsn();
+            if (!string.IsNullOrEmpty(sentryDsn))
             {
-                // Replace with your actual Sentry DSN from sentry.io
-                o.Dsn = "https://226677065985c8b9189a6abb7b277cc7@o4504301862649856.ingest.us.sentry.io/4511010287583232";
-                o.TracesSampleRate = 0.1;
-                o.IsGlobalModeEnabled = true;
-                var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-                o.Release = $"flowshield-desktop@{version?.ToString(3) ?? "0.0.0"}";
-            });
+                SentrySdk.Init(o =>
+                {
+                    o.Dsn = sentryDsn;
+                    o.TracesSampleRate = 0.1;
+                    o.IsGlobalModeEnabled = true;
+                    var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                    o.Release = $"flowshield-desktop@{version?.ToString(3) ?? "0.0.0"}";
+                });
+            }
 
             try
             {
@@ -57,11 +68,28 @@ namespace FlowShield.Desktop
                 Application.ThreadException += Application_ThreadException;
                 AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
-                // Initialize database with encryption
+                // Initialize database with DPAPI-protected encryption key
                 var dbService = new DatabaseService();
-                // In a real app, this key should be securely managed (e.g. DPAPI or User input)
-                // For now we use a hardcoded app-specific key to satisfy the encryption requirement
-                dbService.Initialize("FlowShield-Secure-Local-Storage-Key-2024");
+                var dbPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "FlowShield", "flowshield.db");
+
+                // Migrate from legacy hardcoded key to DPAPI if needed
+                if (File.Exists(dbPath) && !File.Exists(KeyProtectionService.KeyFilePath))
+                {
+                    try
+                    {
+                        KeyProtectionService.MigrateFromHardcodedKey(dbPath, LegacyEncryptionKey);
+                        LoggingService.Logger.Information("Migrated database encryption from hardcoded key to DPAPI");
+                    }
+                    catch (Exception ex)
+                    {
+                        LoggingService.Logger.Warning(ex, "DPAPI migration failed — falling back to legacy key");
+                    }
+                }
+
+                var encryptionKey = KeyProtectionService.GetOrCreateKey();
+                dbService.Initialize(encryptionKey);
 
                 // Start activity tracker
                 var activityTracker = new ActivityTracker(dbService);
@@ -82,6 +110,7 @@ namespace FlowShield.Desktop
             }
             catch (Exception ex)
             {
+                LoggingService.Logger.Fatal(ex, "Fatal error starting FlowShield");
                 MessageBox.Show(
                     $"Fatal error starting FlowShield:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
                     "FlowShield Error",
@@ -89,6 +118,33 @@ namespace FlowShield.Desktop
                     MessageBoxIcon.Error
                 );
             }
+            finally
+            {
+                LoggingService.Shutdown();
+            }
+        }
+
+        private static string GetSentryDsn()
+        {
+            // 1. Check environment variable
+            var envDsn = Environment.GetEnvironmentVariable("FLOWSHIELD_SENTRY_DSN");
+            if (!string.IsNullOrEmpty(envDsn)) return envDsn;
+
+            // 2. Check appsettings.json next to the executable
+            try
+            {
+                var appSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+                if (File.Exists(appSettingsPath))
+                {
+                    var json = File.ReadAllText(appSettingsPath);
+                    var obj = JObject.Parse(json);
+                    var dsn = obj["SentryDsn"]?.ToString();
+                    if (!string.IsNullOrEmpty(dsn)) return dsn;
+                }
+            }
+            catch { }
+
+            return string.Empty;
         }
 
         private static bool IsAdministrator()
@@ -100,6 +156,7 @@ namespace FlowShield.Desktop
 
         private static void Application_ThreadException(object sender, System.Threading.ThreadExceptionEventArgs e)
         {
+            LoggingService.Logger.Error(e.Exception, "Thread exception");
             SentrySdk.CaptureException(e.Exception);
             MessageBox.Show(
                 $"Application error:\n\n{e.Exception.Message}\n\nStack trace:\n{e.Exception.StackTrace}",
@@ -112,7 +169,11 @@ namespace FlowShield.Desktop
         private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             var exception = e.ExceptionObject as Exception;
-            if (exception != null) SentrySdk.CaptureException(exception);
+            if (exception != null)
+            {
+                LoggingService.Logger.Fatal(exception, "Unhandled exception");
+                SentrySdk.CaptureException(exception);
+            }
             MessageBox.Show(
                 $"Unhandled error:\n\n{exception?.Message}\n\nStack trace:\n{exception?.StackTrace}",
                 "FlowShield Error",

@@ -7,10 +7,11 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using FlowShield.Desktop.Models;
+using FlowShield.Desktop.Interfaces;
 
 namespace FlowShield.Desktop.Services
 {
-    public class ApiClient
+    public class ApiClient : IApiClient
     {
         private readonly HttpClient _httpClient;
         private readonly DatabaseService _dbService;

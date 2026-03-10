@@ -7,7 +7,7 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <AssemblyName>FlowShield</AssemblyName>
-    <Version>1.7.0</Version>
+    <Version>2.1.0</Version>
     <Authors>FlowShield Team</Authors>
     <Company>FlowShield</Company>
     <Product>FlowShield Desktop</Product>
@@ -17,15 +17,32 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="FlowShield.Desktop.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="FlowShield.Desktop.Tests\**" />
+    <None Remove="FlowShield.Desktop.Tests\**" />
+    <Content Remove="FlowShield.Desktop.Tests\**" />
+    <EmbeddedResource Remove="FlowShield.Desktop.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Sentry" Version="4.14.0" />
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" Version="2.1.11" />
     <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="logo.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

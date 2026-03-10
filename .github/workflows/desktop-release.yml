@@ -28,7 +28,10 @@ jobs:
       
     - name: Build
       run: dotnet build desktop-app/FlowShield.Desktop.csproj --configuration Release --no-restore
-      
+
+    - name: Run Tests
+      run: dotnet test desktop-app/FlowShield.Desktop.Tests/FlowShield.Desktop.Tests.csproj --configuration Release --no-restore --verbosity normal
+
     - name: Publish
       run: dotnet publish desktop-app/FlowShield.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish
       

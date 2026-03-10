@@ -1,3 +1,4 @@
+using FlowShield.Desktop.Interfaces;
 using System;
 using System.Net.Http;
 using System.Net.NetworkInformation;
@@ -8,11 +9,11 @@ using Newtonsoft.Json;
 
 namespace FlowShield.Desktop.Services
 {
-    public class SyncService
+    public class SyncService : ISyncService
     {
         private readonly ApiClient _apiClient;
         private readonly DatabaseService _dbService;
-        private Timer? _syncTimer;
+        private System.Threading.Timer? _syncTimer;
         private readonly SemaphoreSlim _syncLock = new(1, 1);
         private bool _wasOffline = false;
 

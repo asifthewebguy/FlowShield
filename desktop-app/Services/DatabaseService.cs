@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using Microsoft.Data.Sqlite;
 using FlowShield.Desktop.Models;
+using FlowShield.Desktop.Interfaces;
 
 namespace FlowShield.Desktop.Services
 {
-    public class DatabaseService
+    public class DatabaseService : IDatabaseService
     {
         private string _connectionString;
         private readonly string _dbPath;
@@ -20,6 +21,15 @@ namespace FlowShield.Desktop.Services
             Directory.CreateDirectory(appDataPath);
 
             _dbPath = Path.Combine(appDataPath, "flowshield.db");
+            _connectionString = $"Data Source={_dbPath}";
+        }
+
+        /// <summary>Test-only constructor that uses a custom database path.</summary>
+        internal DatabaseService(string dbPath)
+        {
+            var dir = Path.GetDirectoryName(dbPath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            _dbPath = dbPath;
             _connectionString = $"Data Source={_dbPath}";
         }
 

@@ -1,9 +1,10 @@
+using FlowShield.Desktop.Interfaces;
 using System;
 using System.Windows.Forms;
 
 namespace FlowShield.Desktop.Services
 {
-    public class NotificationService
+    public class NotificationService : INotificationService
     {
         private readonly NotifyIcon _notifyIcon;
         private readonly DatabaseService _dbService;

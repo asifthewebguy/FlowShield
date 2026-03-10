@@ -208,9 +208,9 @@ FlowShield is at v1.1.6 with a working web dashboard (Next.js/Prisma/PostgreSQL 
 - [x] Playwright E2E: **12 spec files** in `web-app/e2e/` — `auth.spec.ts`, `dashboard.spec.ts`, `navigation.spec.ts`, `api-health.spec.ts`, `signup.spec.ts`, `accessibility.spec.ts`, `security-headers.spec.ts`, plus 5 pre-existing specs
 - [x] OpenAPI spec: `web-app/openapi.yaml` (OpenAPI 3.1.0) — documents all 37 API routes across 11 tags (Auth, Sessions, Activity, Analytics, Categories, Leaderboard, Goals, Projects, User, Notifications, Admin)
 - [x] Security headers: `next.config.ts` now sends `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy`, `Permissions-Policy`, `Strict-Transport-Security` on all routes
-- [ ] Load testing for sync endpoint (deferred — requires k6/Artillery setup in CI)
+- [x] Load testing for sync endpoint — k6 script (`web-app/load-tests/sync.js`): 10 VUs, 60s ramp, thresholds p95 < 800ms & error rate < 1%; CI workflow (`.github/workflows/load-test.yml`) runs on `workflow_dispatch` + weekly schedule (Sunday 02:00 UTC); requires `LOAD_TEST_TOKEN` GitHub secret
 
-**Key files:** `mobile-app/src/screens/AnalyticsScreen.tsx` (new), `mobile-app/src/screens/ProfileScreen.tsx` (new), `mobile-app/src/screens/SettingsScreen.tsx` (new), `mobile-app/src/lib/offlineQueue.ts` (new), `web-app/src/lib/rate-limit.test.ts` (new), `web-app/src/lib/schemas.test.ts` (new), `web-app/src/lib/categories.test.ts` (new), `web-app/e2e/` (7 new specs), `web-app/openapi.yaml` (new), `web-app/next.config.ts`
+**Key files:** `mobile-app/src/screens/AnalyticsScreen.tsx` (new), `mobile-app/src/screens/ProfileScreen.tsx` (new), `mobile-app/src/screens/SettingsScreen.tsx` (new), `mobile-app/src/lib/offlineQueue.ts` (new), `web-app/src/lib/rate-limit.test.ts` (new), `web-app/src/lib/schemas.test.ts` (new), `web-app/src/lib/categories.test.ts` (new), `web-app/e2e/` (7 new specs), `web-app/openapi.yaml` (new), `web-app/next.config.ts`, `web-app/load-tests/sync.js` (new), `.github/workflows/load-test.yml` (new)
 
 ---
 

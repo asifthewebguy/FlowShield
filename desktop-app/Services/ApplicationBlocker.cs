@@ -1,3 +1,4 @@
+using FlowShield.Desktop.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -7,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace FlowShield.Desktop.Services
 {
-    public class ApplicationBlocker
+    public class ApplicationBlocker : IApplicationBlocker
     {
         private readonly List<string> _blockedProcessNames = new();
         private CancellationTokenSource? _monitoringCts;

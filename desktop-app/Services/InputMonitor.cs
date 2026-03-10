@@ -1,3 +1,4 @@
+using FlowShield.Desktop.Interfaces;
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -5,7 +6,7 @@ using System.Threading;
 
 namespace FlowShield.Desktop.Services
 {
-    public class InputMonitor : IDisposable
+    public class InputMonitor : IDisposable, IInputMonitor
     {
         private IntPtr _keyboardHookId = IntPtr.Zero;
         private IntPtr _mouseHookId = IntPtr.Zero;
@@ -18,7 +19,7 @@ namespace FlowShield.Desktop.Services
         private int _mouseMovementCount = 0;
 
         private readonly object _lockObject = new object();
-        private Timer? _resetTimer;
+        private System.Threading.Timer? _resetTimer;
 
         public event EventHandler<InputActivityEventArgs>? ActivityDetected;
 

@@ -6,14 +6,15 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FlowShield.Desktop.Models;
+using FlowShield.Desktop.Interfaces;
 
 namespace FlowShield.Desktop.Services
 {
-    public class ActivityTracker
+    public class ActivityTracker : IActivityTracker
     {
         private readonly DatabaseService _dbService;
         private readonly InputMonitor _inputMonitor;
-        private Timer? _trackingTimer;
+        private System.Threading.Timer? _trackingTimer;
         private string _lastWindowTitle = string.Empty;
         private string _lastProcessName = string.Empty;
         private DateTime _lastActivityTime = DateTime.Now;
@@ -145,7 +146,7 @@ namespace FlowShield.Desktop.Services
             }
         }
 
-        private ActivityCategory CategorizeActivity(string processName, string windowTitle)
+        internal ActivityCategory CategorizeActivity(string processName, string windowTitle)
         {
             var process = processName.ToLower();
             var title = windowTitle.ToLower();

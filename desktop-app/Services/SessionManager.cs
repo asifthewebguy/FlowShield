@@ -3,10 +3,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading; // For DispatcherTimer if we want UI thread friendliness, but System.Timers.Timer is better for services
 using FlowShield.Desktop.Models;
+using FlowShield.Desktop.Interfaces;
 
 namespace FlowShield.Desktop.Services
 {
-    public class SessionManager
+    public class SessionManager : ISessionManager
     {
         private readonly ApiClient _apiClient;
         private readonly ActivityTracker _activityTracker;

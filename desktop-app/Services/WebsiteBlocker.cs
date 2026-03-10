@@ -1,3 +1,4 @@
+using FlowShield.Desktop.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -6,7 +7,7 @@ using System.Security.Principal;
 
 namespace FlowShield.Desktop.Services
 {
-    public class WebsiteBlocker
+    public class WebsiteBlocker : IWebsiteBlocker
     {
         private readonly string _hostsFilePath;
         private readonly string _blockMarker = "# FlowShield Block";
