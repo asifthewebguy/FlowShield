@@ -39,7 +39,7 @@ export const options = {
     },
   },
   thresholds: {
-    http_req_duration: ['p(95)<800'],   // 95th percentile under 800ms
+    http_req_duration: ['p(95)<2000'],  // 95th percentile under 2s (accounts for serverless cold starts)
     http_req_failed:   ['rate<0.01'],   // less than 1% request errors
     sync_errors:       ['rate<0.01'],   // less than 1% business-logic errors
   },
