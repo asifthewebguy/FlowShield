@@ -1,0 +1,54 @@
+name: Load Test — Activity Sync
+
+# Run manually or on a weekly schedule (Sunday 02:00 UTC).
+# Never runs on push/PR to avoid hammering production.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Target URL (e.g. https://flowshield.app)'
+        required: false
+        default: 'https://flowshield.app'
+  schedule:
+    - cron: '0 2 * * 0'   # Sunday 02:00 UTC
+
+jobs:
+  load-test:
+    name: k6 — POST /api/activity/sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] \
+            https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update -qq
+          sudo apt-get install -y k6
+
+      - name: Run load test
+        env:
+          BASE_URL: ${{ github.event.inputs.base_url || 'https://flowshield.app' }}
+          TOKEN:    ${{ secrets.LOAD_TEST_TOKEN }}
+        run: |
+          k6 run \
+            --env BASE_URL="$BASE_URL" \
+            --env TOKEN="$TOKEN" \
+            --out json=load-test-results.json \
+            web-app/load-tests/sync.js
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results
+          path: load-test-results.json
+          retention-days: 30
