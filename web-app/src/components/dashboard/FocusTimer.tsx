@@ -139,7 +139,10 @@ export default function FocusTimer({
     if (currentSession && !currentSession.isPaused && timeRemaining > 0 && breakPhase === 'none') {
       timerWasRunning.current = true;
       interval = setInterval(() => {
-        setTimeRemaining((prev) => Math.max(0, prev - 1));
+        // Recalculate from server-anchored startTime every tick to prevent drift
+        const plannedEnd = new Date(currentSession.startTime).getTime()
+          + currentSession.plannedDuration * 60 * 1000;
+        setTimeRemaining(Math.max(0, Math.floor((plannedEnd - Date.now()) / 1000)));
       }, 1000);
     } else if (
       timerWasRunning.current &&

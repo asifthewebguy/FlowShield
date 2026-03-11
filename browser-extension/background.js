@@ -253,6 +253,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     syncActivities().then(() => sendResponse({ ok: true }));
     return true;
   }
+  if (msg.type === 'FORCE_POLL_SESSION') {
+    // Force an immediate session fetch so popup always opens with fresh data
+    fetchActiveSession().then(() => sendResponse({
+      activeSession,
+      currentDomain,
+      isDistraction: isDistraction(currentDomain),
+      remainingSeconds: sessionRemainingSeconds(),
+    }));
+    return true;
+  }
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

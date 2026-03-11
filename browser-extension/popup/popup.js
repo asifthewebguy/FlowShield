@@ -62,6 +62,10 @@ async function checkAuth() {
   const { token } = await chrome.storage.local.get('token');
   if (token) {
     showScreen('main');
+    // Force a fresh session fetch so the popup never shows stale cached data
+    await new Promise(resolve =>
+      chrome.runtime.sendMessage({ type: 'FORCE_POLL_SESSION' }, resolve)
+    );
     await refreshState();
     // Background may have cleared a stale/expired token during refreshState
     const { token: current } = await chrome.storage.local.get('token');

@@ -24,6 +24,8 @@ namespace FlowShield.Desktop.Services
         public bool IsRunning { get; private set; }
         public TimeSpan TimeRemaining { get; private set; }
         public SessionInfo? CurrentSession { get; private set; }
+        private DateTime _plannedEndUtc;
+        private System.Threading.Timer? _reSyncTimer;
         private bool _blockingEnabled = false;
         public bool BlockingEnabled
         {
@@ -64,12 +66,12 @@ namespace FlowShield.Desktop.Services
             {
                 var session = await _apiClient.GetActiveSessionAsync();
 
-                if (session != null && session.EndTime > DateTime.UtcNow)
+                if (session != null && session.StartTime.AddMinutes(session.PlannedDuration) > DateTime.UtcNow)
                 {
-                    // Resume session
+                    // Resume session — anchor to server startTime for accuracy
                     CurrentSession = session;
-                    var remaining = session.EndTime.Value - DateTime.UtcNow;
-                    StartLocalTimer(remaining);
+                    _plannedEndUtc = session.StartTime.ToUniversalTime().AddMinutes(session.PlannedDuration);
+                    StartLocalTimer(_plannedEndUtc - DateTime.UtcNow);
 
                     _activityTracker.CurrentSessionId = session.Id;
                     _activityTracker.Start();
@@ -85,7 +87,10 @@ namespace FlowShield.Desktop.Services
 
         private void OnTimerTick(object? sender, EventArgs e)
         {
-            TimeRemaining = TimeRemaining.Subtract(TimeSpan.FromSeconds(1));
+            // Recalculate from server-anchored planned end time instead of decrementing locally.
+            // This keeps the desktop display in sync with web/extension regardless of timer jitter.
+            TimeRemaining = _plannedEndUtc - DateTime.UtcNow;
+            if (TimeRemaining < TimeSpan.Zero) TimeRemaining = TimeSpan.Zero;
 
             TimerTick?.Invoke(this, TimeRemaining);
 
@@ -108,8 +113,13 @@ namespace FlowShield.Desktop.Services
                     _activityTracker.CurrentSessionId = session.Id;
                     _activityTracker.Start();
 
-                    // Start Timer
-                    StartLocalTimer(TimeSpan.FromMinutes(durationMinutes));
+                    // Anchor timer to server startTime so desktop stays in sync with web/extension
+                    _plannedEndUtc = session.StartTime.ToUniversalTime().AddMinutes(durationMinutes);
+                    StartLocalTimer(_plannedEndUtc - DateTime.UtcNow);
+
+                    // Re-anchor every 30s to catch cross-device session changes
+                    _reSyncTimer = new System.Threading.Timer(_ => _ = ReSyncFromServerAsync(), null,
+                        TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
 
                     // Engage Blocking if enabled
                     if (BlockingEnabled)
@@ -169,10 +179,31 @@ namespace FlowShield.Desktop.Services
             SessionStateChanged?.Invoke(this, true);
         }
 
+        private async Task ReSyncFromServerAsync()
+        {
+            try
+            {
+                var session = await _apiClient.GetActiveSessionAsync();
+                if (session != null && CurrentSession == null)
+                {
+                    // Session started on another device — pick it up
+                    CurrentSession = session;
+                    _plannedEndUtc = session.StartTime.ToUniversalTime().AddMinutes(session.PlannedDuration);
+                    _activityTracker.CurrentSessionId = session.Id;
+                    _activityTracker.Start();
+                    _timer.Dispatcher.Invoke(() => StartLocalTimer(_plannedEndUtc - DateTime.UtcNow));
+                    SessionStarted?.Invoke(this, session);
+                }
+            }
+            catch { }
+        }
+
         public async Task StopSessionAsync(bool completed = false)
         {
             IsRunning = false;
             _timer.Stop();
+            _reSyncTimer?.Dispose();
+            _reSyncTimer = null;
 
             // Sync stop with server
             if (CurrentSession != null && !string.IsNullOrEmpty(CurrentSession.Id))
