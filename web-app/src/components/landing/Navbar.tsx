@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 
 const navLinks = [
   { label: 'Features', href: '#features' },
@@ -16,9 +17,9 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <a href="/" className="text-xl font-bold text-white">
+          <Link href="/" className="text-xl font-bold text-white">
             Flow<span className="text-primary-600">Shield</span>
-          </a>
+          </Link>
 
           {/* Desktop links */}
           <div className="hidden md:flex items-center gap-8">

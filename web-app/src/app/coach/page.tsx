@@ -93,8 +93,7 @@ export default function CoachPage() {
   };
 
   useEffect(() => {
-    fetchAdvice();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchAdvice(); // eslint-disable-line react-hooks/set-state-in-effect
   }, []);
 
   return (

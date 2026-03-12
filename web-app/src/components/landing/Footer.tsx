@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 const footerLinks = {
   Product: [
     { label: 'Features', href: '#features' },
@@ -24,9 +26,9 @@ export default function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <a href="/" className="text-xl font-bold text-white">
+            <Link href="/" className="text-xl font-bold text-white">
               Flow<span className="text-primary-600">Shield</span>
-            </a>
+            </Link>
             <p className="mt-3 text-sm text-gray-500">
               AI-powered productivity & focus management platform.
             </p>
