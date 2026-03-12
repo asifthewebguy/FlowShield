@@ -35,11 +35,45 @@ jobs:
     - name: Publish
       run: dotnet publish desktop-app/FlowShield.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish
       
+    - name: Sign Executable (Azure Trusted Signing)
+      uses: azure/trusted-signing-action@v0.5.0
+      with:
+        azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+        endpoint: https://eus.codesigning.azure.net/
+        trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+        certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE }}
+        files-folder: ./publish
+        files-folder-filter: exe
+        file-digest: SHA256
+        timestamp-rfc3161: http://timestamp.acs.microsoft.com
+        timestamp-digest: SHA256
+        description: FlowShield
+        description-url: https://flowshield.app
+
     - name: Compile Installer (Inno Setup)
       uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
       with:
         path: desktop-app/FlowShield-Setup.iss
-        
+
+    - name: Sign Installer (Azure Trusted Signing)
+      uses: azure/trusted-signing-action@v0.5.0
+      with:
+        azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+        endpoint: https://eus.codesigning.azure.net/
+        trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+        certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE }}
+        files-folder: desktop-app/installer
+        files-folder-filter: exe
+        file-digest: SHA256
+        timestamp-rfc3161: http://timestamp.acs.microsoft.com
+        timestamp-digest: SHA256
+        description: FlowShield Installer
+        description-url: https://flowshield.app
+
     - name: Zip Release
       run: Compress-Archive -Path ./publish/* -DestinationPath ./FlowShield-Windows-x64.zip
       
