@@ -232,6 +232,57 @@ FlowShield is at v1.1.6 with a working web dashboard (Next.js/Prisma/PostgreSQL 
 
 ---
 
+## Desktop App Roadmap (Sprints 11–20, v2.1.0 → v3.0.0)
+
+> Desktop app reached v2.0 parity with web through dedicated sprints below.
+
+| Sprint | Version | Theme | Status |
+|--------|---------|-------|--------|
+| 11 | v2.1.0 | Quality Foundation | ✓ COMPLETE |
+| 12 | v2.2.0 | Resilience & Safety | ✓ COMPLETE |
+| 12.1 | v2.2.1 | Timer Sync Hotfix | ✓ COMPLETE |
+| 13 | v2.3.0 | Category Sync & Normalization | ✓ COMPLETE |
+| 14 | v2.4.0 | Session Pause/Resume | — |
+| 15 | v2.5.0 | Desktop Analytics Dashboard | — |
+| 16 | v2.6.0 | Goals, Projects & Preferences Sync | — |
+| 17 | v2.7.0 | AI Coach & Leaderboard | — |
+| 18 | v2.8.0 | Teams & Real-Time via Pusher | — |
+| 19 | v2.9.0 | Desktop-Unique Features | — |
+| 20 | v3.0.0 | Polish & Release | — |
+
+### Sprint 11 — v2.1.0: Quality Foundation ✓ COMPLETE
+- Extracted 10 service interfaces → `desktop-app/Interfaces/`
+- xUnit test project with 64 unit tests (categorization, version compare, activity levels, DB CRUD, blocking)
+- DPAPI key protection (`KeyProtectionService`) replacing hardcoded SQLCipher key
+- Sentry DSN externalized to `appsettings.json` / `FLOWSHIELD_SENTRY_DSN` env var
+- Serilog file logging → `%LOCALAPPDATA%\FlowShield\logs\` with 7-day rolling retention
+- AutoStartService for `HKCU\...\Run` registry key
+- `dotnet test` step added to `desktop-release.yml` CI
+
+### Sprint 12 — v2.2.0: Resilience & Safety ✓ COMPLETE
+- Hosts file backup before every `EnableBlocking` call; crash recovery on startup
+- Offline queue bounded to 500 entries + 7-day TTL purge
+- Exponential backoff for sync retries: `min(5min × 2^n, 30min)`
+- `ProcessExit` + `CancelKeyPress` handlers flush sync and restore hosts file
+- Replaced all bare `catch {}` with `Log.Warning(ex, ...)` across services
+- 84 total unit tests (20 new: backoff, queue bounds, hosts file resilience)
+
+### Sprint 12.1 — v2.2.1: Timer Sync Hotfix ✓ COMPLETE
+- Desktop timer re-anchored to server `startTime` instead of pure local countdown
+- Web `FocusTimer` recalculates from `startTime` each tick (no more `prev - 1` drift)
+- Extension popup force-fetches fresh session data on open (was 30s stale)
+- Desktop polls server every 30s for cross-device session detection
+
+### Sprint 13 — v2.3.0: Category Sync & Normalization ✓ COMPLETE
+- New `CategoryService` fetches rules from `GET /api/categories` at login, refreshes every 24h
+- SQLite `CategoryRules` table caches rules for offline use
+- `ActivityCategory` enum expanded: added `Work`, `Creative`, `Study`
+- `NormalizeCategory()` maps `Productivity→Work`, `Social→Social Media` in sync payloads
+- Fixes analytics mismatch where desktop activities appeared uncategorized on web
+- 94 total unit tests (10 new `CategoryServiceTests`)
+
+---
+
 ## Architectural Decisions
 
 | Decision | Rationale |

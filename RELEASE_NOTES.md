@@ -1,22 +1,30 @@
-# FlowShield Desktop — v2.2.1 (Timer Sync Hotfix)
+# FlowShield Desktop — v2.3.0 (Category Sync & Normalization)
 
-## Bug Fixes
+## What's New
 
-### Timers Now Stay in Sync Across All Devices
-All three surfaces (web app, desktop, browser extension) previously maintained independent local countdowns that drifted apart over time. A session started on the web would show different remaining times on each device.
+### Server-Synced Activity Categorization
+The desktop app now fetches your category rules from the server (`GET /api/categories`) and uses them to classify every activity window — the same rules that power the web dashboard. Rules sync at login and refresh every 24 hours automatically, with SQLite cache as offline fallback.
 
-**Root causes fixed:**
+- **45 global rules** covering Development, Work, Communication, Entertainment, Social Media, Creative, Study, and Browsing — loaded from the server on first login
+- **User corrections** made on the web app (e.g. "reclassify Slack as Work") now also apply on the desktop within 24 hours
+- Rules match on `processName`, `windowTitle`, or both — same fields as the web
 
-- **Desktop**: The countdown timer started counting from the requested duration *before* the API call returned, ignoring the server's authoritative `startTime`. Over a 25-minute session this could accumulate over a minute of drift. The timer now calculates `plannedEnd - DateTime.UtcNow` on every tick using the server's `startTime`.
-- **Web**: The `setInterval` decremented `prev - 1` locally and only re-anchored every 30 seconds (SWR/Pusher). It now recalculates from `session.startTime` on every tick.
-- **Extension**: The popup opened using a 30-second stale cache. It now forces a fresh API fetch before rendering the timer.
+### Expanded Category Set
+Desktop now recognizes three new categories to match the web:
+- **Work** — Office apps, Notion, productivity tools (previously reported as "Productivity")
+- **Creative** — Figma, Photoshop, Illustrator, Canva, Sketch
+- **Study** — Anki, Coursera, Udemy, Khan Academy, Duolingo
 
-### Desktop Detects Sessions Started on Web/Mobile
-Previously, if a focus session was started on the web app or mobile app, the desktop would show "25:00 / Start Session" until it was restarted. The desktop now polls the server every 30 seconds in the background and automatically picks up active sessions started on any device — no restart required.
+### Correct Category Names in Sync Payload
+Activity logs synced to the server now use web-compatible category names:
+- `"Productivity"` → `"Work"`
+- `"Social"` → `"Social Media"`
+
+This fixes a mismatch where desktop-synced activities appeared uncategorized on the web analytics page.
 
 ## Upgrade Notes
-- No database migration required
-- Update by running the installer over the existing installation
+- No manual action required — category rules sync automatically on first launch after update
+- Existing activity logs are not re-categorized; only new logs use the synced rules
 
 ## Download
 The installer and portable zip are attached below.

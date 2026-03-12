@@ -20,6 +20,7 @@ namespace FlowShield.Desktop.Services
         private DateTime _lastActivityTime = DateTime.Now;
         private bool _isTracking = false;
         private bool _wasIdle = false;
+        public CategoryService? CategoryService { get; set; }
 
         public bool IsTracking => _isTracking;
 
@@ -148,6 +149,9 @@ namespace FlowShield.Desktop.Services
 
         internal ActivityCategory CategorizeActivity(string processName, string windowTitle)
         {
+            if (CategoryService != null)
+                return CategoryService.CategorizeActivity(processName, windowTitle);
+
             var process = processName.ToLower();
             var title = windowTitle.ToLower();
 

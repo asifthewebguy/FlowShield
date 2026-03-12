@@ -98,7 +98,7 @@ namespace FlowShield.Desktop.Services
                     url = log.Url,
                     durationSeconds = log.DurationSeconds,
                     activityLevel = log.ActivityLevel,
-                    category = log.Category.ToString(),
+                    category = CategoryService.NormalizeCategory(log.Category),
                     sessionId = log.SessionId
                 })
             };
@@ -377,6 +377,26 @@ namespace FlowShield.Desktop.Services
             }
         }
 
+        public async Task<List<CategoryRuleModel>?> GetCategoryRulesAsync()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_authToken)) return null;
+                var response = await _httpClient.GetAsync("/api/categories");
+                if (!response.IsSuccessStatusCode) return null;
+                var data = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<CategoryRulesResponse>(data);
+                return result?.Rules.ConvertAll(r => new CategoryRuleModel
+                {
+                    Keyword = r.Keyword,
+                    MatchField = r.MatchField,
+                    Category = r.Category,
+                    Priority = r.Priority,
+                });
+            }
+            catch { return null; }
+        }
+
         public void Logout()
         {
             _authToken = null;
@@ -479,5 +499,26 @@ namespace FlowShield.Desktop.Services
     {
         [JsonProperty("session")]
         public SessionInfo? Session { get; set; }
+    }
+
+    public class CategoryRuleApiModel
+    {
+        [JsonProperty("keyword")]
+        public string Keyword { get; set; } = string.Empty;
+
+        [JsonProperty("matchField")]
+        public string MatchField { get; set; } = "applicationName";
+
+        [JsonProperty("category")]
+        public string Category { get; set; } = "Unknown";
+
+        [JsonProperty("priority")]
+        public int Priority { get; set; } = 100;
+    }
+
+    public class CategoryRulesResponse
+    {
+        [JsonProperty("rules")]
+        public List<CategoryRuleApiModel> Rules { get; set; } = new();
     }
 }

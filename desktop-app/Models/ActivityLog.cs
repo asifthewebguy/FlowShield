@@ -26,6 +26,9 @@ namespace FlowShield.Desktop.Models
         Entertainment = 3,
         Productivity = 4,
         Social = 5,
-        Browsing = 6
+        Browsing = 6,
+        Work = 7,
+        Creative = 8,
+        Study = 9
     }
 }

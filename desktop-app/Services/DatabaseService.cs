@@ -114,6 +114,15 @@ namespace FlowShield.Desktop.Services
                     CreatedAt TEXT NOT NULL,
                     RetryCount INTEGER NOT NULL DEFAULT 0
                 );
+
+                CREATE TABLE IF NOT EXISTS CategoryRules (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Keyword TEXT NOT NULL,
+                    MatchField TEXT NOT NULL DEFAULT 'applicationName',
+                    Category TEXT NOT NULL,
+                    Priority INTEGER NOT NULL DEFAULT 100,
+                    CachedAt TEXT NOT NULL
+                );
             ";
             createTableCmd.ExecuteNonQuery();
 
@@ -153,6 +162,25 @@ namespace FlowShield.Desktop.Services
                 var alterTableCmd = connection.CreateCommand();
                 alterTableCmd.CommandText = "ALTER TABLE ActivityLogs ADD COLUMN SessionId TEXT";
                 alterTableCmd.ExecuteNonQuery();
+            }
+
+            // Ensure CategoryRules table exists on older databases (also handled by CREATE TABLE IF NOT EXISTS above)
+            var checkCategoryRulesCmd = connection.CreateCommand();
+            checkCategoryRulesCmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='CategoryRules'";
+            var tableExists = checkCategoryRulesCmd.ExecuteScalar();
+            if (tableExists == null)
+            {
+                var createCategoryRulesCmd = connection.CreateCommand();
+                createCategoryRulesCmd.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS CategoryRules (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        Keyword TEXT NOT NULL,
+                        MatchField TEXT NOT NULL DEFAULT 'applicationName',
+                        Category TEXT NOT NULL,
+                        Priority INTEGER NOT NULL DEFAULT 100,
+                        CachedAt TEXT NOT NULL
+                    )";
+                createCategoryRulesCmd.ExecuteNonQuery();
             }
         }
 
@@ -401,6 +429,73 @@ namespace FlowShield.Desktop.Services
             }
 
             return stats;
+        }
+
+        public List<CategoryRuleModel> GetCachedCategoryRules()
+        {
+            var rules = new List<CategoryRuleModel>();
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                connection.Open();
+                var cmd = connection.CreateCommand();
+                cmd.CommandText = "SELECT Keyword, MatchField, Category, Priority FROM CategoryRules ORDER BY Priority DESC";
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    rules.Add(new CategoryRuleModel
+                    {
+                        Keyword = reader.GetString(0),
+                        MatchField = reader.GetString(1),
+                        Category = reader.GetString(2),
+                        Priority = reader.GetInt32(3),
+                    });
+                }
+            }
+            catch { }
+            return rules;
+        }
+
+        public void SaveCategoryRules(List<CategoryRuleModel> rules)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                connection.Open();
+                using var transaction = connection.BeginTransaction();
+
+                var deleteCmd = connection.CreateCommand();
+                deleteCmd.CommandText = "DELETE FROM CategoryRules";
+                deleteCmd.ExecuteNonQuery();
+
+                var cachedAt = DateTime.UtcNow.ToString("o");
+                foreach (var rule in rules)
+                {
+                    var insertCmd = connection.CreateCommand();
+                    insertCmd.CommandText = "INSERT INTO CategoryRules (Keyword, MatchField, Category, Priority, CachedAt) VALUES (@k, @mf, @cat, @pri, @ca)";
+                    insertCmd.Parameters.AddWithValue("@k", rule.Keyword);
+                    insertCmd.Parameters.AddWithValue("@mf", rule.MatchField);
+                    insertCmd.Parameters.AddWithValue("@cat", rule.Category);
+                    insertCmd.Parameters.AddWithValue("@pri", rule.Priority);
+                    insertCmd.Parameters.AddWithValue("@ca", cachedAt);
+                    insertCmd.ExecuteNonQuery();
+                }
+
+                transaction.Commit();
+            }
+            catch { }
+        }
+
+        public DateTime? GetLastCategoryRuleSync()
+        {
+            var val = GetSetting("LastCategoryRuleSync");
+            if (val == null) return null;
+            return DateTime.TryParse(val, out var dt) ? dt : (DateTime?)null;
+        }
+
+        public void UpdateLastCategoryRuleSync(DateTime dt)
+        {
+            SaveSetting("LastCategoryRuleSync", dt.ToString("o"));
         }
     }
 

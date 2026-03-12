@@ -20,6 +20,7 @@ namespace FlowShield.Desktop.UI
         private readonly SessionManager _sessionManager;
         private ContextMenuStrip? _contextMenu;
         private MainWindow? _mainWindow;
+        private readonly CategoryService _categoryService;
 
         public TrayApplication(ActivityTracker activityTracker, DatabaseService dbService)
         {
@@ -41,6 +42,10 @@ namespace FlowShield.Desktop.UI
             _sessionManager.TimerTick += (s, time) => { /* Optional: Update tray tooltip */ };
             _sessionManager.SessionStarted += OnSessionStarted;
             _sessionManager.SessionEnded += OnSessionEnded;
+
+            // 4b. Initialize CategoryService and wire to ActivityTracker
+            _categoryService = new CategoryService(_apiClient, _dbService);
+            _activityTracker.CategoryService = _categoryService;
 
             // 4. Configure Tray Icon
             _trayIcon.Icon = LoadIcon();
@@ -387,6 +392,9 @@ namespace FlowShield.Desktop.UI
             {
                 // Register this device with the server
                 await _apiClient.RegisterDeviceAsync();
+
+                // Sync category rules (stale check is inside LoadAsync)
+                await _categoryService.LoadAsync();
 
                 // SessionManager now handles active session check on init
 
