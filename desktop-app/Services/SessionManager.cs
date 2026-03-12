@@ -61,6 +61,12 @@ namespace FlowShield.Desktop.Services
 
         public async Task InitializeAsync()
         {
+            // Always start background polling so sessions started on other devices are detected.
+            // Dispose any existing timer first to prevent duplicates on re-login.
+            _reSyncTimer?.Dispose();
+            _reSyncTimer = new System.Threading.Timer(_ => _ = ReSyncFromServerAsync(), null,
+                TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+
             // Sync with server state on startup
             try
             {
@@ -116,10 +122,6 @@ namespace FlowShield.Desktop.Services
                     // Anchor timer to server startTime so desktop stays in sync with web/extension
                     _plannedEndUtc = session.StartTime.ToUniversalTime().AddMinutes(durationMinutes);
                     StartLocalTimer(_plannedEndUtc - DateTime.UtcNow);
-
-                    // Re-anchor every 30s to catch cross-device session changes
-                    _reSyncTimer = new System.Threading.Timer(_ => _ = ReSyncFromServerAsync(), null,
-                        TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
 
                     // Engage Blocking if enabled
                     if (BlockingEnabled)
@@ -202,8 +204,7 @@ namespace FlowShield.Desktop.Services
         {
             IsRunning = false;
             _timer.Stop();
-            _reSyncTimer?.Dispose();
-            _reSyncTimer = null;
+            // Keep _reSyncTimer running — it detects sessions started on other devices
 
             // Sync stop with server
             if (CurrentSession != null && !string.IsNullOrEmpty(CurrentSession.Id))

@@ -292,6 +292,9 @@ namespace FlowShield.Desktop.UI
 
                 // Register device and load preferences after successful login
                 RegisterDeviceAndLoadPreferencesAsync();
+
+                // Start background session polling and pick up any active session
+                _ = _sessionManager.InitializeAsync();
             }
         }
 
