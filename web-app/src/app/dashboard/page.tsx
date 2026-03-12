@@ -224,13 +224,19 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl shadow-lg p-6 text-white">
-              <h3 className="text-lg font-bold mb-2">Quick Tips</h3>
-              <ul className="text-sm space-y-2 opacity-90">
-                <li>Take short breaks between sessions</li>
-                <li>Eliminate distractions before starting</li>
-                <li>Stay hydrated during focus time</li>
-              </ul>
+            <div className="bg-gradient-to-br from-sky-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
+              <h3 className="text-lg font-bold mb-1 flex items-center gap-2">
+                <span>🤖</span> AI Coach
+              </h3>
+              <p className="text-sm opacity-90 mb-4">
+                Get personalized productivity advice based on your activity data.
+              </p>
+              <Link
+                href="/coach"
+                className="inline-block px-4 py-2 bg-white text-sky-600 font-semibold text-sm rounded-lg hover:bg-sky-50 transition-colors"
+              >
+                Talk to Coach →
+              </Link>
             </div>
 
             {/* Notification Manager */}
