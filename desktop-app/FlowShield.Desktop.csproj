@@ -7,7 +7,7 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <AssemblyName>FlowShield</AssemblyName>
-    <Version>2.2.0</Version>
+    <Version>2.2.1</Version>
     <Authors>FlowShield Team</Authors>
     <Company>FlowShield</Company>
     <Product>FlowShield Desktop</Product>

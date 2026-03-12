@@ -1,34 +1,22 @@
-# FlowShield Desktop — v2.2.0 (Resilience & Safety)
+# FlowShield Desktop — v2.2.1 (Timer Sync Hotfix)
 
-## What's New
+## Bug Fixes
 
-### Crash-Safe Website Blocking
-- The hosts file is now **backed up** (`%LOCALAPPDATA%\FlowShield\hosts.backup`) before every blocking operation
-- On startup FlowShield **automatically detects and removes** stale blocking entries left behind by a previous crash — your internet access is never permanently disrupted
+### Timers Now Stay in Sync Across All Devices
+All three surfaces (web app, desktop, browser extension) previously maintained independent local countdowns that drifted apart over time. A session started on the web would show different remaining times on each device.
 
-### Exponential Backoff for Sync Retries
-- When cloud sync fails, the retry interval now backs off exponentially: 5 min → 10 min → 20 min → capped at 30 min
-- The interval **resets to 5 minutes** automatically after a successful sync
+**Root causes fixed:**
 
-### Offline Queue Resilience
-- Pending offline operations are now **bounded to 500 entries maximum** — the oldest are trimmed automatically
-- Operations older than **7 days** are purged on every queue write to prevent unbounded growth
+- **Desktop**: The countdown timer started counting from the requested duration *before* the API call returned, ignoring the server's authoritative `startTime`. Over a 25-minute session this could accumulate over a minute of drift. The timer now calculates `plannedEnd - DateTime.UtcNow` on every tick using the server's `startTime`.
+- **Web**: The `setInterval` decremented `prev - 1` locally and only re-anchored every 30 seconds (SWR/Pusher). It now recalculates from `session.startTime` on every tick.
+- **Extension**: The popup opened using a 30-second stale cache. It now forces a fresh API fetch before rendering the timer.
 
-### Graceful Shutdown
-- `ProcessExit` and `CancelKeyPress` handlers now ensure hosts file cleanup runs even on sudden termination
-- On normal exit, any pending activity data is **flushed to the server** before the process ends
-- Fixed a double-dispose of the tray icon that could cause noisy errors in logs
-
-### Improved Error Observability
-- All bare `catch {}` blocks replaced with `Log.Warning(ex, ...)` — every swallowed error now appears in the log file at `%LOCALAPPDATA%\FlowShield\logs\`
-- Sync replay failures, DNS flush errors, and preference-load failures all now emit structured warnings
-
-## Quality
-- **84 unit tests** (up from 64) — new test suites for backoff math, queue bounding, and hosts file resilience
+### Desktop Detects Sessions Started on Web/Mobile
+Previously, if a focus session was started on the web app or mobile app, the desktop would show "25:00 / Start Session" until it was restarted. The desktop now polls the server every 30 seconds in the background and automatically picks up active sessions started on any device — no restart required.
 
 ## Upgrade Notes
-- No database migration required — upgrade in place by running the installer
-- If you had website blocking active before upgrading, FlowShield will detect and cleanly restore the hosts file on first launch
+- No database migration required
+- Update by running the installer over the existing installation
 
 ## Download
 The installer and portable zip are attached below.
