@@ -16,9 +16,11 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { getProductivityLevel } from '@/lib/productivity';
-import Header from '@/components/layout/Header';
 import HeatmapWidget from '@/components/analytics/HeatmapWidget';
 import { getToken, removeToken } from '@/lib/auth-token';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 
 const fetcher = (url: string) => {
   const token = getToken();
@@ -52,7 +54,7 @@ function DistractionTrends({ period }: { period: 'week' | 'month' }) {
   );
 
   if (isLoading || !data || data.error) {
-    return <div className="mb-8 h-48 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse"></div>;
+    return <div className="mb-8 h-48 bg-gray-100 dark:bg-surface-2 rounded-xl animate-pulse"></div>;
   }
 
   const trendColor = data.trendChange <= 0 ? 'text-green-600' : 'text-red-600';
@@ -60,11 +62,11 @@ function DistractionTrends({ period }: { period: 'week' | 'month' }) {
   const trendLabel = data.trendChange <= 0 ? 'improvement' : 'increase';
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
+    <Card className="mb-8">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">🚫</span>
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+          <span className="text-xl">🚫</span>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             Distraction Analysis
           </h3>
         </div>
@@ -125,7 +127,7 @@ function DistractionTrends({ period }: { period: 'week' | 'month' }) {
                       {app.minutes} min ({app.percentage}%)
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div className="w-full bg-gray-200 dark:bg-surface-3 rounded-full h-2">
                     <div
                       className="bg-red-500 h-2 rounded-full transition-all"
                       style={{ width: `${Math.min(app.percentage * 3, 100)}%` }}
@@ -137,7 +139,7 @@ function DistractionTrends({ period }: { period: 'week' | 'month' }) {
           )}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -203,7 +205,7 @@ export default function AnalyticsPage() {
   }
   if (isLoading || !data || !data.summary) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center justify-center min-h-full p-8">
         <div className="text-xl text-gray-600 dark:text-gray-400">Loading analytics...</div>
       </div>
     );
@@ -220,49 +222,34 @@ export default function AnalyticsPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
-
-      <main className="container mx-auto px-4 py-8">
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
         {/* Period Selector and Export */}
         <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             Analytics Dashboard
           </h2>
-          <div className="flex gap-2 flex-wrap">
-            <button
+          <div className="flex gap-2 flex-wrap items-center">
+            <Button
+              variant={period === 'week' ? 'primary' : 'secondary'}
+              size="sm"
               onClick={() => setPeriod('week')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${period === 'week'
-                ? 'bg-primary-600 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
-                }`}
             >
               Last 7 Days
-            </button>
-            <button
+            </Button>
+            <Button
+              variant={period === 'month' ? 'primary' : 'secondary'}
+              size="sm"
               onClick={() => setPeriod('month')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${period === 'month'
-                ? 'bg-primary-600 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
-                }`}
             >
               Last 30 Days
-            </button>
-            <div className="border-l border-gray-300 dark:border-gray-600 mx-2"></div>
-            <button
-              onClick={() => handleExport('csv')}
-              className="px-6 py-2 rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
-              title="Export as CSV"
-            >
+            </Button>
+            <div className="w-px h-6 bg-gray-200 dark:bg-white/[0.08] mx-1" />
+            <Button variant="secondary" size="sm" onClick={() => handleExport('csv')}>
               Export CSV
-            </button>
-            <button
-              onClick={() => handleExport('json')}
-              className="px-6 py-2 rounded-lg font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-              title="Export as JSON"
-            >
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => handleExport('json')}>
               Export JSON
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -270,98 +257,94 @@ export default function AnalyticsPage() {
         <HeatmapSection token={typeof window !== 'undefined' ? getToken() : null} />
 
         {/* Summary Cards */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Total Sessions</div>
+        <div className="grid md:grid-cols-4 gap-4 mb-8">
+          <Card>
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Total Sessions</div>
             <div className="text-3xl font-bold text-gray-900 dark:text-white">
               {data.summary.totalSessions}
             </div>
-          </div>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Completed</div>
-            <div className="text-3xl font-bold text-green-600">
+          <Card>
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Completed</div>
+            <div className="text-3xl font-bold text-success-500">
               {data.summary.completedSessions}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {data.summary.completionRate}% completion rate
             </div>
-          </div>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Total Focus Time</div>
-            <div className="text-3xl font-bold text-blue-600">
+          <Card>
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Total Focus Time</div>
+            <div className="text-3xl font-bold text-primary-500">
               {Math.floor(data.summary.totalFocusMinutes / 60)}h {data.summary.totalFocusMinutes % 60}m
             </div>
-          </div>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Productivity Score</div>
+          <Card>
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Productivity Score</div>
             <div className={`text-3xl font-bold ${productivityInfo.color}`}>
               {data.summary.averageProductivityScore}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {productivityInfo.level}
             </div>
-          </div>
+          </Card>
         </div>
 
         {/* Peak Time Card */}
-        <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl shadow-lg p-6 mb-8 text-white">
+        <div className="rounded-xl p-6 mb-8 text-white bg-gradient-to-r from-accent-500 to-primary-600 shadow-lg shadow-accent-500/20">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm opacity-90 mb-2">Your Peak Productivity Time</div>
+              <div className="text-xs font-medium opacity-80 mb-1 uppercase tracking-wide">Your Peak Productivity Time</div>
               <div className="text-3xl font-bold">
                 {data.peakTimes.peakPeriod}
               </div>
-              <div className="text-sm opacity-90 mt-2">
+              <div className="text-sm opacity-80 mt-2">
                 Schedule your most important work during this time for maximum focus!
               </div>
             </div>
-            <div className="text-6xl">⚡</div>
+            <div className="text-5xl opacity-80">⚡</div>
           </div>
         </div>
 
         {/* Productivity Message */}
-        <div className={`mb-8 p-4 rounded-lg border ${productivityInfo.color} ${
-          productivityInfo.color === 'text-green-600' ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' :
-          productivityInfo.color === 'text-blue-600'  ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' :
-          productivityInfo.color === 'text-yellow-600' ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800' :
-          'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
+        <div className={`mb-8 p-4 rounded-xl border font-medium text-center text-sm ${
+          productivityInfo.color === 'text-green-600'  ? 'bg-success-50 border-success-100 text-success-700 dark:bg-success-500/10 dark:border-success-500/20 dark:text-success-400' :
+          productivityInfo.color === 'text-blue-600'   ? 'bg-primary-50 border-primary-100 text-primary-700 dark:bg-primary-500/10 dark:border-primary-500/20 dark:text-primary-400' :
+          productivityInfo.color === 'text-yellow-600' ? 'bg-warning-50 border-warning-100 text-warning-700 dark:bg-warning-500/10 dark:border-warning-500/20 dark:text-warning-400' :
+          'bg-danger-50 border-danger-100 text-danger-700 dark:bg-danger-500/10 dark:border-danger-500/20 dark:text-danger-400'
         }`}>
-          <p className="text-center font-medium">
-            {productivityInfo.message}
-          </p>
+          {productivityInfo.message}
         </div>
 
         {/* Charts */}
-        <div className="grid lg:grid-cols-2 gap-8 mb-8">
-          {/* Focus Time Chart */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+        <div className="grid lg:grid-cols-2 gap-6 mb-6">
+          <Card>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
               Daily Focus Time (Hours)
             </h3>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
+                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
+                <XAxis dataKey="date" fontSize={11} />
+                <YAxis fontSize={11} />
                 <Tooltip />
-                <Bar dataKey="Focus Time" fill="#0ea5e9" />
+                <Bar dataKey="Focus Time" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          </Card>
 
-          {/* Productivity Score Chart */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+          <Card>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
               Productivity Score Trend
             </h3>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis domain={[0, 100]} />
+                <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
+                <XAxis dataKey="date" fontSize={11} />
+                <YAxis domain={[0, 100]} fontSize={11} />
                 <Tooltip />
                 <Legend />
                 <Line
@@ -369,44 +352,43 @@ export default function AnalyticsPage() {
                   dataKey="Productivity Score"
                   stroke="#10b981"
                   strokeWidth={2}
-                  dot={{ r: 4 }}
+                  dot={{ r: 3 }}
                 />
               </LineChart>
             </ResponsiveContainer>
-          </div>
+          </Card>
         </div>
 
-        {/* Sessions Completed Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+        <Card className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
             Sessions Completed Per Day
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
+              <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
+              <XAxis dataKey="date" fontSize={11} />
+              <YAxis fontSize={11} />
               <Tooltip />
-              <Bar dataKey="Sessions" fill="#8b5cf6" />
+              <Bar dataKey="Sessions" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </Card>
 
         {/* Distraction Trends */}
         <DistractionTrends period={period} />
 
         {/* Insights Panel */}
         {insightsData?.insights && insightsData.insights.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+          <Card>
             <div className="flex items-center gap-2 mb-6">
-              <span className="text-2xl">💡</span>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              <span className="text-xl">💡</span>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Your Insights
               </h3>
               {insightsData.streak > 0 && (
-                <span className="ml-auto text-sm font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-3 py-1 rounded-full">
+                <Badge variant="warning" className="ml-auto" dot>
                   🔥 {insightsData.streak}-day streak
-                </span>
+                </Badge>
               )}
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -443,9 +425,8 @@ export default function AnalyticsPage() {
                 );
               })}
             </div>
-          </div>
+          </Card>
         )}
-      </main>
     </div>
   );
 }

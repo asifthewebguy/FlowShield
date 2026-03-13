@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Header from '@/components/layout/Header';
 import { getToken, removeToken } from '@/lib/auth-token';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 
 interface ActivitySummary {
   totalMinutes: number;
@@ -204,7 +206,7 @@ export default function ActivityAnalysisPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center justify-center min-h-full p-8">
         <div className="text-xl text-gray-600 dark:text-gray-400">Loading analysis...</div>
       </div>
     );
@@ -212,7 +214,7 @@ export default function ActivityAnalysisPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center justify-center min-h-full p-8">
         <div className="text-center">
           <div className="text-xl text-red-600 mb-4">{error}</div>
           <button
@@ -233,7 +235,7 @@ export default function ActivityAnalysisPage() {
 
   if (!data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center justify-center min-h-full p-8">
         <div className="text-center">
           <div className="text-xl text-gray-600 dark:text-gray-400 mb-4">No activity data available</div>
           <Link href="/dashboard" className="text-primary-600 hover:text-primary-700">
@@ -245,10 +247,7 @@ export default function ActivityAnalysisPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
-
-      <main className="container mx-auto px-4 py-8">
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
         {/* Page Header */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
@@ -260,82 +259,64 @@ export default function ActivityAnalysisPage() {
         </div>
 
         {/* Time Range Selector */}
-        <div className="mb-6 flex gap-2">
+        <div className="mb-6 flex gap-2 flex-wrap">
           {(['today', 'week', 'month', 'all'] as const).map((range) => (
-            <button
+            <Button
               key={range}
+              size="sm"
+              variant={timeRange === range ? 'primary' : 'secondary'}
               onClick={() => setTimeRange(range)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${timeRange === range
-                ? 'bg-primary-600 text-white'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
             >
               {range === 'today' && 'Today'}
               {range === 'week' && 'Last 7 Days'}
               {range === 'month' && 'Last 30 Days'}
               {range === 'all' && 'All Time'}
-            </button>
+            </Button>
           ))}
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Card>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Time</h3>
-              <span className="text-2xl">⏱️</span>
+              <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Time</h3>
+              <span className="text-xl">⏱️</span>
             </div>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">
-              {data.summary.totalHours}h
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {data.summary.totalMinutes} minutes tracked
-            </p>
-          </div>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">{data.summary.totalHours}h</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{data.summary.totalMinutes} minutes tracked</p>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+          <Card>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Productivity</h3>
-              <span className="text-2xl">📈</span>
+              <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Productivity</h3>
+              <span className="text-xl">📈</span>
             </div>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">
-              {data.summary.productivityScore}%
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Time in productive apps
-            </p>
-          </div>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">{data.summary.productivityScore}%</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Time in productive apps</p>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+          <Card>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Activity Level</h3>
-              <span className="text-2xl">⚡</span>
+              <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Activity Level</h3>
+              <span className="text-xl">⚡</span>
             </div>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">
-              {data.summary.avgActivityLevel}/100
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Average intensity
-            </p>
-          </div>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">{data.summary.avgActivityLevel}/100</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Average intensity</p>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+          <Card>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">Peak Hour</h3>
-              <span className="text-2xl">🔥</span>
+              <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Peak Hour</h3>
+              <span className="text-xl">🔥</span>
             </div>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">
-              {formatHour(data.summary.mostProductiveHour)}
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Most active time
-            </p>
-          </div>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">{formatHour(data.summary.mostProductiveHour)}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Most active time</p>
+          </Card>
         </div>
 
         {/* Category Breakdown */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+        <Card className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-6">
             Time by Category
           </h3>
           <div className="space-y-4">
@@ -343,59 +324,45 @@ export default function ActivityAnalysisPage() {
               <div key={cat.category}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">{getCategoryEmoji(cat.category)}</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      {cat.category}
-                    </span>
+                    <span className="text-lg">{getCategoryEmoji(cat.category)}</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{cat.category}</span>
                   </div>
                   <div className="text-right">
-                    <span className="font-bold text-gray-900 dark:text-white">
-                      {cat.hours}h
-                    </span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                      ({cat.percentage}%)
-                    </span>
+                    <span className="text-sm font-bold text-gray-900 dark:text-white">{cat.hours}h</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">({cat.percentage}%)</span>
                   </div>
                 </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                <div className="w-full bg-gray-100 dark:bg-surface-3 rounded-full h-2.5">
                   <div
-                    className={`${getCategoryColor(cat.category)} h-3 rounded-full transition-all`}
+                    className={`${getCategoryColor(cat.category)} h-2.5 rounded-full transition-all`}
                     style={{ width: `${cat.percentage}%` }}
                   />
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
 
         {/* Top Applications */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+        <Card className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-6">
             Top Applications
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
-                    Application
-                  </th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
-                    Category
-                  </th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
-                    Time
-                  </th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700 dark:text-gray-300">
-                    Usage
-                  </th>
+                <tr className="border-b border-gray-200/60 dark:border-white/[0.06]">
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Application</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Category</th>
+                  <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Time</th>
+                  <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Usage</th>
                 </tr>
               </thead>
               <tbody>
                 {data.topApplications.map((app, index) => (
                   <tr
                     key={app.name}
-                    className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    className="border-b border-gray-100/60 dark:border-white/[0.04] hover:bg-gray-50 dark:hover:bg-white/[0.02]"
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
@@ -426,7 +393,7 @@ export default function ActivityAnalysisPage() {
                       ) : (
                         <button
                           onClick={() => setEditingApp(app.name)}
-                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:ring-2 hover:ring-primary-400 transition-all"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-white/[0.06] text-gray-700 dark:text-gray-300 hover:ring-2 hover:ring-primary-400/50 transition-all"
                           title="Click to change category"
                         >
                           {getCategoryEmoji(app.category)} {app.category}
@@ -454,11 +421,11 @@ export default function ActivityAnalysisPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
 
         {/* Hourly Distribution */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+        <Card className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-6">
             Activity by Hour
           </h3>
           <div className="flex items-end justify-between gap-1 h-64">
@@ -485,11 +452,11 @@ export default function ActivityAnalysisPage() {
               );
             })}
           </div>
-        </div>
+        </Card>
 
         {/* Daily Trend */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+        <Card>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-6">
             Daily Activity Trend
           </h3>
           <div className="space-y-3">
@@ -515,7 +482,7 @@ export default function ActivityAnalysisPage() {
                       {day.hours}h
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div className="w-full bg-gray-100 dark:bg-surface-3 rounded-full h-2">
                     <div
                       className="bg-primary-500 h-2 rounded-full transition-all"
                       style={{ width: `${percentage}%` }}
@@ -525,8 +492,7 @@ export default function ActivityAnalysisPage() {
               );
             })}
           </div>
-        </div>
-      </main>
+        </Card>
     </div>
   );
 }

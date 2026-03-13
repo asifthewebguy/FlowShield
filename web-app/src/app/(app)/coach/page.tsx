@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Header from '@/components/layout/Header';
 import { getToken } from '@/lib/auth-token';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 
 export default function CoachPage() {
   const router = useRouter();
@@ -98,9 +100,7 @@ export default function CoachPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
-      <main className="container mx-auto px-4 py-8 max-w-2xl">
+    <div className="p-6 lg:p-8 max-w-2xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             <span className="text-4xl">🤖</span>
@@ -111,10 +111,10 @@ export default function CoachPage() {
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 min-h-[200px]">
+        <Card className="min-h-[200px]">
           {isLoading && !advice && (
-            <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
-              <svg className="animate-spin h-5 w-5 text-sky-500" fill="none" viewBox="0 0 24 24">
+            <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400 text-sm">
+              <svg className="animate-spin h-5 w-5 text-primary-500" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
@@ -123,35 +123,31 @@ export default function CoachPage() {
           )}
 
           {error && (
-            <div className="text-red-600 dark:text-red-400 text-sm">{error}</div>
+            <div className="text-danger-500 dark:text-danger-400 text-sm">{error}</div>
           )}
 
           {advice && (
             <div className="prose dark:prose-invert max-w-none">
-              <p className="text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">
+              <p className="text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap text-sm">
                 {advice}
                 {isLoading && (
-                  <span className="inline-block w-1 h-4 bg-sky-500 ml-0.5 animate-pulse align-middle" />
+                  <span className="inline-block w-1 h-4 bg-primary-500 ml-0.5 animate-pulse align-middle" />
                 )}
               </p>
             </div>
           )}
-        </div>
+        </Card>
 
         {hasLoaded && (
           <div className="mt-4 flex justify-end">
-            <button
-              onClick={fetchAdvice}
-              className="px-4 py-2 text-sm font-medium text-white bg-sky-500 hover:bg-sky-600 rounded-lg transition-colors"
-            >
+            <Button variant="secondary" size="sm" onClick={fetchAdvice}>
               Refresh Advice
-            </button>
+            </Button>
           </div>
         )}
 
         {/* Teams Section */}
         <TeamsSection />
-      </main>
     </div>
   );
 }
@@ -225,82 +221,68 @@ function TeamsSection() {
 
   return (
     <div className="mt-8">
-      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
         <span>👥</span> Teams
       </h2>
 
       {message && (
-        <div className="mb-3 text-sm text-sky-600 dark:text-sky-400">{message}</div>
+        <div className="mb-3 text-sm text-primary-600 dark:text-primary-400">{message}</div>
       )}
 
-      {/* Create team */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mb-4">
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Create a new team</p>
+      <Card className="mb-4">
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Create a new team</p>
         <div className="flex gap-2">
-          <input
-            type="text"
+          <Input
             value={newTeamName}
             onChange={e => setNewTeamName(e.target.value)}
             placeholder="Team name…"
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="flex-1"
           />
-          <button
-            onClick={createTeam}
-            className="px-4 py-2 text-sm font-medium text-white bg-sky-500 hover:bg-sky-600 rounded-lg"
-          >
-            Create
-          </button>
+          <Button variant="primary" size="sm" onClick={createTeam}>Create</Button>
         </div>
-      </div>
+      </Card>
 
-      {/* Join team */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 mb-4">
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Join with invite code</p>
+      <Card className="mb-4">
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Join with invite code</p>
         <div className="flex gap-2">
-          <input
-            type="text"
+          <Input
             value={inviteCode}
             onChange={e => setInviteCode(e.target.value)}
             placeholder="Paste invite code…"
-            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+            className="flex-1"
           />
-          <button
-            onClick={joinTeam}
-            className="px-4 py-2 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg"
-          >
-            Join
-          </button>
+          <Button variant="secondary" size="sm" onClick={joinTeam}>Join</Button>
         </div>
-      </div>
+      </Card>
 
-      {/* Team list */}
       {loading ? (
         <div className="text-sm text-gray-500">Loading teams…</div>
       ) : teams.length === 0 ? (
-        <div className="text-sm text-gray-500 dark:text-gray-400">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           You haven&apos;t joined any teams yet. Create one or paste an invite code above.
-        </div>
+        </p>
       ) : (
         <div className="space-y-3">
           {teams.map(team => (
-            <div key={team.id} className="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
+            <Card key={team.id} variant="elevated" padding="sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-semibold text-gray-900 dark:text-white">{team.name}</div>
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">{team.name}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {team.memberCount} member{team.memberCount !== 1 ? 's' : ''} · {team.myRole}
                   </div>
                 </div>
                 {team.inviteCode && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => copyCode(team.inviteCode)}
-                    className="text-xs px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
                     {copied === team.inviteCode ? 'Copied!' : 'Copy Invite'}
-                  </button>
+                  </Button>
                 )}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}

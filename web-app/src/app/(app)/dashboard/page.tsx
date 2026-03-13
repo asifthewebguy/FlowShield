@@ -8,7 +8,8 @@ import FocusTimer from '@/components/dashboard/FocusTimer';
 import GoalsWidget from '@/components/dashboard/GoalsWidget';
 import GamificationStats from '@/components/dashboard/GamificationStats';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
-import Header from '@/components/layout/Header';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
 import { getPusherClient } from '@/lib/pusher-client';
 import { getToken, removeToken, removeUserData, getUserData } from '@/lib/auth-token';
 
@@ -133,10 +134,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
-
-      <main className="container mx-auto px-4 py-8">
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Focus Timer */}
           <div className="lg:col-span-2">
@@ -149,41 +147,43 @@ export default function DashboardPage() {
             />
 
             {/* Today's Sessions */}
-            <div className="mt-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            <Card className="mt-8">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Today&apos;s Sessions
               </h3>
               {todaySessions.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400">No sessions yet today</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">No sessions yet today</p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {todaySessions.map((session: any) => (
-                    <div
+                    <Card
                       key={session.id}
-                      className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                      variant="elevated"
+                      padding="sm"
+                      className="flex items-center justify-between"
                     >
                       <div>
-                        <div className="font-medium text-gray-900 dark:text-white">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
                           {session.sessionType.charAt(0) + session.sessionType.slice(1).toLowerCase()} Session
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                           {new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          {session.endTime && ` - ${new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                          {session.endTime && ` – ${new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-lg font-semibold text-primary-600">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-primary-500">
                           {session.actualDuration || session.plannedDuration} min
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                        </span>
+                        <Badge variant={session.completed ? 'success' : 'warning'} dot>
                           {session.completed ? 'Completed' : 'In Progress'}
-                        </div>
+                        </Badge>
                       </div>
-                    </div>
+                    </Card>
                   ))}
                 </div>
               )}
-            </div>
+            </Card>
           </div>
 
           {/* Stats Sidebar */}
@@ -199,34 +199,34 @@ export default function DashboardPage() {
               currentStreak={currentStreak}
             />
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+            <Card>
+              <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
                 Today&apos;s Stats
               </h3>
               <div className="space-y-4">
                 <div>
-                  <div className="text-3xl font-bold text-primary-600">
+                  <div className="text-3xl font-bold text-primary-500">
                     {Math.floor(totalFocusTime / 60)}h {totalFocusTime % 60}m
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Focus Time</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Focus Time</div>
                 </div>
-                <div className="pt-4 border-t dark:border-gray-700">
+                <div className="pt-4 border-t border-gray-200/60 dark:border-white/[0.06]">
                   <div className="text-2xl font-bold text-gray-900 dark:text-white">
                     {completedSessions.length}
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Sessions Completed</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Sessions Completed</div>
                 </div>
-                <div className="pt-4 border-t dark:border-gray-700">
+                <div className="pt-4 border-t border-gray-200/60 dark:border-white/[0.06]">
                   <div className="text-2xl font-bold text-gray-900 dark:text-white">
                     {currentStreak} days
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Current Streak</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Current Streak</div>
                 </div>
               </div>
-            </div>
+            </Card>
 
-            <div className="bg-gradient-to-br from-sky-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
-              <h3 className="text-lg font-bold mb-1 flex items-center gap-2">
+            <div className="rounded-xl p-6 text-white bg-gradient-to-br from-primary-500 via-primary-600 to-accent-600 shadow-lg shadow-primary-500/20">
+              <h3 className="text-base font-semibold mb-1 flex items-center gap-2">
                 <span>🤖</span> AI Coach
               </h3>
               <p className="text-sm opacity-90 mb-4">
@@ -234,7 +234,7 @@ export default function DashboardPage() {
               </p>
               <Link
                 href="/coach"
-                className="inline-block px-4 py-2 bg-white text-sky-600 font-semibold text-sm rounded-lg hover:bg-sky-50 transition-colors"
+                className="inline-block px-4 py-2 bg-white/15 hover:bg-white/25 border border-white/20 text-white font-semibold text-sm rounded-lg transition-colors"
               >
                 Talk to Coach →
               </Link>
@@ -244,7 +244,6 @@ export default function DashboardPage() {
             {/* Moved to Profile Page */}
           </div>
         </div>
-      </main>
     </div>
   );
 }

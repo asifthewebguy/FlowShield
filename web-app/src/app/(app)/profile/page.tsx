@@ -10,8 +10,9 @@ import { getToken, removeToken, setUserData } from '@/lib/auth-token';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
-import Header from '@/components/layout/Header';
-
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 // Helper function to get distraction label
 const getDistractionLabel = (value: string): string => {
   const labels: Record<string, string> = {
@@ -199,17 +200,14 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center justify-center min-h-full p-8">
         <div className="text-xl text-gray-600 dark:text-gray-400">Loading profile...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
-
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="p-6 lg:p-8 max-w-4xl mx-auto">
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
           Profile Settings
         </h2>
@@ -227,7 +225,7 @@ export default function ProfilePage() {
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Personal Information */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+          <Card>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                 Personal Information
@@ -354,11 +352,11 @@ export default function ProfilePage() {
                 </select>
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Work Preferences */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+          <Card>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
               Work Preferences
             </h3>
 
@@ -495,10 +493,10 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Website Blocking Info */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-2 border-primary-200 dark:border-primary-800">
+          <Card className="border-2 border-primary-200 dark:border-primary-500/20">
             <div className="flex items-start gap-4">
               <div className="text-4xl">🛡️</div>
               <div className="flex-1">
@@ -628,11 +626,11 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Connected Devices */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+          <Card>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
               💻 Connected Devices
             </h3>
 
@@ -708,11 +706,11 @@ export default function ProfilePage() {
                 <strong>💡 Tip:</strong> The desktop app automatically registers when you log in. You can manage your connected devices here.
               </p>
             </div>
-          </div>
+          </Card>
 
           {/* Appearance Settings */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+          <Card>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
               Appearance
             </h3>
 
@@ -744,26 +742,18 @@ export default function ProfilePage() {
                 </button>
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Save Button */}
-          <div className="flex justify-end gap-4">
-            <Link
-              href="/dashboard"
-              className="px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              Cancel
+          <div className="flex justify-end gap-3">
+            <Link href="/dashboard">
+              <Button variant="secondary" size="md" type="button">Cancel</Button>
             </Link>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <Button type="submit" variant="primary" size="md" disabled={saving}>
               {saving ? 'Saving...' : 'Save Changes'}
-            </button>
+            </Button>
           </div>
         </form>
-      </main>
     </div>
   );
 }
