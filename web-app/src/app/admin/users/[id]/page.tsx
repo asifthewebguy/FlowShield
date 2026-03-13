@@ -4,9 +4,10 @@ import { useState, use } from 'react';
 import useSWR from 'swr';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { getToken } from '@/lib/auth-token';
 
 const adminFetcher = (url: string) => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
   return fetch(url, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
 };
 
@@ -36,7 +37,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
   const save = async () => {
     setSaving(true);
-    const token = localStorage.getItem('token');
+    const token = getToken();
     await fetch(`/api/admin/users/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -50,7 +51,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   };
 
   const sendDigest = async () => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     await fetch('/api/admin/email/digest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -63,7 +64,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   const sendCustomEmail = async () => {
     if (!announceSubject || !announceBody) return;
     setSendingEmail(true);
-    const token = localStorage.getItem('token');
+    const token = getToken();
     await fetch('/api/admin/email/announce', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -76,7 +77,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
   const deleteUser = async () => {
     setDeleting(true);
-    const token = localStorage.getItem('token');
+    const token = getToken();
     await fetch(`/api/admin/users/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },

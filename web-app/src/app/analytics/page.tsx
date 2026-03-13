@@ -18,9 +18,10 @@ import {
 import { getProductivityLevel } from '@/lib/productivity';
 import Header from '@/components/layout/Header';
 import HeatmapWidget from '@/components/analytics/HeatmapWidget';
+import { getToken, removeToken } from '@/lib/auth-token';
 
 const fetcher = (url: string) => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
   if (!token) throw new Error('No token');
 
   return fetch(url, {
@@ -145,7 +146,7 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState<'week' | 'month'>('week');
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) {
       router.push('/auth/login');
     }
@@ -162,7 +163,7 @@ export default function AnalyticsPage() {
   });
 
   const handleExport = (format: 'json' | 'csv') => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
 
     const url = `/api/export?format=${format}&period=${period}`;
@@ -194,7 +195,7 @@ export default function AnalyticsPage() {
     // If unauthorized, redirect to login
     if (data?.error === 'Unauthorized' || error?.message?.includes('Unauthorized')) {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
+        removeToken();
         router.push('/auth/login');
       }
     }
@@ -266,7 +267,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Heatmap Section - Yearly Data */}
-        <HeatmapSection token={typeof window !== 'undefined' ? localStorage.getItem('token') : null} />
+        <HeatmapSection token={typeof window !== 'undefined' ? getToken() : null} />
 
         {/* Summary Cards */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">

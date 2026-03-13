@@ -10,9 +10,10 @@ import GamificationStats from '@/components/dashboard/GamificationStats';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 import Header from '@/components/layout/Header';
 import { getPusherClient } from '@/lib/pusher-client';
+import { getToken, removeToken, removeUserData, getUserData } from '@/lib/auth-token';
 
 const fetcher = (url: string) => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
   if (!token) {
     window.location.href = '/auth/login';
     throw new Error('No token');
@@ -22,8 +23,8 @@ const fetcher = (url: string) => {
     headers: { Authorization: `Bearer ${token}` }
   }).then(async res => {
     if (res.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      removeToken();
+      removeUserData();
       window.location.href = '/auth/login';
       throw new Error('Session expired');
     }
@@ -38,10 +39,10 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user] = useState<any>(() => {
     if (typeof window === 'undefined') return null;
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
+    const token = getToken();
+    const userData = getUserData();
     if (!token || !userData) return null;
-    return JSON.parse(userData);
+    return userData;
   });
 
   // Redirect to login if not authenticated
@@ -87,7 +88,7 @@ export default function DashboardPage() {
 
   const handleSessionStart = async (duration: number, type: string, projectId?: string) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       await fetch('/api/sessions', {
         method: 'POST',
         headers: {
@@ -109,7 +110,7 @@ export default function DashboardPage() {
 
   const handleSessionEnd = async (sessionId: string) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       await fetch(`/api/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: {

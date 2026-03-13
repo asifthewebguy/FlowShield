@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getToken, getUserData } from '@/lib/auth-token';
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
@@ -54,7 +55,7 @@ export default function NotificationManager() {
             setIsSubscribed(true);
 
             // Save to backend
-            const token = localStorage.getItem('token');
+            const token = getToken();
             await fetch('/api/push/subscribe', {
                 method: 'POST',
                 headers: {
@@ -71,7 +72,7 @@ export default function NotificationManager() {
     };
 
     const testPush = async () => {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         // For demo purposes, we get the current user ID properly in the real app,
         // here we just trigger the send endpoint which checks the token.
         // The backend send/route.ts expects { title, body, userId }
@@ -82,7 +83,7 @@ export default function NotificationManager() {
         // We need to fetch the user profile to get the ID.
 
         // Quick fix: decode token or fetch user me
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const user = getUserData() || {};
 
         await fetch('/api/push/send', {
             method: 'POST',

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { setToken, setUserData } from '@/lib/auth-token';
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -15,8 +16,8 @@ export default function AuthCallbackPage() {
     if (token && userParam) {
       try {
         const user = JSON.parse(userParam);
-        localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(user));
+        setToken(token, true);
+        setUserData(user, true);
         router.replace(redirect);
       } catch {
         router.replace('/auth/login?error=oauth_failed');

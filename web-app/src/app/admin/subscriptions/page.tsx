@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import useSWR from 'swr';
+import { getToken } from '@/lib/auth-token';
 
 const adminFetcher = (url: string) => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
   return fetch(url, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
 };
 
@@ -28,7 +29,7 @@ export default function AdminSubscriptionsPage() {
     setUpgrading(true);
     setUpgradeResult(null);
 
-    const token = localStorage.getItem('token');
+    const token = getToken();
 
     // Find user by email
     const searchRes = await fetch(`/api/admin/users?search=${encodeURIComponent(upgradeEmail)}&limit=1`, {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/layout/Header';
+import { getToken, removeToken } from '@/lib/auth-token';
 
 interface ActivitySummary {
   totalMinutes: number;
@@ -104,7 +105,7 @@ export default function ActivityAnalysisPage() {
         const analysisData = await response.json();
         setData(analysisData);
       } else if (response.status === 401) {
-        localStorage.removeItem('token');
+        removeToken();
         router.push('/auth/login');
       } else {
         const errData = await response.json().catch(() => ({}));
@@ -119,7 +120,7 @@ export default function ActivityAnalysisPage() {
   }, [router]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) {
       router.push('/auth/login');
       return;
@@ -128,7 +129,7 @@ export default function ActivityAnalysisPage() {
   }, [router, timeRange, fetchAnalysis]);
 
   const correctCategory = useCallback(async (appName: string, newCategory: string) => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
 
     setCorrecting(true);
@@ -215,7 +216,7 @@ export default function ActivityAnalysisPage() {
         <div className="text-center">
           <div className="text-xl text-red-600 mb-4">{error}</div>
           <button
-            onClick={() => fetchAnalysis(localStorage.getItem('token') || '', timeRange)}
+            onClick={() => fetchAnalysis(getToken() || '', timeRange)}
             className="text-primary-600 hover:text-primary-700 font-medium"
           >
             Try Again

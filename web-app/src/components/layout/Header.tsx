@@ -2,14 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { removeToken, removeUserData } from '@/lib/auth-token';
 
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    removeToken();
+    removeUserData();
     router.push('/');
   };
 

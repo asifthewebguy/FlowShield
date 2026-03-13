@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getToken } from '@/lib/auth-token';
 
 interface Settings {
   payment: {
@@ -71,7 +72,7 @@ export default function AdminSettingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     fetch('/api/admin/settings', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -84,7 +85,7 @@ export default function AdminSettingsPage() {
     if (!settings) return;
     setSaving(true);
     setError(null);
-    const token = localStorage.getItem('token');
+    const token = getToken();
 
     const flat: Record<string, unknown> = {
       'payment.lemonsqueezy.enabled': settings.payment.lemonsqueezy.enabled,

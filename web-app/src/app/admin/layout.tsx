@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { getToken, getUserData } from '@/lib/auth-token';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -11,13 +12,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [adminEmail] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     try {
-      const token = localStorage.getItem('token');
-      const userData = localStorage.getItem('user');
+      const token = getToken();
+      const userData = getUserData();
       if (!token || !userData) return null;
       const payload = JSON.parse(atob(token.split('.')[1]));
       if (payload.role !== 'ADMIN') return null;
-      const user = JSON.parse(userData);
-      return user.email as string;
+      return (userData as any).email as string;
     } catch {
       return null;
     }
@@ -25,7 +25,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (adminEmail !== null) return;
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) {
       router.push('/auth/login?redirect=/admin');
     } else {

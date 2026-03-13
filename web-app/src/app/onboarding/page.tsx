@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getToken } from '@/lib/auth-token';
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -26,7 +27,7 @@ export default function OnboardingPage() {
   const handleComplete = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const response = await fetch('/api/user/profile', {
         method: 'PUT',
         headers: {

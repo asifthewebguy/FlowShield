@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
+import { getToken } from '@/lib/auth-token';
 
 const adminFetcher = (url: string) => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
   return fetch(url, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
 };
 
@@ -40,7 +41,7 @@ export default function AdminUsersPage() {
   };
 
   const handleTierChange = async (userId: string, newTier: string) => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     await fetch(`/api/admin/users/${userId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

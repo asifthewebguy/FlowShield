@@ -5,9 +5,10 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
+import { getToken } from '@/lib/auth-token';
 
 const adminFetcher = (url: string) => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
   return fetch(url, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
 };
 

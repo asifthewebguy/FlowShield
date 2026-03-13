@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { getToken } from '@/lib/auth-token';
 
 type Theme = 'light' | 'dark';
 
@@ -42,7 +43,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(newTheme);
 
     // Update user preferences in database
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (token) {
       fetch('/api/user/preferences', {
         method: 'PATCH',

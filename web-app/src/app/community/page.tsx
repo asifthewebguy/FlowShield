@@ -4,12 +4,13 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import LeaderboardWidget from '@/components/community/LeaderboardWidget';
+import { getToken } from '@/lib/auth-token';
 
 export default function CommunityPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         if (!token) {
             router.push('/auth/login');
         }

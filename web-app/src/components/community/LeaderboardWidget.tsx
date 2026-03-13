@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import useSWR from 'swr';
+import { getToken } from '@/lib/auth-token';
 
 interface LeaderboardEntry {
     rank: number;
@@ -12,7 +13,7 @@ interface LeaderboardEntry {
 }
 
 const fetcher = (url: string) => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) throw new Error('No token');
     return fetch(url, { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.json());
 };

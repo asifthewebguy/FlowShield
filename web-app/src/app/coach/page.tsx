@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/layout/Header';
+import { getToken } from '@/lib/auth-token';
 
 export default function CoachPage() {
   const router = useRouter();
@@ -13,14 +14,14 @@ export default function CoachPage() {
   const adviceRef = useRef('');
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) {
       router.push('/auth/login');
     }
   }, [router]);
 
   const fetchAdvice = () => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
 
     setIsLoading(true);
@@ -163,7 +164,7 @@ function TeamsSection() {
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const token = typeof window !== 'undefined' ? getToken() : null;
 
   const authFetch = (url: string, opts: RequestInit = {}) =>
     fetch(url, {

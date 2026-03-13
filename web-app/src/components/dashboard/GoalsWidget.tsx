@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getToken } from '@/lib/auth-token';
 
 interface Goal {
     id: string;
@@ -26,7 +27,7 @@ export default function GoalsWidget({ currentMinutes, onGoalUpdate }: GoalsWidge
 
     const fetchGoal = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = getToken();
             if (!token) return;
 
             const response = await fetch('/api/goals?type=DAILY_TIME', {
@@ -49,7 +50,7 @@ export default function GoalsWidget({ currentMinutes, onGoalUpdate }: GoalsWidge
 
     const saveGoal = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = getToken();
             if (!token) return;
 
             const response = await fetch('/api/goals', {

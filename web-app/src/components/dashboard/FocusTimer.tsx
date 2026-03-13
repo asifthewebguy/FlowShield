@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import useSWR from 'swr';
 import { soundManager } from '@/lib/SoundManager';
+import { getToken } from '@/lib/auth-token';
 
 type BreakPhase = 'none' | 'suggested' | 'active';
 
@@ -30,7 +31,7 @@ interface FocusTimerProps {
 }
 
 const fetcher = async (url: string) => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) {
     throw new Error('An error occurred while fetching the data.');
@@ -229,7 +230,7 @@ export default function FocusTimer({
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: {
@@ -267,7 +268,7 @@ export default function FocusTimer({
 
     try {
       setIsProcessing(true);
-      const token = localStorage.getItem('token');
+      const token = getToken();
       await fetch(`/api/sessions/${currentSession.id}/toggle-pause`, {
         method: 'POST',
         headers: {

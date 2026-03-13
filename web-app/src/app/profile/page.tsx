@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import NotificationManager from '@/components/common/NotificationManager';
+import { getToken, removeToken, setUserData } from '@/lib/auth-token';
 
 // ... (inside the component's JSX, likely in a "Settings" or "Preferences" section)
 // I need to see the file content first to know where to insert it.
@@ -70,7 +71,7 @@ export default function ProfilePage() {
           },
         });
       } else if (response.status === 401) {
-        localStorage.removeItem('token');
+        removeToken();
         router.push('/auth/login');
       }
     } catch (error) {
@@ -98,7 +99,7 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) {
       router.push('/auth/login');
       return;
@@ -115,7 +116,7 @@ export default function ProfilePage() {
     setSaving(true);
     setMessage(null);
 
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) {
       router.push('/auth/login');
       return;
@@ -139,9 +140,10 @@ export default function ProfilePage() {
         const data = await response.json();
         setMessage({ type: 'success', text: 'Profile updated successfully!' });
 
-        // Update localStorage user info
+        // Update stored user info, preserving the original storage location
         if (data.user) {
-          localStorage.setItem('user', JSON.stringify(data.user));
+          const remember = !!localStorage.getItem('token');
+          setUserData(data.user, remember);
         }
       } else {
         const error = await response.json();
@@ -157,7 +159,7 @@ export default function ProfilePage() {
 
 
   const disconnectDevice = async (deviceId: string) => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
 
     if (!confirm('Are you sure you want to disconnect this device?')) {
