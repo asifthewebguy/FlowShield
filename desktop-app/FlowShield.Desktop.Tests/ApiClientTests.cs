@@ -286,6 +286,131 @@ public class ApiClientTests
         Assert.Null(result);
     }
 
+    // ---------- GetAnalyticsAsync ----------
+
+    [Fact]
+    public async Task GetAnalyticsAsync_WhenSuccess_ReturnsSummary()
+    {
+        var db = AuthenticatedDb();
+        var payload = new
+        {
+            period = "week",
+            dailyStats = new[]
+            {
+                new { date = "2026-03-10", sessionsCount = 3, completedCount = 2,
+                      totalMinutes = 75, productivityScore = 85 }
+            },
+            summary = new
+            {
+                totalSessions = 3, completedSessions = 2,
+                totalFocusMinutes = 75, averageProductivityScore = 85, completionRate = 66
+            },
+            peakTimes = new { peakHour = 10, peakPeriod = "morning" }
+        };
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, Json(payload));
+        var client = BuildClient(db, handler);
+
+        var result = await client.GetAnalyticsAsync("week");
+
+        Assert.NotNull(result);
+        Assert.Equal("week", result!.Period);
+        Assert.Equal(75, result.Summary.TotalFocusMinutes);
+        Assert.Equal(66, result.Summary.CompletionRate);
+        Assert.Equal("morning", result.PeakTimes?.PeakPeriod);
+        Assert.Single(result.DailyStats);
+    }
+
+    [Fact]
+    public async Task GetAnalyticsAsync_WhenUnauthenticated_ReturnsNull()
+    {
+        var client = BuildClient(EmptyDb(), new FakeHttpHandler());
+
+        var result = await client.GetAnalyticsAsync("week");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetAnalyticsAsync_WhenServerError_ReturnsNull()
+    {
+        var db = AuthenticatedDb();
+        var handler = new FakeHttpHandler(HttpStatusCode.InternalServerError, "error");
+        var client = BuildClient(db, handler);
+
+        var result = await client.GetAnalyticsAsync("week");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetAnalyticsAsync_PassesPeriodQueryParam()
+    {
+        var db = AuthenticatedDb();
+        var payload = new
+        {
+            period = "month",
+            dailyStats = Array.Empty<object>(),
+            summary = new { totalSessions = 0, completedSessions = 0,
+                            totalFocusMinutes = 0, averageProductivityScore = 0, completionRate = 0 },
+            peakTimes = (object?)null
+        };
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, Json(payload));
+        var client = BuildClient(db, handler);
+
+        var result = await client.GetAnalyticsAsync("month");
+
+        Assert.NotNull(result);
+        Assert.Equal("month", result!.Period);
+        // Verify the URL contained the period param
+        Assert.Contains("month", handler.LastRequestUri ?? "");
+    }
+
+    // ---------- GetSessionHistoryAsync ----------
+
+    [Fact]
+    public async Task GetSessionHistoryAsync_WhenSuccess_ReturnsSessions()
+    {
+        var db = AuthenticatedDb();
+        var now = DateTime.UtcNow;
+        var sessions = new[]
+        {
+            new { id = "s-1", plannedDuration = 25, startTime = now.AddHours(-1),
+                  endTime = (DateTime?)null, completed = true, isPaused = false },
+            new { id = "s-2", plannedDuration = 45, startTime = now.AddHours(-3),
+                  endTime = (DateTime?)null, completed = false, isPaused = false },
+        };
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, Json(new { sessions }));
+        var client = BuildClient(db, handler);
+
+        var result = await client.GetSessionHistoryAsync(10);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.Count);
+        Assert.Equal("s-1", result[0].Id);
+    }
+
+    [Fact]
+    public async Task GetSessionHistoryAsync_WhenUnauthenticated_ReturnsNull()
+    {
+        var client = BuildClient(EmptyDb(), new FakeHttpHandler());
+
+        var result = await client.GetSessionHistoryAsync();
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetSessionHistoryAsync_WhenServerError_ReturnsNull()
+    {
+        var db = AuthenticatedDb();
+        var handler = new FakeHttpHandler(HttpStatusCode.InternalServerError, "");
+        var client = BuildClient(db, handler);
+
+        var result = await client.GetSessionHistoryAsync();
+
+        Assert.Null(result);
+    }
+
     // ---------- TogglePauseAsync ----------
 
     [Fact]
@@ -385,6 +510,7 @@ internal class FakeHttpHandler : HttpMessageHandler
     private readonly string _body;
     private readonly Exception? _exception;
     public int CallCount { get; private set; }
+    public string? LastRequestUri { get; private set; }
 
     public FakeHttpHandler(HttpStatusCode status = HttpStatusCode.OK, string body = "")
     {
@@ -403,6 +529,7 @@ internal class FakeHttpHandler : HttpMessageHandler
         CancellationToken cancellationToken)
     {
         CallCount++;
+        LastRequestUri = request.RequestUri?.ToString();
         if (_exception != null) throw _exception;
 
         return Task.FromResult(new HttpResponseMessage(_status)

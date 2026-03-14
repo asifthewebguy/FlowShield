@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using FlowShield.Desktop.Services;
 
@@ -13,6 +14,8 @@ public interface IApiClient
     Task<bool> EndSessionAsync(string sessionId);
     Task<SessionInfo?> TogglePauseAsync(string sessionId, string action);
     Task<UserPreferences?> GetUserPreferencesAsync();
+    Task<AnalyticsData?> GetAnalyticsAsync(string period = "week");
+    Task<List<SessionInfo>?> GetSessionHistoryAsync(int limit = 10);
     bool IsAuthenticated();
     Task<bool> RegisterDeviceAsync();
     void Logout();

@@ -20,6 +20,7 @@ namespace FlowShield.Desktop.UI
         private readonly SessionManager _sessionManager;
         private ContextMenuStrip? _contextMenu;
         private MainWindow? _mainWindow;
+        private AnalyticsWindow? _analyticsWindow;
         private readonly CategoryService _categoryService;
 
         public TrayApplication(ActivityTracker activityTracker, DatabaseService dbService)
@@ -134,6 +135,11 @@ namespace FlowShield.Desktop.UI
             var showWidgetItem = new ToolStripMenuItem { Text = "Show Widget" };
             showWidgetItem.Click += (s, e) => ShowMainWindow();
             _contextMenu.Items.Add(showWidgetItem);
+
+            // View Analytics
+            var analyticsItem = new ToolStripMenuItem { Text = "View Analytics" };
+            analyticsItem.Click += (s, e) => ShowAnalyticsWindow();
+            _contextMenu.Items.Add(analyticsItem);
 
             // Start Focus Session
             var startSessionItem = new ToolStripMenuItem { Text = "Start Focus Session" };
@@ -351,6 +357,22 @@ namespace FlowShield.Desktop.UI
                 if (_mainWindow.WindowState == System.Windows.WindowState.Minimized)
                     _mainWindow.WindowState = System.Windows.WindowState.Normal;
                 _mainWindow.Activate();
+            }
+        }
+
+        private void ShowAnalyticsWindow()
+        {
+            if (_analyticsWindow == null || !_analyticsWindow.IsLoaded)
+            {
+                _analyticsWindow = new AnalyticsWindow(_apiClient);
+                _analyticsWindow.Show();
+            }
+            else
+            {
+                _analyticsWindow.Show();
+                if (_analyticsWindow.WindowState == System.Windows.WindowState.Minimized)
+                    _analyticsWindow.WindowState = System.Windows.WindowState.Normal;
+                _analyticsWindow.Activate();
             }
         }
 
@@ -619,6 +641,7 @@ namespace FlowShield.Desktop.UI
                 _trayIcon?.Dispose();
                 _contextMenu?.Dispose();
                 _mainWindow?.Close();
+                _analyticsWindow?.Close();
             }
             base.Dispose(disposing);
         }

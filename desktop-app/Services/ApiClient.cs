@@ -415,6 +415,33 @@ namespace FlowShield.Desktop.Services
             }
         }
 
+        public async Task<AnalyticsData?> GetAnalyticsAsync(string period = "week")
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_authToken)) return null;
+                var response = await _httpClient.GetAsync($"/api/analytics?period={period}");
+                if (!response.IsSuccessStatusCode) return null;
+                var data = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<AnalyticsData>(data);
+            }
+            catch { return null; }
+        }
+
+        public async Task<List<SessionInfo>?> GetSessionHistoryAsync(int limit = 10)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_authToken)) return null;
+                var response = await _httpClient.GetAsync($"/api/sessions?limit={limit}");
+                if (!response.IsSuccessStatusCode) return null;
+                var data = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<SessionListResponse>(data);
+                return result?.Sessions;
+            }
+            catch { return null; }
+        }
+
         public async Task<List<CategoryRuleModel>?> GetCategoryRulesAsync()
         {
             try
@@ -543,6 +570,68 @@ namespace FlowShield.Desktop.Services
     {
         [JsonProperty("session")]
         public SessionInfo? Session { get; set; }
+    }
+
+    // ---------- Analytics models ----------
+
+    public class AnalyticsData
+    {
+        [JsonProperty("period")]
+        public string Period { get; set; } = "";
+
+        [JsonProperty("dailyStats")]
+        public List<DailyStat> DailyStats { get; set; } = new();
+
+        [JsonProperty("summary")]
+        public AnalyticsSummary Summary { get; set; } = new();
+
+        [JsonProperty("peakTimes")]
+        public PeakTimes? PeakTimes { get; set; }
+    }
+
+    public class DailyStat
+    {
+        [JsonProperty("date")]
+        public string Date { get; set; } = "";
+
+        [JsonProperty("sessionsCount")]
+        public int SessionsCount { get; set; }
+
+        [JsonProperty("completedCount")]
+        public int CompletedCount { get; set; }
+
+        [JsonProperty("totalMinutes")]
+        public int TotalMinutes { get; set; }
+
+        [JsonProperty("productivityScore")]
+        public int ProductivityScore { get; set; }
+    }
+
+    public class AnalyticsSummary
+    {
+        [JsonProperty("totalSessions")]
+        public int TotalSessions { get; set; }
+
+        [JsonProperty("completedSessions")]
+        public int CompletedSessions { get; set; }
+
+        [JsonProperty("totalFocusMinutes")]
+        public int TotalFocusMinutes { get; set; }
+
+        [JsonProperty("averageProductivityScore")]
+        public int AverageProductivityScore { get; set; }
+
+        [JsonProperty("completionRate")]
+        public int CompletionRate { get; set; }
+    }
+
+    public class PeakTimes
+    {
+        [JsonProperty("peakHour")]
+        public int PeakHour { get; set; }
+
+        [JsonProperty("peakPeriod")]
+        public string? PeakPeriod { get; set; }
     }
 
     public class CategoryRuleApiModel
