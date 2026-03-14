@@ -120,11 +120,11 @@ namespace FlowShield.Desktop.Services
             }
         }
 
-        public async Task<bool> StartSessionAsync(int durationMinutes)
+        public async Task<bool> StartSessionAsync(int durationMinutes, string sessionType = "WORK")
         {
             try
             {
-                var session = await _apiClient.StartSessionAsync(durationMinutes);
+                var session = await _apiClient.StartSessionAsync(durationMinutes, sessionType);
                 if (session != null)
                 {
                     CurrentSession = session;
@@ -143,7 +143,8 @@ namespace FlowShield.Desktop.Services
                         EngageBlocking();
                     }
 
-                    _notificationService.ShowSuccess("Focus Session Started", $"Started a {durationMinutes}-minute focus session.");
+                    var typeLabel = sessionType switch { "STUDY" => "Study", "CREATIVE" => "Creative", _ => "Work" };
+                    _notificationService.ShowSuccess("Focus Session Started", $"Started a {durationMinutes}-minute {typeLabel} session.");
                     SessionStarted?.Invoke(this, session);
                     return true;
                 }

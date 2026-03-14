@@ -19,6 +19,8 @@ namespace FlowShield.Desktop.UI
             // Subscribe to events
             _sessionManager.TimerTick += OnTimerTick;
             _sessionManager.SessionStateChanged += OnSessionStateChanged;
+            _sessionManager.SessionPaused += (s, e) => UpdateUI();
+            _sessionManager.SessionResumed += (s, e) => UpdateUI();
 
             UpdateUI();
         }
@@ -45,8 +47,20 @@ namespace FlowShield.Desktop.UI
             {
                 StartButton.Content = "Stop Session";
                 StartButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")); // Red-500
-                StatusText.Text = "Focusing...";
-                StatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#60A5FA")); // Blue-400
+                StatusText.Text = _sessionManager.IsPaused ? "Paused" : "Focusing...";
+                StatusText.Foreground = new SolidColorBrush(_sessionManager.IsPaused
+                    ? (Color)ColorConverter.ConvertFromString("#FBBF24")  // Amber-400
+                    : (Color)ColorConverter.ConvertFromString("#60A5FA")); // Blue-400
+
+                // Show session type badge
+                var sessionType = _sessionManager.CurrentSession?.SessionType ?? "WORK";
+                SessionTypeText.Text = sessionType switch
+                {
+                    "STUDY"    => "📚 Study",
+                    "CREATIVE" => "🎨 Creative",
+                    _          => "💼 Work",
+                };
+                SessionTypeBadge.Visibility = System.Windows.Visibility.Visible;
                 StartPulseAnimation();
             }
             else
@@ -58,6 +72,7 @@ namespace FlowShield.Desktop.UI
                     : "25:00";
                 StatusText.Text = "Ready to Focus";
                 StatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#9CA3AF")); // Gray-400
+                SessionTypeBadge.Visibility = System.Windows.Visibility.Collapsed;
                 StopPulseAnimation();
             }
         }

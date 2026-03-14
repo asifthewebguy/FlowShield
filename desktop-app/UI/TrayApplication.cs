@@ -199,20 +199,41 @@ namespace FlowShield.Desktop.UI
             historyItem.Click += (s, e) => ShowSessionHistoryWindow();
             _contextMenu.Items.Add(historyItem);
 
-            // Start Focus Session
+            // Start Focus Session — grouped by session type
             var startSessionItem = new ToolStripMenuItem { Text = "Start Focus Session" };
 
-            var duration25 = new ToolStripMenuItem { Text = "25 Minutes" };
-            duration25.Click += async (s, e) => await _sessionManager.StartSessionAsync(25);
-            startSessionItem.DropDownItems.Add(duration25);
+            // Work
+            var workItem = new ToolStripMenuItem { Text = "💼 Work" };
+            foreach (var (label, min) in new[] { ("25 Minutes", 25), ("45 Minutes", 45), ("60 Minutes", 60) })
+            {
+                var item = new ToolStripMenuItem { Text = label };
+                var m = min;
+                item.Click += async (s, e) => await _sessionManager.StartSessionAsync(m, "WORK");
+                workItem.DropDownItems.Add(item);
+            }
+            startSessionItem.DropDownItems.Add(workItem);
 
-            var duration45 = new ToolStripMenuItem { Text = "45 Minutes" };
-            duration45.Click += async (s, e) => await _sessionManager.StartSessionAsync(45);
-            startSessionItem.DropDownItems.Add(duration45);
+            // Study
+            var studyItem = new ToolStripMenuItem { Text = "📚 Study" };
+            foreach (var (label, min) in new[] { ("25 Minutes", 25), ("45 Minutes", 45), ("90 Minutes", 90) })
+            {
+                var item = new ToolStripMenuItem { Text = label };
+                var m = min;
+                item.Click += async (s, e) => await _sessionManager.StartSessionAsync(m, "STUDY");
+                studyItem.DropDownItems.Add(item);
+            }
+            startSessionItem.DropDownItems.Add(studyItem);
 
-            var duration60 = new ToolStripMenuItem { Text = "60 Minutes" };
-            duration60.Click += async (s, e) => await _sessionManager.StartSessionAsync(60);
-            startSessionItem.DropDownItems.Add(duration60);
+            // Creative
+            var creativeItem = new ToolStripMenuItem { Text = "🎨 Creative" };
+            foreach (var (label, min) in new[] { ("45 Minutes", 45), ("90 Minutes", 90), ("120 Minutes", 120) })
+            {
+                var item = new ToolStripMenuItem { Text = label };
+                var m = min;
+                item.Click += async (s, e) => await _sessionManager.StartSessionAsync(m, "CREATIVE");
+                creativeItem.DropDownItems.Add(item);
+            }
+            startSessionItem.DropDownItems.Add(creativeItem);
 
             _contextMenu.Items.Add(startSessionItem);
 
