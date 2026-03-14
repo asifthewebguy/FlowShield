@@ -1,0 +1,211 @@
+<Window x:Class="FlowShield.Desktop.UI.GoalsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FlowShield Goals"
+        Width="480" Height="520"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize">
+
+    <Window.Resources>
+        <Style x:Key="IconBtnStyle" TargetType="Button">
+            <Setter Property="Background" Value="#1AFFFFFF"/>
+            <Setter Property="Foreground" Value="#9CA3AF"/>
+            <Setter Property="FontSize"   Value="14"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#2AFFFFFF"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryBtnStyle" TargetType="Button">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize"   Value="13"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#2563EB"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bd" Property="Background" Value="#374151"/>
+                                <Setter Property="Foreground" Value="#6B7280"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="InputStyle" TargetType="Control">
+            <Setter Property="Background"   Value="#1AFFFFFF"/>
+            <Setter Property="Foreground"   Value="White"/>
+            <Setter Property="BorderBrush"  Value="#33FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontFamily"   Value="Segoe UI"/>
+            <Setter Property="FontSize"     Value="13"/>
+            <Setter Property="Padding"      Value="8,6"/>
+        </Style>
+    </Window.Resources>
+
+    <Border CornerRadius="20" BorderBrush="#33FFFFFF" BorderThickness="1">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#1F2937" Offset="0"/>
+                <GradientStop Color="#111827" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="30" ShadowDepth="10" Opacity="0.6" Color="Black"/>
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="56"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Border Grid.Row="0" Background="Transparent" MouseLeftButtonDown="DragWindow">
+                <Grid Margin="20,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="🎯" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Goals" Foreground="White" FontSize="16"
+                                   FontWeight="SemiBold" FontFamily="Segoe UI" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button x:Name="RefreshBtn" Content="↻" Width="32" Height="32"
+                                Style="{StaticResource IconBtnStyle}"
+                                Click="RefreshButton_Click" Margin="0,0,6,0"/>
+                        <Button Content="✕" Width="32" Height="32"
+                                Style="{StaticResource IconBtnStyle}"
+                                Click="CloseButton_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <Rectangle Grid.Row="0" Height="1" VerticalAlignment="Bottom" Fill="#1AFFFFFF" Margin="20,0"/>
+
+            <!-- Goals list -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="20,16,20,8"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <TextBlock x:Name="EmptyText" Text="No active goals. Set one below!"
+                               Foreground="#4B5563" FontSize="13" FontFamily="Segoe UI"
+                               HorizontalAlignment="Center" Margin="0,20,0,0"
+                               Visibility="Collapsed"/>
+
+                    <ItemsControl x:Name="GoalsList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,10" CornerRadius="12"
+                                        Background="#0FFFFFFF" Padding="16,12">
+                                    <StackPanel>
+                                        <Grid>
+                                            <TextBlock Text="{Binding Label}"
+                                                       Foreground="White" FontSize="13"
+                                                       FontWeight="SemiBold" FontFamily="Segoe UI"/>
+                                            <TextBlock Text="{Binding ProgressText}"
+                                                       Foreground="#9CA3AF" FontSize="12"
+                                                       FontFamily="Segoe UI"
+                                                       HorizontalAlignment="Right"/>
+                                        </Grid>
+
+                                        <!-- Progress track -->
+                                        <Border Margin="0,8,0,0" CornerRadius="4"
+                                                Background="#1AFFFFFF" Height="8">
+                                            <Border CornerRadius="4" HorizontalAlignment="Left"
+                                                    Width="{Binding ProgressBarWidth}" Height="8">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#2563EB" Offset="0"/>
+                                                        <GradientStop Color="#60A5FA" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                            </Border>
+                                        </Border>
+
+                                        <TextBlock Text="{Binding SubText}"
+                                                   Foreground="#6B7280" FontSize="11"
+                                                   FontFamily="Segoe UI" Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Set Goal form -->
+            <Border Grid.Row="2" Background="#0A000000" CornerRadius="0,0,20,20"
+                    Margin="1,0,1,1" Padding="20,14">
+                <StackPanel>
+                    <TextBlock Text="Set Goal" Foreground="#9CA3AF" FontSize="12"
+                               FontFamily="Segoe UI" FontWeight="Medium" Margin="0,0,0,10"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="80"/>
+                        </Grid.ColumnDefinitions>
+
+                        <ComboBox x:Name="GoalTypeCombo" Grid.Column="0" Margin="0,0,8,0"
+                                  Height="36" Style="{StaticResource InputStyle}"
+                                  Background="#1F2937" Foreground="White"
+                                  BorderBrush="#374151" FontFamily="Segoe UI" FontSize="13"
+                                  VerticalContentAlignment="Center">
+                            <ComboBoxItem Content="Daily Focus Time"  Tag="DAILY_TIME"   IsSelected="True"/>
+                            <ComboBoxItem Content="Weekly Focus Time" Tag="WEEKLY_TIME"/>
+                            <ComboBoxItem Content="Streak (days)"     Tag="STREAK"/>
+                            <ComboBoxItem Content="Productivity Score" Tag="PRODUCTIVITY_SCORE"/>
+                        </ComboBox>
+
+                        <TextBox x:Name="TargetValueBox" Grid.Column="1" Margin="0,0,8,0"
+                                 Height="36" Text="120"
+                                 Background="#1F2937" Foreground="White"
+                                 BorderBrush="#374151" BorderThickness="1"
+                                 FontFamily="Segoe UI" FontSize="13"
+                                 VerticalContentAlignment="Center"
+                                 Padding="8,0"/>
+
+                        <Button x:Name="SaveGoalBtn" Grid.Column="2"
+                                Content="Save" Height="36"
+                                Style="{StaticResource PrimaryBtnStyle}"
+                                Padding="0,0"
+                                Click="SaveGoal_Click"/>
+                    </Grid>
+                    <TextBlock x:Name="GoalHintText"
+                               Text="Duration goals are in minutes (e.g. 120 = 2 hours/day)"
+                               Foreground="#4B5563" FontSize="11" FontFamily="Segoe UI"
+                               Margin="0,6,0,0"/>
+                    <TextBlock x:Name="GoalStatusText" Foreground="#10B981"
+                               FontSize="12" FontFamily="Segoe UI"
+                               Margin="0,4,0,0" Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

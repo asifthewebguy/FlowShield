@@ -442,6 +442,109 @@ namespace FlowShield.Desktop.Services
             catch { return null; }
         }
 
+        public async Task<List<GoalModel>?> GetGoalsAsync()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_authToken)) return null;
+                var response = await _httpClient.GetAsync("/api/goals");
+                if (!response.IsSuccessStatusCode) return null;
+                var data = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<GoalListResponse>(data);
+                return result?.Goals;
+            }
+            catch { return null; }
+        }
+
+        public async Task<GoalModel?> SetGoalAsync(string type, int targetValue)
+        {
+            if (string.IsNullOrEmpty(_authToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            var json = JsonConvert.SerializeObject(new { type, targetValue });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync("/api/goals", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<GoalResponse>(data);
+                return result?.Goal;
+            }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Logout();
+                throw new UnauthorizedAccessException("Session expired. Please login again.");
+            }
+
+            var error = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"Set goal failed {response.StatusCode}: {error}");
+        }
+
+        public async Task<List<ProjectModel>?> GetProjectsAsync()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_authToken)) return null;
+                var response = await _httpClient.GetAsync("/api/projects");
+                if (!response.IsSuccessStatusCode) return null;
+                var data = await response.Content.ReadAsStringAsync();
+                // Projects API returns a direct array, not a wrapped object
+                return JsonConvert.DeserializeObject<List<ProjectModel>>(data);
+            }
+            catch { return null; }
+        }
+
+        public async Task<ProjectModel?> CreateProjectAsync(string name, string color = "#3b82f6")
+        {
+            if (string.IsNullOrEmpty(_authToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            var json = JsonConvert.SerializeObject(new { name, color });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync("/api/projects", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<ProjectModel>(data);
+            }
+            else if (response.StatusCode == HttpStatusCode.Conflict)
+            {
+                throw new InvalidOperationException("A project with this name already exists.");
+            }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Logout();
+                throw new UnauthorizedAccessException("Session expired. Please login again.");
+            }
+
+            var error = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"Create project failed {response.StatusCode}: {error}");
+        }
+
+        public async Task<UserPreferences?> UpdatePreferencesAsync(PreferencesUpdate update)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_authToken)) return null;
+
+                var json = JsonConvert.SerializeObject(update);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var request = new HttpRequestMessage(new HttpMethod("PATCH"), "/api/user/preferences")
+                {
+                    Content = content
+                };
+                var response = await _httpClient.SendAsync(request);
+
+                if (!response.IsSuccessStatusCode) return null;
+                var data = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<PreferencesResponse>(data);
+                return result?.Preferences;
+            }
+            catch { return null; }
+        }
+
         public async Task<List<CategoryRuleModel>?> GetCategoryRulesAsync()
         {
             try
@@ -570,6 +673,86 @@ namespace FlowShield.Desktop.Services
     {
         [JsonProperty("session")]
         public SessionInfo? Session { get; set; }
+    }
+
+    // ---------- Goals models ----------
+
+    public class GoalModel
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; } = "";
+
+        [JsonProperty("goalType")]
+        public string GoalType { get; set; } = "";
+
+        [JsonProperty("targetValue")]
+        public int TargetValue { get; set; }
+
+        [JsonProperty("currentValue")]
+        public int CurrentValue { get; set; }
+
+        [JsonProperty("active")]
+        public bool Active { get; set; }
+
+        [JsonProperty("startDate")]
+        public DateTime StartDate { get; set; }
+    }
+
+    public class GoalListResponse
+    {
+        [JsonProperty("goals")]
+        public List<GoalModel> Goals { get; set; } = new();
+    }
+
+    public class GoalResponse
+    {
+        [JsonProperty("goal")]
+        public GoalModel? Goal { get; set; }
+    }
+
+    // ---------- Projects models ----------
+
+    public class ProjectModel
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; } = "";
+
+        [JsonProperty("name")]
+        public string Name { get; set; } = "";
+
+        [JsonProperty("color")]
+        public string Color { get; set; } = "#3b82f6";
+
+        [JsonProperty("_count")]
+        public ProjectCount? Count { get; set; }
+
+        public int SessionCount => Count?.Sessions ?? 0;
+    }
+
+    public class ProjectCount
+    {
+        [JsonProperty("sessions")]
+        public int Sessions { get; set; }
+    }
+
+    // ---------- Preferences update ----------
+
+    public class PreferencesUpdate
+    {
+        [JsonProperty("workStyle", NullValueHandling = NullValueHandling.Ignore)]
+        public string? WorkStyle { get; set; }
+
+        [JsonProperty("preferredDuration", NullValueHandling = NullValueHandling.Ignore)]
+        public int? PreferredDuration { get; set; }
+
+        [JsonProperty("primaryDistractions", NullValueHandling = NullValueHandling.Ignore)]
+        public List<string>? PrimaryDistractions { get; set; }
+
+        [JsonProperty("breakReminders", NullValueHandling = NullValueHandling.Ignore)]
+        public bool? BreakReminders { get; set; }
+
+        [JsonProperty("soundEnabled", NullValueHandling = NullValueHandling.Ignore)]
+        public bool? SoundEnabled { get; set; }
     }
 
     // ---------- Analytics models ----------

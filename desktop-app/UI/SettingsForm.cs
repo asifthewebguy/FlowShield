@@ -15,6 +15,13 @@ namespace FlowShield.Desktop.UI
         private CheckBox? _startWithWindowsCheckBox;
         private CheckBox? _showNotificationsCheckBox;
 
+        // Cloud preferences controls
+        private NumericUpDown? _preferredDurationInput;
+        private ComboBox? _workStyleCombo;
+        private CheckBox? _breakRemindersCheckBox;
+        private CheckBox? _soundEnabledCheckBox;
+        private Label? _cloudStatusLabel;
+
         public SettingsForm(DatabaseService dbService, ApiClient apiClient, NotificationService notificationService)
         {
             _dbService = dbService;
@@ -28,7 +35,7 @@ namespace FlowShield.Desktop.UI
         {
             Text = "FlowShield Settings";
             Width = 500;
-            Height = 520;
+            Height = 700;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -160,11 +167,92 @@ namespace FlowShield.Desktop.UI
             };
             Controls.Add(privacyLabel);
 
+            // ── Cloud Preferences separator ──────────────────────────────────────
+            var cloudSep = new Label
+            {
+                Text = "──────  Cloud Preferences  ──────",
+                Location = new System.Drawing.Point(20, 448),
+                Width = 440,
+                Height = 18,
+                ForeColor = System.Drawing.Color.FromArgb(100, 200, 200, 200),
+                Font = new System.Drawing.Font("Segoe UI", 9)
+            };
+            Controls.Add(cloudSep);
+
+            // Preferred Duration
+            var prefDurLabel = new Label
+            {
+                Text = "Preferred Session Duration (minutes):",
+                Location = new System.Drawing.Point(20, 474),
+                AutoSize = true
+            };
+            Controls.Add(prefDurLabel);
+
+            _preferredDurationInput = new NumericUpDown
+            {
+                Location = new System.Drawing.Point(20, 499),
+                Width = 100,
+                Minimum = 5,
+                Maximum = 240,
+                Value = 25
+            };
+            Controls.Add(_preferredDurationInput);
+
+            // Work Style
+            var workStyleLabel = new Label
+            {
+                Text = "Work Style:",
+                Location = new System.Drawing.Point(140, 474),
+                AutoSize = true
+            };
+            Controls.Add(workStyleLabel);
+
+            _workStyleCombo = new ComboBox
+            {
+                Location = new System.Drawing.Point(140, 499),
+                Width = 160,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            _workStyleCombo.Items.AddRange(new object[] { "focused", "balanced", "flexible" });
+            _workStyleCombo.SelectedIndex = 0;
+            Controls.Add(_workStyleCombo);
+
+            // Break Reminders
+            _breakRemindersCheckBox = new CheckBox
+            {
+                Text = "Break reminders",
+                Location = new System.Drawing.Point(20, 538),
+                AutoSize = true,
+                Checked = true
+            };
+            Controls.Add(_breakRemindersCheckBox);
+
+            // Sound Enabled
+            _soundEnabledCheckBox = new CheckBox
+            {
+                Text = "Sound enabled",
+                Location = new System.Drawing.Point(160, 538),
+                AutoSize = true,
+                Checked = true
+            };
+            Controls.Add(_soundEnabledCheckBox);
+
+            // Cloud status label
+            _cloudStatusLabel = new Label
+            {
+                Text = "",
+                Location = new System.Drawing.Point(20, 568),
+                Width = 440,
+                Height = 20,
+                ForeColor = System.Drawing.Color.LightGreen
+            };
+            Controls.Add(_cloudStatusLabel);
+
             // Save Button
             var saveButton = new Button
             {
                 Text = "Save",
-                Location = new System.Drawing.Point(285, 440),
+                Location = new System.Drawing.Point(285, 598),
                 Width = 85,
                 Height = 30
             };
@@ -175,7 +263,7 @@ namespace FlowShield.Desktop.UI
             var cancelButton = new Button
             {
                 Text = "Cancel",
-                Location = new System.Drawing.Point(380, 440),
+                Location = new System.Drawing.Point(380, 598),
                 Width = 85,
                 Height = 30
             };
@@ -224,6 +312,59 @@ namespace FlowShield.Desktop.UI
                 if (bool.TryParse(showNotifications, out bool show))
                     _showNotificationsCheckBox.Checked = show;
             }
+
+            // Load cloud preferences asynchronously
+            _ = LoadCloudPreferencesAsync();
+        }
+
+        private async System.Threading.Tasks.Task LoadCloudPreferencesAsync()
+        {
+            try
+            {
+                var prefs = await _apiClient.GetUserPreferencesAsync();
+                if (prefs == null) return;
+
+                if (_preferredDurationInput != null && prefs.PreferredDuration > 0)
+                    _preferredDurationInput.Value = Math.Max(5, Math.Min(240, prefs.PreferredDuration));
+
+                if (_workStyleCombo != null && !string.IsNullOrEmpty(prefs.WorkStyle))
+                {
+                    var idx = _workStyleCombo.Items.IndexOf(prefs.WorkStyle.ToLower());
+                    if (idx >= 0) _workStyleCombo.SelectedIndex = idx;
+                }
+
+                if (_breakRemindersCheckBox != null)
+                    _breakRemindersCheckBox.Checked = prefs.BreakReminders;
+
+                if (_soundEnabledCheckBox != null)
+                    _soundEnabledCheckBox.Checked = prefs.SoundEnabled;
+            }
+            catch { /* cloud prefs are optional — silently ignore */ }
+        }
+
+        private async System.Threading.Tasks.Task SaveCloudPreferencesAsync()
+        {
+            try
+            {
+                var update = new Services.PreferencesUpdate
+                {
+                    PreferredDuration = _preferredDurationInput != null
+                        ? (int)_preferredDurationInput.Value : null,
+                    WorkStyle = _workStyleCombo?.SelectedItem?.ToString(),
+                    BreakReminders = _breakRemindersCheckBox?.Checked,
+                    SoundEnabled   = _soundEnabledCheckBox?.Checked,
+                };
+
+                var result = await _apiClient.UpdatePreferencesAsync(update);
+                if (_cloudStatusLabel != null)
+                {
+                    _cloudStatusLabel.Text      = result != null ? "Cloud preferences synced." : "Could not sync cloud preferences.";
+                    _cloudStatusLabel.ForeColor  = result != null
+                        ? System.Drawing.Color.LightGreen
+                        : System.Drawing.Color.OrangeRed;
+                }
+            }
+            catch { /* silently ignore cloud failures */ }
         }
 
         private void SaveButton_Click(object? sender, EventArgs e)
@@ -246,6 +387,9 @@ namespace FlowShield.Desktop.UI
                 _dbService.SaveSetting("ShowNotifications", show.ToString());
                 _notificationService.SetEnabled(show);
             }
+
+            // Save cloud preferences
+            _ = SaveCloudPreferencesAsync();
 
             MessageBox.Show(
                 "Settings saved successfully!",

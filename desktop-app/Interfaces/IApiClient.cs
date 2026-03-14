@@ -16,6 +16,11 @@ public interface IApiClient
     Task<UserPreferences?> GetUserPreferencesAsync();
     Task<AnalyticsData?> GetAnalyticsAsync(string period = "week");
     Task<List<SessionInfo>?> GetSessionHistoryAsync(int limit = 10);
+    Task<List<GoalModel>?> GetGoalsAsync();
+    Task<GoalModel?> SetGoalAsync(string type, int targetValue);
+    Task<List<ProjectModel>?> GetProjectsAsync();
+    Task<ProjectModel?> CreateProjectAsync(string name, string color = "#3b82f6");
+    Task<UserPreferences?> UpdatePreferencesAsync(PreferencesUpdate update);
     bool IsAuthenticated();
     Task<bool> RegisterDeviceAsync();
     void Logout();

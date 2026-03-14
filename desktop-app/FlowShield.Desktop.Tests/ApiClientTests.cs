@@ -286,6 +286,202 @@ public class ApiClientTests
         Assert.Null(result);
     }
 
+    // ---------- GetGoalsAsync ----------
+
+    [Fact]
+    public async Task GetGoalsAsync_WhenSuccess_ReturnsGoals()
+    {
+        var db = AuthenticatedDb();
+        var payload = new
+        {
+            goals = new[]
+            {
+                new { id = "g-1", goalType = "DAILY_TIME", targetValue = 120, currentValue = 60,
+                      active = true, startDate = DateTime.UtcNow }
+            }
+        };
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, Json(payload));
+        var client = BuildClient(db, handler);
+
+        var result = await client.GetGoalsAsync();
+
+        Assert.NotNull(result);
+        Assert.Single(result!);
+        Assert.Equal("DAILY_TIME", result[0].GoalType);
+        Assert.Equal(120, result[0].TargetValue);
+        Assert.Equal(60,  result[0].CurrentValue);
+    }
+
+    [Fact]
+    public async Task GetGoalsAsync_WhenUnauthenticated_ReturnsNull()
+    {
+        var result = await BuildClient(EmptyDb(), new FakeHttpHandler()).GetGoalsAsync();
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetGoalsAsync_WhenServerError_ReturnsNull()
+    {
+        var result = await BuildClient(AuthenticatedDb(),
+            new FakeHttpHandler(HttpStatusCode.InternalServerError, "")).GetGoalsAsync();
+        Assert.Null(result);
+    }
+
+    // ---------- SetGoalAsync ----------
+
+    [Fact]
+    public async Task SetGoalAsync_WhenSuccess_ReturnsGoal()
+    {
+        var db = AuthenticatedDb();
+        var payload = new
+        {
+            goal = new { id = "g-1", goalType = "DAILY_TIME", targetValue = 120,
+                         currentValue = 0, active = true, startDate = DateTime.UtcNow }
+        };
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, Json(payload));
+        var client = BuildClient(db, handler);
+
+        var result = await client.SetGoalAsync("DAILY_TIME", 120);
+
+        Assert.NotNull(result);
+        Assert.Equal("DAILY_TIME", result!.GoalType);
+        Assert.Equal(120, result.TargetValue);
+    }
+
+    [Fact]
+    public async Task SetGoalAsync_WhenUnauthenticated_Throws()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => BuildClient(EmptyDb(), new FakeHttpHandler()).SetGoalAsync("DAILY_TIME", 120));
+    }
+
+    [Fact]
+    public async Task SetGoalAsync_WhenUnauthorized_RaisesSessionExpiredAndThrows()
+    {
+        var db = AuthenticatedDb();
+        var handler = new FakeHttpHandler(HttpStatusCode.Unauthorized, "");
+        var client = BuildClient(db, handler);
+        var fired = false;
+        client.SessionExpired += (_, _) => fired = true;
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => client.SetGoalAsync("DAILY_TIME", 120));
+        Assert.True(fired);
+    }
+
+    // ---------- GetProjectsAsync ----------
+
+    [Fact]
+    public async Task GetProjectsAsync_WhenSuccess_ReturnsProjects()
+    {
+        var db = AuthenticatedDb();
+        // Projects API returns a direct array
+        var payload = new[]
+        {
+            new { id = "p-1", name = "Work", color = "#3b82f6",
+                  _count = new { sessions = 5 } },
+            new { id = "p-2", name = "Personal", color = "#10b981",
+                  _count = new { sessions = 2 } },
+        };
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, Json(payload));
+        var client = BuildClient(db, handler);
+
+        var result = await client.GetProjectsAsync();
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.Count);
+        Assert.Equal("Work", result[0].Name);
+        Assert.Equal(5, result[0].SessionCount);
+    }
+
+    [Fact]
+    public async Task GetProjectsAsync_WhenUnauthenticated_ReturnsNull()
+    {
+        var result = await BuildClient(EmptyDb(), new FakeHttpHandler()).GetProjectsAsync();
+        Assert.Null(result);
+    }
+
+    // ---------- CreateProjectAsync ----------
+
+    [Fact]
+    public async Task CreateProjectAsync_WhenSuccess_ReturnsProject()
+    {
+        var db = AuthenticatedDb();
+        var payload = new { id = "p-1", name = "Deep Work", color = "#3b82f6" };
+        var handler = new FakeHttpHandler(HttpStatusCode.Created, Json(payload));
+        var client = BuildClient(db, handler);
+
+        var result = await client.CreateProjectAsync("Deep Work");
+
+        Assert.NotNull(result);
+        Assert.Equal("Deep Work", result!.Name);
+    }
+
+    [Fact]
+    public async Task CreateProjectAsync_WhenDuplicateName_ThrowsInvalidOperation()
+    {
+        var db = AuthenticatedDb();
+        var handler = new FakeHttpHandler(HttpStatusCode.Conflict,
+            Json(new { error = "Project with this name already exists" }));
+        var client = BuildClient(db, handler);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.CreateProjectAsync("Work"));
+        Assert.Contains("already exists", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateProjectAsync_WhenUnauthenticated_Throws()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => BuildClient(EmptyDb(), new FakeHttpHandler()).CreateProjectAsync("Test"));
+    }
+
+    // ---------- UpdatePreferencesAsync ----------
+
+    [Fact]
+    public async Task UpdatePreferencesAsync_WhenSuccess_ReturnsUpdatedPreferences()
+    {
+        var db = AuthenticatedDb();
+        var prefs = new { id = "p-1", userId = "u-1", preferredDuration = 45,
+                          workStyle = "focused", breakReminders = true, soundEnabled = false };
+        var handler = new FakeHttpHandler(HttpStatusCode.OK,
+            Json(new { message = "updated", preferences = prefs }));
+        var client = BuildClient(db, handler);
+
+        var update = new Services.PreferencesUpdate
+        {
+            PreferredDuration = 45,
+            WorkStyle         = "focused",
+            BreakReminders    = true,
+            SoundEnabled      = false,
+        };
+        var result = await client.UpdatePreferencesAsync(update);
+
+        Assert.NotNull(result);
+        Assert.Equal(45, result!.PreferredDuration);
+        Assert.Equal("focused", result.WorkStyle);
+    }
+
+    [Fact]
+    public async Task UpdatePreferencesAsync_WhenUnauthenticated_ReturnsNull()
+    {
+        var result = await BuildClient(EmptyDb(), new FakeHttpHandler())
+            .UpdatePreferencesAsync(new Services.PreferencesUpdate { PreferredDuration = 25 });
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task UpdatePreferencesAsync_WhenServerError_ReturnsNull()
+    {
+        var db = AuthenticatedDb();
+        var handler = new FakeHttpHandler(HttpStatusCode.InternalServerError, "");
+        var client = BuildClient(db, handler);
+
+        var result = await client.UpdatePreferencesAsync(new Services.PreferencesUpdate());
+        Assert.Null(result);
+    }
+
     // ---------- GetAnalyticsAsync ----------
 
     [Fact]

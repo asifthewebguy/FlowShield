@@ -21,6 +21,8 @@ namespace FlowShield.Desktop.UI
         private ContextMenuStrip? _contextMenu;
         private MainWindow? _mainWindow;
         private AnalyticsWindow? _analyticsWindow;
+        private GoalsWindow? _goalsWindow;
+        private ProjectsWindow? _projectsWindow;
         private readonly CategoryService _categoryService;
 
         public TrayApplication(ActivityTracker activityTracker, DatabaseService dbService)
@@ -140,6 +142,16 @@ namespace FlowShield.Desktop.UI
             var analyticsItem = new ToolStripMenuItem { Text = "View Analytics" };
             analyticsItem.Click += (s, e) => ShowAnalyticsWindow();
             _contextMenu.Items.Add(analyticsItem);
+
+            // Goals
+            var goalsItem = new ToolStripMenuItem { Text = "Goals" };
+            goalsItem.Click += (s, e) => ShowGoalsWindow();
+            _contextMenu.Items.Add(goalsItem);
+
+            // Projects
+            var projectsItem = new ToolStripMenuItem { Text = "Projects" };
+            projectsItem.Click += (s, e) => ShowProjectsWindow();
+            _contextMenu.Items.Add(projectsItem);
 
             // Start Focus Session
             var startSessionItem = new ToolStripMenuItem { Text = "Start Focus Session" };
@@ -357,6 +369,38 @@ namespace FlowShield.Desktop.UI
                 if (_mainWindow.WindowState == System.Windows.WindowState.Minimized)
                     _mainWindow.WindowState = System.Windows.WindowState.Normal;
                 _mainWindow.Activate();
+            }
+        }
+
+        private void ShowGoalsWindow()
+        {
+            if (_goalsWindow == null || !_goalsWindow.IsLoaded)
+            {
+                _goalsWindow = new GoalsWindow(_apiClient);
+                _goalsWindow.Show();
+            }
+            else
+            {
+                _goalsWindow.Show();
+                if (_goalsWindow.WindowState == System.Windows.WindowState.Minimized)
+                    _goalsWindow.WindowState = System.Windows.WindowState.Normal;
+                _goalsWindow.Activate();
+            }
+        }
+
+        private void ShowProjectsWindow()
+        {
+            if (_projectsWindow == null || !_projectsWindow.IsLoaded)
+            {
+                _projectsWindow = new ProjectsWindow(_apiClient);
+                _projectsWindow.Show();
+            }
+            else
+            {
+                _projectsWindow.Show();
+                if (_projectsWindow.WindowState == System.Windows.WindowState.Minimized)
+                    _projectsWindow.WindowState = System.Windows.WindowState.Normal;
+                _projectsWindow.Activate();
             }
         }
 
@@ -642,6 +686,8 @@ namespace FlowShield.Desktop.UI
                 _contextMenu?.Dispose();
                 _mainWindow?.Close();
                 _analyticsWindow?.Close();
+                _goalsWindow?.Close();
+                _projectsWindow?.Close();
             }
             base.Dispose(disposing);
         }
