@@ -600,6 +600,78 @@ namespace FlowShield.Desktop.Services
             }
         }
 
+        public async Task<List<TeamModel>?> GetTeamsAsync()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_authToken)) return null;
+                var response = await _httpClient.GetAsync("/api/teams");
+                if (!response.IsSuccessStatusCode) return null;
+                var data = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<TeamsResponse>(data);
+                return result?.Teams;
+            }
+            catch { return null; }
+        }
+
+        public async Task<TeamModel?> CreateTeamAsync(string name)
+        {
+            if (string.IsNullOrEmpty(_authToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            var json = JsonConvert.SerializeObject(new { name });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync("/api/teams", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<TeamCreateResponse>(data);
+                return result?.Team;
+            }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Logout();
+                throw new UnauthorizedAccessException("Session expired. Please login again.");
+            }
+
+            var error = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"Create team failed {response.StatusCode}: {error}");
+        }
+
+        public async Task<TeamModel?> JoinTeamAsync(string inviteCode)
+        {
+            if (string.IsNullOrEmpty(_authToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            var json = JsonConvert.SerializeObject(new { inviteCode });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync("/api/teams/join", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<JoinTeamResponse>(data);
+                return result?.Team;
+            }
+            else if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                throw new InvalidOperationException("Invalid invite code.");
+            }
+            else if (response.StatusCode == HttpStatusCode.Conflict)
+            {
+                throw new InvalidOperationException("Already a member of this team.");
+            }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Logout();
+                throw new UnauthorizedAccessException("Session expired. Please login again.");
+            }
+
+            var error = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"Join team failed {response.StatusCode}: {error}");
+        }
+
         public async Task<List<CategoryRuleModel>?> GetCategoryRulesAsync()
         {
             try
@@ -952,5 +1024,52 @@ namespace FlowShield.Desktop.Services
 
         [JsonProperty("text")]
         public string? Text { get; set; }
+    }
+
+    // ---------- Teams models ----------
+
+    public class TeamModel
+    {
+        [JsonProperty("id")]
+        public string Id { get; set; } = "";
+
+        [JsonProperty("name")]
+        public string Name { get; set; } = "";
+
+        [JsonProperty("ownerId")]
+        public string OwnerId { get; set; } = "";
+
+        [JsonProperty("inviteCode")]
+        public string InviteCode { get; set; } = "";
+
+        [JsonProperty("myRole")]
+        public string MyRole { get; set; } = "";
+
+        [JsonProperty("memberCount")]
+        public int MemberCount { get; set; }
+
+        [JsonProperty("joinedAt")]
+        public DateTime? JoinedAt { get; set; }
+    }
+
+    public class TeamsResponse
+    {
+        [JsonProperty("teams")]
+        public List<TeamModel> Teams { get; set; } = new();
+    }
+
+    public class TeamCreateResponse
+    {
+        [JsonProperty("team")]
+        public TeamModel? Team { get; set; }
+    }
+
+    public class JoinTeamResponse
+    {
+        [JsonProperty("team")]
+        public TeamModel? Team { get; set; }
+
+        [JsonProperty("message")]
+        public string? Message { get; set; }
     }
 }

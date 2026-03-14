@@ -7,7 +7,7 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <AssemblyName>FlowShield</AssemblyName>
-    <Version>2.7.0</Version>
+    <Version>2.8.0</Version>
     <Authors>FlowShield Team</Authors>
     <Company>FlowShield</Company>
     <Product>FlowShield Desktop</Product>
@@ -35,6 +35,7 @@
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" Version="2.1.11" />
     <PackageReference Include="System.Management" Version="8.0.0" />
+    <PackageReference Include="PusherClient" Version="2.2.1" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 

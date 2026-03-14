@@ -24,6 +24,9 @@ public interface IApiClient
     Task<UserPreferences?> UpdatePreferencesAsync(PreferencesUpdate update);
     Task<LeaderboardData?> GetLeaderboardAsync(string period = "week");
     Task GetCoachAdviceStreamAsync(string message, string? context, Action<string> onChunk, CancellationToken ct = default);
+    Task<List<TeamModel>?> GetTeamsAsync();
+    Task<TeamModel?> CreateTeamAsync(string name);
+    Task<TeamModel?> JoinTeamAsync(string inviteCode);
     bool IsAuthenticated();
     Task<bool> RegisterDeviceAsync();
     void Logout();

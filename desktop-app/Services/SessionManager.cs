@@ -195,11 +195,18 @@ namespace FlowShield.Desktop.Services
             SessionStateChanged?.Invoke(this, true);
         }
 
-        private async Task ReSyncFromServerAsync()
+        private async Task ReSyncFromServerAsync() => await TriggerResyncAsync();
+
+        /// <summary>
+        /// Full cross-device state sync — called by the 30 s poll and by Pusher real-time events.
+        /// Handles all four cases: remote start, remote stop, remote pause, remote resume.
+        /// </summary>
+        public async Task TriggerResyncAsync()
         {
             try
             {
                 var session = await _apiClient.GetActiveSessionAsync();
+
                 if (session != null && CurrentSession == null)
                 {
                     // Session started on another device — pick it up
@@ -209,6 +216,46 @@ namespace FlowShield.Desktop.Services
                     _activityTracker.Start();
                     _timer.Dispatcher.Invoke(() => StartLocalTimer(_plannedEndUtc - DateTime.UtcNow));
                     SessionStarted?.Invoke(this, session);
+                }
+                else if (session == null && CurrentSession != null && IsRunning)
+                {
+                    // Session stopped on another device — stop locally
+                    _timer.Dispatcher.Invoke(() =>
+                    {
+                        IsRunning = false;
+                        IsPaused = false;
+                        _timer.Stop();
+                    });
+                    _activityTracker.Stop();
+                    _activityTracker.CurrentSessionId = null;
+                    CurrentSession = null;
+                    DisengageBlocking();
+                    SessionEnded?.Invoke(this, EventArgs.Empty);
+                    SessionStateChanged?.Invoke(this, false);
+                }
+                else if (session != null && CurrentSession != null)
+                {
+                    if (session.IsPaused && !IsPaused)
+                    {
+                        // Paused on another device
+                        _timer.Dispatcher.Invoke(() => _timer.Stop());
+                        IsPaused = true;
+                        _activityTracker.Stop();
+                        if (BlockingEnabled) DisengageBlocking();
+                        SessionPaused?.Invoke(this, EventArgs.Empty);
+                    }
+                    else if (!session.IsPaused && IsPaused)
+                    {
+                        // Resumed on another device — server shifted startTime forward
+                        CurrentSession = session;
+                        _plannedEndUtc = session.StartTime.ToUniversalTime().AddMinutes(session.PlannedDuration);
+                        IsPaused = false;
+                        _activityTracker.CurrentSessionId = session.Id;
+                        _activityTracker.Start();
+                        if (BlockingEnabled) EngageBlocking();
+                        _timer.Dispatcher.Invoke(() => _timer.Start());
+                        SessionResumed?.Invoke(this, EventArgs.Empty);
+                    }
                 }
             }
             catch { }

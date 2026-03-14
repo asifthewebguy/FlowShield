@@ -1,8 +1,10 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using FlowShield.Desktop.Services;
+using Newtonsoft.Json.Linq;
 using Serilog;
 
 namespace FlowShield.Desktop.UI
@@ -25,6 +27,8 @@ namespace FlowShield.Desktop.UI
         private ProjectsWindow? _projectsWindow;
         private CoachWindow? _coachWindow;
         private LeaderboardWindow? _leaderboardWindow;
+        private TeamsWindow? _teamsWindow;
+        private PusherService? _pusherService;
         private readonly CategoryService _categoryService;
 
         public TrayApplication(ActivityTracker activityTracker, DatabaseService dbService)
@@ -164,6 +168,11 @@ namespace FlowShield.Desktop.UI
             var leaderboardItem = new ToolStripMenuItem { Text = "🏆 Leaderboard" };
             leaderboardItem.Click += (s, e) => ShowLeaderboardWindow();
             _contextMenu.Items.Add(leaderboardItem);
+
+            // Teams
+            var teamsItem = new ToolStripMenuItem { Text = "👥 My Teams" };
+            teamsItem.Click += (s, e) => ShowTeamsWindow();
+            _contextMenu.Items.Add(teamsItem);
 
             // Start Focus Session
             var startSessionItem = new ToolStripMenuItem { Text = "Start Focus Session" };
@@ -335,6 +344,7 @@ namespace FlowShield.Desktop.UI
                 {
                     _apiClient.Logout();
                     _syncService.Stop();
+                    DisconnectPusher();
                     _notificationService.NotifyLogout();
                     BuildContextMenu();
                     _trayIcon.ContextMenuStrip = _contextMenu;
@@ -448,6 +458,22 @@ namespace FlowShield.Desktop.UI
             }
         }
 
+        private void ShowTeamsWindow()
+        {
+            if (_teamsWindow == null || !_teamsWindow.IsLoaded)
+            {
+                _teamsWindow = new TeamsWindow(_apiClient);
+                _teamsWindow.Show();
+            }
+            else
+            {
+                _teamsWindow.Show();
+                if (_teamsWindow.WindowState == System.Windows.WindowState.Minimized)
+                    _teamsWindow.WindowState = System.Windows.WindowState.Normal;
+                _teamsWindow.Activate();
+            }
+        }
+
         private void ShowAnalyticsWindow()
         {
             if (_analyticsWindow == null || !_analyticsWindow.IsLoaded)
@@ -526,6 +552,39 @@ namespace FlowShield.Desktop.UI
             _trayIcon.ContextMenuStrip = _contextMenu;
         }
 
+        private async void ConnectPusherAsync()
+        {
+            var userId = _dbService.GetSetting("UserId");
+            if (string.IsNullOrEmpty(userId)) return;
+
+            var pusherKey     = ReadAppSetting("PusherKey");
+            var pusherCluster = ReadAppSetting("PusherCluster");
+            if (string.IsNullOrEmpty(pusherKey) || string.IsNullOrEmpty(pusherCluster)) return;
+
+            _pusherService?.Dispose();
+            _pusherService = new PusherService(pusherKey, pusherCluster);
+            _pusherService.SessionUpdateReceived += (_, _) => _ = _sessionManager.TriggerResyncAsync();
+            await _pusherService.ConnectAsync(userId);
+        }
+
+        private void DisconnectPusher()
+        {
+            _pusherService?.Dispose();
+            _pusherService = null;
+        }
+
+        private static string ReadAppSetting(string key)
+        {
+            try
+            {
+                var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+                if (!File.Exists(path)) return string.Empty;
+                var obj = JObject.Parse(File.ReadAllText(path));
+                return obj[key]?.ToString() ?? string.Empty;
+            }
+            catch { return string.Empty; }
+        }
+
         private async void RegisterDeviceAndLoadPreferencesAsync()
         {
             try
@@ -553,6 +612,9 @@ namespace FlowShield.Desktop.UI
                         _websiteBlocker.EnableBlocking();
                     }
                 }
+
+                // Connect to Pusher for real-time cross-device session events
+                ConnectPusherAsync();
             }
             catch (Exception ex)
             {
@@ -734,6 +796,8 @@ namespace FlowShield.Desktop.UI
                 _projectsWindow?.Close();
                 _coachWindow?.Close();
                 _leaderboardWindow?.Close();
+                _teamsWindow?.Close();
+                _pusherService?.Dispose();
             }
             base.Dispose(disposing);
         }

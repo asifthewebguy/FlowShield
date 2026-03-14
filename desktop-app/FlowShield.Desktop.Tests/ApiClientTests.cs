@@ -786,6 +786,147 @@ public class ApiClientTests
         Assert.Equal("Great job!", chunks[0]);
     }
 
+    // ---------- GetTeamsAsync ----------
+
+    [Fact]
+    public async Task GetTeamsAsync_WhenSuccess_ReturnsTeams()
+    {
+        var db = AuthenticatedDb();
+        var payload = new
+        {
+            teams = new[]
+            {
+                new { id = "t-1", name = "Alpha Squad", ownerId = "u-1", inviteCode = "ABC123",
+                      myRole = "OWNER", memberCount = 3, joinedAt = DateTime.UtcNow },
+                new { id = "t-2", name = "Beta Team",  ownerId = "u-9", inviteCode = "XYZ789",
+                      myRole = "MEMBER", memberCount = 5, joinedAt = DateTime.UtcNow },
+            }
+        };
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, Json(payload));
+        var client = BuildClient(db, handler);
+
+        var result = await client.GetTeamsAsync();
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result!.Count);
+        Assert.Equal("Alpha Squad", result[0].Name);
+        Assert.Equal("OWNER",       result[0].MyRole);
+        Assert.Equal("ABC123",      result[0].InviteCode);
+        Assert.Equal(3,             result[0].MemberCount);
+        Assert.Equal("MEMBER",      result[1].MyRole);
+    }
+
+    [Fact]
+    public async Task GetTeamsAsync_WhenUnauthenticated_ReturnsNull()
+    {
+        var result = await BuildClient(EmptyDb(), new FakeHttpHandler()).GetTeamsAsync();
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetTeamsAsync_WhenServerError_ReturnsNull()
+    {
+        var result = await BuildClient(AuthenticatedDb(),
+            new FakeHttpHandler(HttpStatusCode.InternalServerError, "")).GetTeamsAsync();
+        Assert.Null(result);
+    }
+
+    // ---------- CreateTeamAsync ----------
+
+    [Fact]
+    public async Task CreateTeamAsync_WhenSuccess_ReturnsTeam()
+    {
+        var db = AuthenticatedDb();
+        var payload = new
+        {
+            team = new { id = "t-1", name = "My Team", ownerId = "u-1",
+                         inviteCode = "CODE01", myRole = "OWNER", memberCount = 1 }
+        };
+        var handler = new FakeHttpHandler(HttpStatusCode.Created, Json(payload));
+        var client = BuildClient(db, handler);
+
+        var result = await client.CreateTeamAsync("My Team");
+
+        Assert.NotNull(result);
+        Assert.Equal("My Team", result!.Name);
+        Assert.Equal("OWNER",   result.MyRole);
+        Assert.Equal("CODE01",  result.InviteCode);
+    }
+
+    [Fact]
+    public async Task CreateTeamAsync_WhenUnauthenticated_Throws()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => BuildClient(EmptyDb(), new FakeHttpHandler()).CreateTeamAsync("Test"));
+    }
+
+    [Fact]
+    public async Task CreateTeamAsync_WhenUnauthorized_RaisesSessionExpiredAndThrows()
+    {
+        var db = AuthenticatedDb();
+        var handler = new FakeHttpHandler(HttpStatusCode.Unauthorized, "");
+        var client = BuildClient(db, handler);
+        var fired = false;
+        client.SessionExpired += (_, _) => fired = true;
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => client.CreateTeamAsync("Test"));
+        Assert.True(fired);
+    }
+
+    // ---------- JoinTeamAsync ----------
+
+    [Fact]
+    public async Task JoinTeamAsync_WhenSuccess_ReturnsTeam()
+    {
+        var db = AuthenticatedDb();
+        var payload = new
+        {
+            team    = new { id = "t-5", name = "Champions" },
+            message = "Joined team \"Champions\""
+        };
+        var handler = new FakeHttpHandler(HttpStatusCode.Created, Json(payload));
+        var client = BuildClient(db, handler);
+
+        var result = await client.JoinTeamAsync("INVITE99");
+
+        Assert.NotNull(result);
+        Assert.Equal("Champions", result!.Name);
+    }
+
+    [Fact]
+    public async Task JoinTeamAsync_WhenInvalidCode_ThrowsInvalidOperation()
+    {
+        var db = AuthenticatedDb();
+        var handler = new FakeHttpHandler(HttpStatusCode.NotFound,
+            Json(new { error = "Invalid invite code" }));
+        var client = BuildClient(db, handler);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.JoinTeamAsync("BADCODE"));
+        Assert.Contains("Invalid invite code", ex.Message);
+    }
+
+    [Fact]
+    public async Task JoinTeamAsync_WhenAlreadyMember_ThrowsInvalidOperation()
+    {
+        var db = AuthenticatedDb();
+        var handler = new FakeHttpHandler(HttpStatusCode.Conflict,
+            Json(new { error = "Already a member of this team" }));
+        var client = BuildClient(db, handler);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.JoinTeamAsync("CODE01"));
+        Assert.Contains("Already a member", ex.Message);
+    }
+
+    [Fact]
+    public async Task JoinTeamAsync_WhenUnauthenticated_Throws()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => BuildClient(EmptyDb(), new FakeHttpHandler()).JoinTeamAsync("CODE"));
+    }
+
     // ---------- Logout ----------
 
     [Fact]
