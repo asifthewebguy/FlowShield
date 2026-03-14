@@ -69,6 +69,19 @@ namespace FlowShield.Desktop.Services
             _blockedProcessNames.AddRange(appNames.Select(n => n.ToLowerInvariant()));
         }
 
+        /// <summary>
+        /// Merges custom process names into the current blocked list without replacing it.
+        /// Call after SetBlockedDistractions() to layer on user-defined additions.
+        /// </summary>
+        public void AddCustomApps(List<string> customProcessNames)
+        {
+            foreach (var name in customProcessNames.Select(n => n.ToLowerInvariant()))
+            {
+                if (!_blockedProcessNames.Contains(name))
+                    _blockedProcessNames.Add(name);
+            }
+        }
+
         public void BlockApps()
         {
             if (_isBlocking) return;

@@ -786,6 +786,54 @@ public class ApiClientTests
         Assert.Equal("Great job!", chunks[0]);
     }
 
+    // ---------- GetSessionHistoryAsync (Sprint 19 — extended coverage) ----------
+
+    [Fact]
+    public async Task GetSessionHistoryAsync_ReturnsCompletedAndStoppedSessions()
+    {
+        var db = AuthenticatedDb();
+        var now = DateTime.UtcNow;
+        var payload = new
+        {
+            sessions = new[]
+            {
+                new { id = "s-1", plannedDuration = 25, startTime = now.AddHours(-2),
+                      endTime = (DateTime?)now.AddHours(-1).AddMinutes(-35),
+                      completed = true,  isPaused = false, sessionType = "WORK" },
+                new { id = "s-2", plannedDuration = 45, startTime = now.AddHours(-5),
+                      endTime = (DateTime?)now.AddHours(-4),
+                      completed = false, isPaused = false, sessionType = "STUDY" },
+                new { id = "s-3", plannedDuration = 25, startTime = now.AddHours(-1),
+                      endTime = (DateTime?)null,
+                      completed = false, isPaused = true,  sessionType = "CREATIVE" },
+            }
+        };
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, Json(payload));
+        var client = BuildClient(db, handler);
+
+        var result = await client.GetSessionHistoryAsync(30);
+
+        Assert.NotNull(result);
+        Assert.Equal(3, result!.Count);
+        Assert.True(result[0].Completed);
+        Assert.Equal("STUDY",    result[1].SessionType);
+        Assert.True(result[2].IsPaused);
+        Assert.Null(result[2].EndTime);
+    }
+
+    [Fact]
+    public async Task GetSessionHistoryAsync_PassesLimitQueryParam()
+    {
+        var db = AuthenticatedDb();
+        var handler = new FakeHttpHandler(HttpStatusCode.OK,
+            Json(new { sessions = Array.Empty<object>() }));
+        var client = BuildClient(db, handler);
+
+        await client.GetSessionHistoryAsync(limit: 20);
+
+        Assert.Contains("20", handler.LastRequestUri ?? "");
+    }
+
     // ---------- GetTeamsAsync ----------
 
     [Fact]

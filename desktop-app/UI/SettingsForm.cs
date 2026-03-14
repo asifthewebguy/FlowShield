@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows.Forms;
 using FlowShield.Desktop.Services;
 
@@ -21,6 +22,7 @@ namespace FlowShield.Desktop.UI
         private CheckBox? _breakRemindersCheckBox;
         private CheckBox? _soundEnabledCheckBox;
         private Label? _cloudStatusLabel;
+        private TextBox? _customAppsTextBox;
 
         public SettingsForm(DatabaseService dbService, ApiClient apiClient, NotificationService notificationService)
         {
@@ -35,7 +37,7 @@ namespace FlowShield.Desktop.UI
         {
             Text = "FlowShield Settings";
             Width = 500;
-            Height = 700;
+            Height = 840;
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -248,11 +250,44 @@ namespace FlowShield.Desktop.UI
             };
             Controls.Add(_cloudStatusLabel);
 
+            // ── Custom Blocked Apps separator ─────────────────────────────────────
+            var appsSep = new Label
+            {
+                Text = "──────  Custom Blocked Apps  ──────",
+                Location = new System.Drawing.Point(20, 598),
+                Width = 440,
+                Height = 18,
+                ForeColor = System.Drawing.Color.FromArgb(100, 200, 200, 200),
+                Font = new System.Drawing.Font("Segoe UI", 9)
+            };
+            Controls.Add(appsSep);
+
+            var appsHintLabel = new Label
+            {
+                Text = "Process names to block during focus sessions (one per line, no .exe):",
+                Location = new System.Drawing.Point(20, 622),
+                Width = 440,
+                AutoSize = true,
+                ForeColor = System.Drawing.Color.Gray
+            };
+            Controls.Add(appsHintLabel);
+
+            _customAppsTextBox = new TextBox
+            {
+                Location = new System.Drawing.Point(20, 645),
+                Width = 440,
+                Height = 80,
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical,
+                AcceptsReturn = true
+            };
+            Controls.Add(_customAppsTextBox);
+
             // Save Button
             var saveButton = new Button
             {
                 Text = "Save",
-                Location = new System.Drawing.Point(285, 598),
+                Location = new System.Drawing.Point(285, 738),
                 Width = 85,
                 Height = 30
             };
@@ -263,7 +298,7 @@ namespace FlowShield.Desktop.UI
             var cancelButton = new Button
             {
                 Text = "Cancel",
-                Location = new System.Drawing.Point(380, 598),
+                Location = new System.Drawing.Point(380, 738),
                 Width = 85,
                 Height = 30
             };
@@ -311,6 +346,13 @@ namespace FlowShield.Desktop.UI
                 var showNotifications = _dbService.GetSetting("ShowNotifications");
                 if (bool.TryParse(showNotifications, out bool show))
                     _showNotificationsCheckBox.Checked = show;
+            }
+
+            // Load custom blocked apps
+            if (_customAppsTextBox != null)
+            {
+                var customApps = _dbService.GetSetting("CustomBlockedApps") ?? "";
+                _customAppsTextBox.Text = customApps.Replace(",", "\r\n");
             }
 
             // Load cloud preferences asynchronously
@@ -386,6 +428,16 @@ namespace FlowShield.Desktop.UI
                 var show = _showNotificationsCheckBox.Checked;
                 _dbService.SaveSetting("ShowNotifications", show.ToString());
                 _notificationService.SetEnabled(show);
+            }
+
+            // Save custom blocked apps (stored as comma-separated process names)
+            if (_customAppsTextBox != null)
+            {
+                var apps = _customAppsTextBox.Text
+                    .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(a => a.Trim().ToLowerInvariant())
+                    .Where(a => a.Length > 0);
+                _dbService.SaveSetting("CustomBlockedApps", string.Join(",", apps));
             }
 
             // Save cloud preferences

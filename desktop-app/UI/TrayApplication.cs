@@ -28,8 +28,11 @@ namespace FlowShield.Desktop.UI
         private CoachWindow? _coachWindow;
         private LeaderboardWindow? _leaderboardWindow;
         private TeamsWindow? _teamsWindow;
+        private SessionHistoryWindow? _sessionHistoryWindow;
         private PusherService? _pusherService;
         private readonly CategoryService _categoryService;
+        private bool _notifiedFiveMin = false;
+        private bool _notifiedOneMin = false;
 
         public TrayApplication(ActivityTracker activityTracker, DatabaseService dbService)
         {
@@ -48,7 +51,24 @@ namespace FlowShield.Desktop.UI
 
             // 3. Initialize SessionManager (needs NotificationService and Blockers)
             _sessionManager = new SessionManager(_apiClient, _activityTracker, _notificationService, _websiteBlocker, _appBlocker);
-            _sessionManager.TimerTick += (s, time) => { /* Optional: Update tray tooltip */ };
+            _sessionManager.TimerTick += (s, time) =>
+            {
+                // Live countdown in tray tooltip
+                _trayIcon.Text = $"FlowShield — {time.ToString(@"mm\:ss")} remaining";
+
+                // 5-minute warning
+                if (!_notifiedFiveMin && time.TotalMinutes <= 5.0 && time.TotalMinutes > 1.0)
+                {
+                    _notifiedFiveMin = true;
+                    _notificationService.ShowInfo("5 Minutes Left", "Your focus session ends in 5 minutes.");
+                }
+                // 1-minute warning
+                if (!_notifiedOneMin && time.TotalMinutes <= 1.0 && time.TotalSeconds > 0)
+                {
+                    _notifiedOneMin = true;
+                    _notificationService.ShowInfo("1 Minute Left", "Final minute — wrap up and save your work!");
+                }
+            };
             _sessionManager.SessionStarted += OnSessionStarted;
             _sessionManager.SessionEnded += OnSessionEnded;
             _sessionManager.SessionPaused += OnSessionPauseStateChanged;
@@ -173,6 +193,11 @@ namespace FlowShield.Desktop.UI
             var teamsItem = new ToolStripMenuItem { Text = "👥 My Teams" };
             teamsItem.Click += (s, e) => ShowTeamsWindow();
             _contextMenu.Items.Add(teamsItem);
+
+            // Session History
+            var historyItem = new ToolStripMenuItem { Text = "🕐 Session History" };
+            historyItem.Click += (s, e) => ShowSessionHistoryWindow();
+            _contextMenu.Items.Add(historyItem);
 
             // Start Focus Session
             var startSessionItem = new ToolStripMenuItem { Text = "Start Focus Session" };
@@ -312,6 +337,8 @@ namespace FlowShield.Desktop.UI
 
         private void OnSessionStarted(object? sender, SessionInfo session)
         {
+            _notifiedFiveMin = false;
+            _notifiedOneMin  = false;
             BuildContextMenu();
             _trayIcon.ContextMenuStrip = _contextMenu;
             ShowMainWindow();
@@ -319,6 +346,7 @@ namespace FlowShield.Desktop.UI
 
         private void OnSessionEnded(object? sender, EventArgs e)
         {
+            _trayIcon.Text = "FlowShield - Tracking Active";
             BuildContextMenu();
             _trayIcon.ContextMenuStrip = _contextMenu;
         }
@@ -455,6 +483,22 @@ namespace FlowShield.Desktop.UI
                 if (_leaderboardWindow.WindowState == System.Windows.WindowState.Minimized)
                     _leaderboardWindow.WindowState = System.Windows.WindowState.Normal;
                 _leaderboardWindow.Activate();
+            }
+        }
+
+        private void ShowSessionHistoryWindow()
+        {
+            if (_sessionHistoryWindow == null || !_sessionHistoryWindow.IsLoaded)
+            {
+                _sessionHistoryWindow = new SessionHistoryWindow(_apiClient);
+                _sessionHistoryWindow.Show();
+            }
+            else
+            {
+                _sessionHistoryWindow.Show();
+                if (_sessionHistoryWindow.WindowState == System.Windows.WindowState.Minimized)
+                    _sessionHistoryWindow.WindowState = System.Windows.WindowState.Normal;
+                _sessionHistoryWindow.Activate();
             }
         }
 
@@ -604,6 +648,18 @@ namespace FlowShield.Desktop.UI
                     // Setup website + app blockers with user's distraction preferences
                     _websiteBlocker.SetBlockedDistractions(preferences.PrimaryDistractions);
                     _appBlocker.SetBlockedDistractions(preferences.PrimaryDistractions);
+
+                    // Merge any user-defined custom blocked apps on top of distraction preferences
+                    var customApps = _dbService.GetSetting("CustomBlockedApps");
+                    if (!string.IsNullOrEmpty(customApps))
+                    {
+                        var customs = customApps.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                            .Select(a => a.Trim())
+                            .Where(a => a.Length > 0)
+                            .ToList();
+                        if (customs.Count > 0)
+                            _appBlocker.AddCustomApps(customs);
+                    }
 
                     // Check if blocking was previously enabled
                     var blockingEnabled = _dbService.GetSetting("WebsiteBlockingEnabled") == "true";
@@ -797,6 +853,7 @@ namespace FlowShield.Desktop.UI
                 _coachWindow?.Close();
                 _leaderboardWindow?.Close();
                 _teamsWindow?.Close();
+                _sessionHistoryWindow?.Close();
                 _pusherService?.Dispose();
             }
             base.Dispose(disposing);
