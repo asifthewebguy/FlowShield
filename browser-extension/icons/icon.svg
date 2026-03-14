@@ -1,4 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="24" fill="#0f172a"/>
-  <polygon points="72,16 40,72 66,72 56,112 88,56 62,56" fill="#38bdf8"/>
+  <defs>
+    <clipPath id="inner">
+      <path d="M23 15 L105 15 C113 15 115 20 115 27 L115 75 C115 95 64 115 64 115 C64 115 13 95 13 75 L13 27 C13 20 15 15 23 15 Z"/>
+    </clipPath>
+    <linearGradient id="deepBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#7AB8D8"/>
+      <stop offset="35%"  stop-color="#3479B8"/>
+      <stop offset="100%" stop-color="#1A4880"/>
+    </linearGradient>
+    <linearGradient id="midBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#2668A8"/>
+      <stop offset="100%" stop-color="#163870"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Ivory/cream outer shield -->
+  <path d="M19 6 L109 6 C120 6 122 13 122 22 L122 76 C122 99 64 122 64 122 C64 122 6 99 6 76 L6 22 C6 13 8 6 19 6 Z"
+        fill="#EDE4CC"/>
+
+  <!-- Dark inner shield background -->
+  <path d="M23 15 L105 15 C113 15 115 20 115 27 L115 75 C115 95 64 115 64 115 C64 115 13 95 13 75 L13 27 C13 20 15 15 23 15 Z"
+        fill="#0C0C0C"/>
+
+  <!-- Blue base fill (whole lower area) clipped to shield -->
+  <path d="M13 52 C28 44 46 58 64 50 C82 42 100 56 115 48 L115 75 C115 95 64 115 64 115 C64 115 13 95 13 75 Z"
+        fill="url(#deepBlue)" clip-path="url(#inner)"/>
+
+  <!-- Mid-depth wave layer -->
+  <path d="M13 66 C24 58 40 70 58 62 C76 54 96 68 115 62 L115 75 C115 95 64 115 64 115 C64 115 13 95 13 75 Z"
+        fill="url(#midBlue)" clip-path="url(#inner)"/>
+
+  <!-- Darkest bottom layer -->
+  <path d="M13 76 C30 68 52 80 64 74 C78 68 96 78 115 72 L115 75 C115 95 64 115 64 115 C64 115 13 95 13 75 Z"
+        fill="#122D60" clip-path="url(#inner)"/>
+
+  <!-- Top white wave (water surface, flowing right) -->
+  <path d="M13 52 C21 46 29 58 38 52 C47 46 55 58 64 52 C73 46 81 56 90 51 C99 46 108 54 115 50"
+        fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"
+        clip-path="url(#inner)"/>
+
+  <!-- Second softer wave below -->
+  <path d="M13 62 C22 57 32 66 44 60 C56 54 68 64 80 58 C92 52 106 62 115 58"
+        fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="2.5" stroke-linecap="round"
+        clip-path="url(#inner)"/>
 </svg>

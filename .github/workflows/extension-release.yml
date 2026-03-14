@@ -21,6 +21,23 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Regenerate PNG icons from SVG
+        run: |
+          npm install --no-save sharp
+          node -e "
+          const sharp = require('sharp');
+          const fs = require('fs');
+          const svg = fs.readFileSync('browser-extension/icons/icon.svg');
+          Promise.all([16,48,128].map(s =>
+            sharp(svg).resize(s,s).png().toFile('browser-extension/icons/icon' + s + '.png')
+          )).then(() => console.log('Icons regenerated')).catch(e => { console.error(e); process.exit(1); });
+          "
+
       - name: Build Chrome ZIP
         run: |
           cd browser-extension
