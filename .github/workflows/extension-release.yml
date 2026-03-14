@@ -1,0 +1,72 @@
+name: Chrome Extension Release
+
+on:
+  push:
+    tags:
+      - 'ext-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Release Extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#ext-v}" >> $GITHUB_OUTPUT
+
+      - name: Build Chrome ZIP
+        run: |
+          cd browser-extension
+          zip -r ../flowshield-extension-v${{ steps.version.outputs.VERSION }}.zip \
+            manifest.json \
+            background.js \
+            content.js \
+            popup/ \
+            icons/icon16.png \
+            icons/icon48.png \
+            icons/icon128.png
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: flowshield-extension-v${{ steps.version.outputs.VERSION }}.zip
+          name: "Chrome Extension v${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## FlowShield Chrome Extension v${{ steps.version.outputs.VERSION }}
+
+            ### Install
+            Available on the [Chrome Web Store](https://chrome.google.com/webstore/detail/flowshield).
+
+            Or load unpacked for development:
+            1. Download the ZIP below
+            2. Extract it
+            3. Go to `chrome://extensions` → Developer mode ON → Load unpacked → select the folder
+
+      # ----------------------------------------------------------------
+      # Chrome Web Store auto-publish (uncomment after first manual
+      # submission and after adding secrets to the repo):
+      #
+      # Required secrets:
+      #   CHROME_EXTENSION_ID      — from the store URL after first upload
+      #   CHROME_CLIENT_ID         — Google OAuth2 client ID
+      #   CHROME_CLIENT_SECRET     — Google OAuth2 client secret
+      #   CHROME_REFRESH_TOKEN     — OAuth2 refresh token
+      #
+      # How to get OAuth2 credentials:
+      #   https://github.com/fregante/chrome-webstore-upload/blob/main/How%20to%20generate%20Google%20API%20keys.md
+      # ----------------------------------------------------------------
+      # - name: Publish to Chrome Web Store
+      #   uses: fregante/chrome-webstore-upload-action@v2
+      #   with:
+      #     file-name: flowshield-extension-v${{ steps.version.outputs.VERSION }}.zip
+      #     extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+      #     client-id: ${{ secrets.CHROME_CLIENT_ID }}
+      #     client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+      #     refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}

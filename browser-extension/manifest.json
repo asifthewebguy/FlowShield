@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "FlowShield",
   "version": "1.0.0",
-  "description": "Track browser activity and manage focus sessions from FlowShield.",
+  "description": "Focus timer, activity tracking & distraction blocking. Works with your FlowShield dashboard across all devices.",
   "icons": {
     "16":  "icons/icon16.png",
     "48":  "icons/icon48.png",
@@ -28,12 +28,11 @@
     "activeTab"
   ],
   "host_permissions": [
-    "https://flowshield.app/*",
-    "http://localhost:3000/*"
+    "https://flowshield.app/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://flowshield.app/*", "http://localhost:3000/*"],
+      "matches": ["https://flowshield.app/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }
