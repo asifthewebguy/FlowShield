@@ -41,11 +41,13 @@ jobs:
       - name: Build Chrome ZIP
         run: |
           cd browser-extension
-          zip -r ../flowshield-extension-v${{ steps.version.outputs.VERSION }}.zip \
+          zip ../flowshield-extension-v${{ steps.version.outputs.VERSION }}.zip \
             manifest.json \
             background.js \
             content.js \
-            popup/ \
+            popup/popup.html \
+            popup/popup.js \
+            popup/popup.css \
             icons/icon16.png \
             icons/icon48.png \
             icons/icon128.png
