@@ -675,6 +675,117 @@ public class ApiClientTests
             () => client.TogglePauseAsync("s-1", "pause"));
     }
 
+    // ---------- GetLeaderboardAsync ----------
+
+    [Fact]
+    public async Task GetLeaderboardAsync_WhenSuccess_ReturnsLeaderboard()
+    {
+        var db = AuthenticatedDb();
+        var payload = new
+        {
+            period = "week",
+            userRank = 3,
+            leaderboard = new[]
+            {
+                new { rank = 1, userId = "u-1", userName = "Alice", totalMinutes = 480,
+                      sessionsCount = 10, streak = 5, isCurrentUser = false },
+                new { rank = 2, userId = "u-2", userName = "Bob",   totalMinutes = 360,
+                      sessionsCount = 8,  streak = 3, isCurrentUser = false },
+                new { rank = 3, userId = "u-3", userName = "Me",    totalMinutes = 240,
+                      sessionsCount = 6,  streak = 2, isCurrentUser = true  },
+            }
+        };
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, Json(payload));
+        var client = BuildClient(db, handler);
+
+        var result = await client.GetLeaderboardAsync("week");
+
+        Assert.NotNull(result);
+        Assert.Equal("week", result!.Period);
+        Assert.Equal(3,      result.UserRank);
+        Assert.Equal(3,      result.Leaderboard.Count);
+        Assert.Equal("Alice", result.Leaderboard[0].UserName);
+        Assert.True(result.Leaderboard[2].IsCurrentUser);
+        Assert.Equal(480,    result.Leaderboard[0].TotalMinutes);
+    }
+
+    [Fact]
+    public async Task GetLeaderboardAsync_WhenUnauthenticated_ReturnsNull()
+    {
+        var result = await BuildClient(EmptyDb(), new FakeHttpHandler()).GetLeaderboardAsync();
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetLeaderboardAsync_WhenServerError_ReturnsNull()
+    {
+        var result = await BuildClient(AuthenticatedDb(),
+            new FakeHttpHandler(HttpStatusCode.InternalServerError, "")).GetLeaderboardAsync();
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetLeaderboardAsync_PassesPeriodQueryParam()
+    {
+        var db = AuthenticatedDb();
+        var payload = new { period = "month", userRank = 1, leaderboard = Array.Empty<object>() };
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, Json(payload));
+        var client = BuildClient(db, handler);
+
+        await client.GetLeaderboardAsync("month");
+
+        Assert.Contains("month", handler.LastRequestUri ?? "");
+    }
+
+    // ---------- GetCoachAdviceStreamAsync ----------
+
+    [Fact]
+    public async Task GetCoachAdviceStreamAsync_WhenUnauthenticated_Throws()
+    {
+        var client = BuildClient(EmptyDb(), new FakeHttpHandler());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.GetCoachAdviceStreamAsync("How am I doing?", null, _ => { }));
+    }
+
+    [Fact]
+    public async Task GetCoachAdviceStreamAsync_WhenSuccess_InvokesCallbackWithText()
+    {
+        var db = AuthenticatedDb();
+        // Simulate SSE stream in Anthropic delta format
+        var sseBody =
+            "data: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"Hello \"}}\n\n" +
+            "data: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"world\"}}\n\n" +
+            "data: [DONE]\n\n";
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, sseBody, "text/event-stream");
+        var client = BuildClient(db, handler);
+
+        var chunks = new System.Collections.Generic.List<string>();
+        await client.GetCoachAdviceStreamAsync("How am I doing?", null, t => chunks.Add(t));
+
+        Assert.Equal(2, chunks.Count);
+        Assert.Equal("Hello ", chunks[0]);
+        Assert.Equal("world",  chunks[1]);
+    }
+
+    [Fact]
+    public async Task GetCoachAdviceStreamAsync_SimpleTextFormat_InvokesCallback()
+    {
+        var db = AuthenticatedDb();
+        // Simulate SSE stream in simple text format
+        var sseBody =
+            "data: {\"text\":\"Great job!\"}\n\n" +
+            "data: [DONE]\n\n";
+        var handler = new FakeHttpHandler(HttpStatusCode.OK, sseBody, "text/event-stream");
+        var client = BuildClient(db, handler);
+
+        var chunks = new System.Collections.Generic.List<string>();
+        await client.GetCoachAdviceStreamAsync("Give me feedback", null, t => chunks.Add(t));
+
+        Assert.Single(chunks);
+        Assert.Equal("Great job!", chunks[0]);
+    }
+
     // ---------- Logout ----------
 
     [Fact]
@@ -704,21 +815,25 @@ internal class FakeHttpHandler : HttpMessageHandler
 {
     private readonly HttpStatusCode _status;
     private readonly string _body;
+    private readonly string _contentType;
     private readonly Exception? _exception;
     public int CallCount { get; private set; }
     public string? LastRequestUri { get; private set; }
 
-    public FakeHttpHandler(HttpStatusCode status = HttpStatusCode.OK, string body = "")
+    public FakeHttpHandler(HttpStatusCode status = HttpStatusCode.OK, string body = "",
+        string contentType = "application/json")
     {
-        _status = status;
-        _body   = body;
+        _status      = status;
+        _body        = body;
+        _contentType = contentType;
     }
 
     public FakeHttpHandler(Exception exception)
     {
-        _status    = HttpStatusCode.OK;
-        _body      = "";
-        _exception = exception;
+        _status      = HttpStatusCode.OK;
+        _body        = "";
+        _contentType = "application/json";
+        _exception   = exception;
     }
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
@@ -730,7 +845,7 @@ internal class FakeHttpHandler : HttpMessageHandler
 
         return Task.FromResult(new HttpResponseMessage(_status)
         {
-            Content = new StringContent(_body, Encoding.UTF8, "application/json")
+            Content = new StringContent(_body, Encoding.UTF8, _contentType)
         });
     }
 }

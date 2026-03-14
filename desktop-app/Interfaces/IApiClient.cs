@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using FlowShield.Desktop.Services;
 
@@ -21,6 +22,8 @@ public interface IApiClient
     Task<List<ProjectModel>?> GetProjectsAsync();
     Task<ProjectModel?> CreateProjectAsync(string name, string color = "#3b82f6");
     Task<UserPreferences?> UpdatePreferencesAsync(PreferencesUpdate update);
+    Task<LeaderboardData?> GetLeaderboardAsync(string period = "week");
+    Task GetCoachAdviceStreamAsync(string message, string? context, Action<string> onChunk, CancellationToken ct = default);
     bool IsAuthenticated();
     Task<bool> RegisterDeviceAsync();
     void Logout();

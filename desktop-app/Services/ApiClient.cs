@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using FlowShield.Desktop.Models;
@@ -545,6 +547,59 @@ namespace FlowShield.Desktop.Services
             catch { return null; }
         }
 
+        public async Task<LeaderboardData?> GetLeaderboardAsync(string period = "week")
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_authToken)) return null;
+                var response = await _httpClient.GetAsync($"/api/leaderboard?period={period}");
+                if (!response.IsSuccessStatusCode) return null;
+                var data = await response.Content.ReadAsStringAsync();
+                return JsonConvert.DeserializeObject<LeaderboardData>(data);
+            }
+            catch { return null; }
+        }
+
+        public async Task GetCoachAdviceStreamAsync(string message, string? context, Action<string> onChunk, CancellationToken ct = default)
+        {
+            if (string.IsNullOrEmpty(_authToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            var json = JsonConvert.SerializeObject(new { message, context });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/coach/advice")
+            {
+                Content = content
+            };
+
+            var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            response.EnsureSuccessStatusCode();
+
+            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var reader = new StreamReader(stream);
+
+            while (!reader.EndOfStream && !ct.IsCancellationRequested)
+            {
+                var line = await reader.ReadLineAsync();
+                if (string.IsNullOrEmpty(line)) continue;
+
+                if (!line.StartsWith("data:")) continue;
+
+                var payload = line.Substring(5).Trim();
+                if (payload == "[DONE]") break;
+
+                try
+                {
+                    var chunk = JsonConvert.DeserializeObject<CoachChunk>(payload);
+                    // Handle Anthropic-style: {"type":"content_block_delta","delta":{"text":"..."}}
+                    var text = chunk?.Delta?.Text ?? chunk?.Text;
+                    if (!string.IsNullOrEmpty(text))
+                        onChunk(text);
+                }
+                catch { /* skip unparseable SSE lines */ }
+            }
+        }
+
         public async Task<List<CategoryRuleModel>?> GetCategoryRulesAsync()
         {
             try
@@ -836,5 +891,66 @@ namespace FlowShield.Desktop.Services
     {
         [JsonProperty("rules")]
         public List<CategoryRuleApiModel> Rules { get; set; } = new();
+    }
+
+    // ---------- Leaderboard models ----------
+
+    public class LeaderboardEntry
+    {
+        [JsonProperty("rank")]
+        public int Rank { get; set; }
+
+        [JsonProperty("userId")]
+        public string UserId { get; set; } = "";
+
+        [JsonProperty("userName")]
+        public string UserName { get; set; } = "";
+
+        [JsonProperty("totalMinutes")]
+        public int TotalMinutes { get; set; }
+
+        [JsonProperty("sessionsCount")]
+        public int SessionsCount { get; set; }
+
+        [JsonProperty("streak")]
+        public int Streak { get; set; }
+
+        [JsonProperty("isCurrentUser")]
+        public bool IsCurrentUser { get; set; }
+    }
+
+    public class LeaderboardData
+    {
+        [JsonProperty("leaderboard")]
+        public List<LeaderboardEntry> Leaderboard { get; set; } = new();
+
+        [JsonProperty("period")]
+        public string Period { get; set; } = "";
+
+        [JsonProperty("userRank")]
+        public int UserRank { get; set; }
+    }
+
+    // ---------- Coach streaming models ----------
+
+    public class CoachChunk
+    {
+        [JsonProperty("type")]
+        public string? Type { get; set; }
+
+        [JsonProperty("text")]
+        public string? Text { get; set; }
+
+        [JsonProperty("delta")]
+        public CoachDelta? Delta { get; set; }
+    }
+
+    public class CoachDelta
+    {
+        [JsonProperty("type")]
+        public string? Type { get; set; }
+
+        [JsonProperty("text")]
+        public string? Text { get; set; }
     }
 }

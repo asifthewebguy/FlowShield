@@ -23,6 +23,8 @@ namespace FlowShield.Desktop.UI
         private AnalyticsWindow? _analyticsWindow;
         private GoalsWindow? _goalsWindow;
         private ProjectsWindow? _projectsWindow;
+        private CoachWindow? _coachWindow;
+        private LeaderboardWindow? _leaderboardWindow;
         private readonly CategoryService _categoryService;
 
         public TrayApplication(ActivityTracker activityTracker, DatabaseService dbService)
@@ -152,6 +154,16 @@ namespace FlowShield.Desktop.UI
             var projectsItem = new ToolStripMenuItem { Text = "Projects" };
             projectsItem.Click += (s, e) => ShowProjectsWindow();
             _contextMenu.Items.Add(projectsItem);
+
+            // AI Coach
+            var coachItem = new ToolStripMenuItem { Text = "✨ AI Coach" };
+            coachItem.Click += (s, e) => ShowCoachWindow();
+            _contextMenu.Items.Add(coachItem);
+
+            // Leaderboard
+            var leaderboardItem = new ToolStripMenuItem { Text = "🏆 Leaderboard" };
+            leaderboardItem.Click += (s, e) => ShowLeaderboardWindow();
+            _contextMenu.Items.Add(leaderboardItem);
 
             // Start Focus Session
             var startSessionItem = new ToolStripMenuItem { Text = "Start Focus Session" };
@@ -401,6 +413,38 @@ namespace FlowShield.Desktop.UI
                 if (_projectsWindow.WindowState == System.Windows.WindowState.Minimized)
                     _projectsWindow.WindowState = System.Windows.WindowState.Normal;
                 _projectsWindow.Activate();
+            }
+        }
+
+        private void ShowCoachWindow()
+        {
+            if (_coachWindow == null || !_coachWindow.IsLoaded)
+            {
+                _coachWindow = new CoachWindow(_apiClient);
+                _coachWindow.Show();
+            }
+            else
+            {
+                _coachWindow.Show();
+                if (_coachWindow.WindowState == System.Windows.WindowState.Minimized)
+                    _coachWindow.WindowState = System.Windows.WindowState.Normal;
+                _coachWindow.Activate();
+            }
+        }
+
+        private void ShowLeaderboardWindow()
+        {
+            if (_leaderboardWindow == null || !_leaderboardWindow.IsLoaded)
+            {
+                _leaderboardWindow = new LeaderboardWindow(_apiClient);
+                _leaderboardWindow.Show();
+            }
+            else
+            {
+                _leaderboardWindow.Show();
+                if (_leaderboardWindow.WindowState == System.Windows.WindowState.Minimized)
+                    _leaderboardWindow.WindowState = System.Windows.WindowState.Normal;
+                _leaderboardWindow.Activate();
             }
         }
 
@@ -688,6 +732,8 @@ namespace FlowShield.Desktop.UI
                 _analyticsWindow?.Close();
                 _goalsWindow?.Close();
                 _projectsWindow?.Close();
+                _coachWindow?.Close();
+                _leaderboardWindow?.Close();
             }
             base.Dispose(disposing);
         }

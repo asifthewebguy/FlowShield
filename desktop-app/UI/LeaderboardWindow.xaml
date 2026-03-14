@@ -1,0 +1,186 @@
+<Window x:Class="FlowShield.Desktop.UI.LeaderboardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FlowShield Leaderboard"
+        Width="520" Height="560"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize">
+
+    <Window.Resources>
+        <Style x:Key="IconBtnStyle" TargetType="Button">
+            <Setter Property="Background" Value="#1AFFFFFF"/>
+            <Setter Property="Foreground" Value="#9CA3AF"/>
+            <Setter Property="FontSize"   Value="14"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#2AFFFFFF"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PeriodTabStyle" TargetType="Button">
+            <Setter Property="Background" Value="#1AFFFFFF"/>
+            <Setter Property="Foreground" Value="#9CA3AF"/>
+            <Setter Property="FontSize"   Value="12"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Padding"    Value="14,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#2AFFFFFF"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PeriodTabActiveStyle" TargetType="Button"
+               BasedOn="{StaticResource PeriodTabStyle}">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </Window.Resources>
+
+    <Border CornerRadius="20" BorderBrush="#33FFFFFF" BorderThickness="1">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#1F2937" Offset="0"/>
+                <GradientStop Color="#111827" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="30" ShadowDepth="10" Opacity="0.6" Color="Black"/>
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="56"/>
+                <RowDefinition Height="44"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Border Grid.Row="0" Background="Transparent" MouseLeftButtonDown="DragWindow">
+                <Grid Margin="20,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="🏆" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Leaderboard" Foreground="White" FontSize="16"
+                                   FontWeight="SemiBold" FontFamily="Segoe UI" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="UserRankBadge" Foreground="#9CA3AF" FontSize="12"
+                                   FontFamily="Segoe UI" VerticalAlignment="Center" Margin="12,0,0,0"
+                                   Visibility="Collapsed"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button x:Name="RefreshBtn" Content="↻" Width="32" Height="32"
+                                Style="{StaticResource IconBtnStyle}"
+                                Click="RefreshButton_Click" Margin="0,0,6,0"/>
+                        <Button Content="✕" Width="32" Height="32"
+                                Style="{StaticResource IconBtnStyle}"
+                                Click="CloseButton_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <Rectangle Grid.Row="0" Height="1" VerticalAlignment="Bottom" Fill="#1AFFFFFF" Margin="20,0"/>
+
+            <!-- Period tabs -->
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="20,8,20,4"
+                        VerticalAlignment="Center">
+                <Button x:Name="BtnWeek"  Content="Week"     Margin="0,0,6,0"
+                        Style="{StaticResource PeriodTabActiveStyle}"
+                        Click="PeriodButton_Click" Tag="week"/>
+                <Button x:Name="BtnMonth" Content="Month"    Margin="0,0,6,0"
+                        Style="{StaticResource PeriodTabStyle}"
+                        Click="PeriodButton_Click" Tag="month"/>
+                <Button x:Name="BtnAll"   Content="All Time"
+                        Style="{StaticResource PeriodTabStyle}"
+                        Click="PeriodButton_Click" Tag="all"/>
+            </StackPanel>
+
+            <!-- Leaderboard list -->
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="20,4,20,20"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <TextBlock x:Name="EmptyText"
+                               Text="No leaderboard data yet. Complete a focus session to appear here!"
+                               Foreground="#4B5563" FontSize="13" FontFamily="Segoe UI"
+                               HorizontalAlignment="Center" TextWrapping="Wrap"
+                               Margin="0,20,0,0" Visibility="Collapsed"/>
+
+                    <TextBlock x:Name="LoadingText"
+                               Text="Loading..."
+                               Foreground="#4B5563" FontSize="13" FontFamily="Segoe UI"
+                               HorizontalAlignment="Center" Margin="0,20,0,0"/>
+
+                    <ItemsControl x:Name="LeaderboardList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,6" CornerRadius="10"
+                                        Background="{Binding RowBackground}" Padding="14,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="40"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Rank -->
+                                        <TextBlock Grid.Column="0" Text="{Binding RankText}"
+                                                   Foreground="{Binding RankForeground}"
+                                                   FontSize="16" FontFamily="Segoe UI"
+                                                   FontWeight="SemiBold" VerticalAlignment="Center"/>
+
+                                        <!-- Name + stats -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       Foreground="{Binding NameForeground}"
+                                                       FontSize="13" FontFamily="Segoe UI"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding StatsText}"
+                                                       Foreground="#6B7280" FontSize="11"
+                                                       FontFamily="Segoe UI" Margin="0,2,0,0"/>
+                                        </StackPanel>
+
+                                        <!-- Focus time -->
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center"
+                                                    HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding FocusTimeText}"
+                                                       Foreground="White" FontSize="13"
+                                                       FontFamily="Segoe UI" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Right"/>
+                                            <TextBlock Text="focus" Foreground="#4B5563"
+                                                       FontSize="11" FontFamily="Segoe UI"
+                                                       HorizontalAlignment="Right"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</Window>
