@@ -11,6 +11,7 @@ public interface IApiClient
     Task<SessionInfo?> GetActiveSessionAsync();
     Task<SessionInfo?> StartSessionAsync(int durationMinutes, string sessionType = "WORK");
     Task<bool> EndSessionAsync(string sessionId);
+    Task<SessionInfo?> TogglePauseAsync(string sessionId, string action);
     Task<UserPreferences?> GetUserPreferencesAsync();
     bool IsAuthenticated();
     Task<bool> RegisterDeviceAsync();

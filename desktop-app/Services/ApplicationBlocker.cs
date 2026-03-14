@@ -29,10 +29,38 @@ namespace FlowShield.Desktop.Services
             "slack"
         };
 
+        // Mapping of distraction category names (matching WebsiteBlocker/web preferences) to process names
+        private static readonly Dictionary<string, string[]> _distractionProcessNames = new()
+        {
+            { "Social Media", new[] { "discord", "slack" } },
+            { "Messaging",    new[] { "discord", "whatsapp", "telegram", "skype", "slack" } },
+            { "Gaming",       new[] { "steam", "battlenet", "origin", "epicgameslauncher" } },
+            { "Entertainment", new[] { "spotify" } },
+            { "Video Streaming", new[] { "spotify" } },
+        };
+
         public ApplicationBlocker()
         {
             // Initialize with defaults for now
             _blockedProcessNames.AddRange(_defaultDistractions);
+        }
+
+        /// <summary>
+        /// Configures blocked apps from distraction category names (e.g. from UserPreferences.PrimaryDistractions).
+        /// Falls back to the default list if no categories map to known process names.
+        /// </summary>
+        public void SetBlockedDistractions(List<string> distractionTypes)
+        {
+            var apps = new List<string>();
+            foreach (var type in distractionTypes)
+            {
+                if (_distractionProcessNames.TryGetValue(type, out var names))
+                    apps.AddRange(names);
+            }
+
+            if (apps.Count > 0)
+                SetBlockedApps(apps.Distinct().ToList());
+            // If nothing mapped, keep existing list (defaults) unchanged
         }
 
         public void SetBlockedApps(List<string> appNames)

@@ -14,11 +14,11 @@ namespace FlowShield.Desktop.Services
     public class ApiClient : IApiClient
     {
         private readonly HttpClient _httpClient;
-        private readonly DatabaseService _dbService;
+        private readonly IDatabaseService _dbService;
         public event EventHandler? SessionExpired;
         private string? _authToken;
 
-        public ApiClient(DatabaseService dbService, string? baseUrl = null)
+        public ApiClient(IDatabaseService dbService, string? baseUrl = null)
         {
             _dbService = dbService;
 
@@ -31,6 +31,18 @@ namespace FlowShield.Desktop.Services
             };
 
             // Load saved auth token
+            _authToken = _dbService.GetSetting("AuthToken");
+            if (!string.IsNullOrEmpty(_authToken))
+            {
+                _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_authToken}");
+            }
+        }
+
+        /// <summary>Test-only constructor with injectable HttpMessageHandler.</summary>
+        internal ApiClient(IDatabaseService dbService, HttpMessageHandler handler, string baseUrl = "https://localhost")
+        {
+            _dbService = dbService;
+            _httpClient = new HttpClient(handler) { BaseAddress = new Uri(baseUrl) };
             _authToken = _dbService.GetSetting("AuthToken");
             if (!string.IsNullOrEmpty(_authToken))
             {
@@ -152,10 +164,10 @@ namespace FlowShield.Desktop.Services
                         // Update the object so the UI has a valid EndTime to count down to
                         latest.EndTime = endTime;
 
-                        // Check if it is actually active
-                        // 1. Not completed
-                        // 2. EndTime (calculated) is in the future
-                        if (!latest.Completed && endTime > DateTime.UtcNow)
+                        // Check if it is actually active:
+                        // 1. Not completed, AND
+                        // 2. Either still has time remaining OR is currently paused
+                        if (!latest.Completed && (endTime > DateTime.UtcNow || latest.IsPaused))
                         {
                             return latest;
                         }
@@ -246,6 +258,32 @@ namespace FlowShield.Desktop.Services
             {
                 return false;
             }
+        }
+
+        public async Task<SessionInfo?> TogglePauseAsync(string sessionId, string action)
+        {
+            if (string.IsNullOrEmpty(_authToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            var json = JsonConvert.SerializeObject(new { action });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync($"/api/sessions/{sessionId}/toggle-pause", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadAsStringAsync();
+                var result = JsonConvert.DeserializeObject<SessionResponse>(data);
+                return result?.Session;
+            }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Logout();
+                throw new UnauthorizedAccessException("Session expired. Please login again.");
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"Toggle pause failed {response.StatusCode}: {errorContent}");
         }
 
         /// <summary>Replay a queued START_SESSION directly (no offline re-queuing).</summary>
@@ -451,6 +489,12 @@ namespace FlowShield.Desktop.Services
 
         [JsonProperty("completed")]
         public bool Completed { get; set; }
+
+        [JsonProperty("isPaused")]
+        public bool IsPaused { get; set; }
+
+        [JsonProperty("pausedAt")]
+        public DateTime? PausedAt { get; set; }
     }
 
     public class SessionListResponse

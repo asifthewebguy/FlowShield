@@ -42,6 +42,8 @@ namespace FlowShield.Desktop.UI
             _sessionManager.TimerTick += (s, time) => { /* Optional: Update tray tooltip */ };
             _sessionManager.SessionStarted += OnSessionStarted;
             _sessionManager.SessionEnded += OnSessionEnded;
+            _sessionManager.SessionPaused += OnSessionPauseStateChanged;
+            _sessionManager.SessionResumed += OnSessionPauseStateChanged;
 
             // 4b. Initialize CategoryService and wire to ActivityTracker
             _categoryService = new CategoryService(_apiClient, _dbService);
@@ -149,6 +151,28 @@ namespace FlowShield.Desktop.UI
             startSessionItem.DropDownItems.Add(duration60);
 
             _contextMenu.Items.Add(startSessionItem);
+
+            // Pause / Resume / Stop — only when a session is active
+            if (_sessionManager.IsRunning)
+            {
+                if (_sessionManager.IsPaused)
+                {
+                    var resumeItem = new ToolStripMenuItem { Text = "▶ Resume Session" };
+                    resumeItem.Click += async (s, e) => await _sessionManager.ResumeSessionAsync();
+                    _contextMenu.Items.Add(resumeItem);
+                }
+                else
+                {
+                    var pauseItem = new ToolStripMenuItem { Text = "⏸ Pause Session" };
+                    pauseItem.Click += async (s, e) => await _sessionManager.PauseSessionAsync();
+                    _contextMenu.Items.Add(pauseItem);
+                }
+
+                var stopItem = new ToolStripMenuItem { Text = "⏹ Stop Session" };
+                stopItem.Click += async (s, e) => await _sessionManager.StopSessionAsync();
+                _contextMenu.Items.Add(stopItem);
+            }
+
             _contextMenu.Items.Add(new ToolStripSeparator());
 
             // Toggle Tracking
@@ -255,6 +279,12 @@ namespace FlowShield.Desktop.UI
         }
 
         private void OnSessionEnded(object? sender, EventArgs e)
+        {
+            BuildContextMenu();
+            _trayIcon.ContextMenuStrip = _contextMenu;
+        }
+
+        private void OnSessionPauseStateChanged(object? sender, EventArgs e)
         {
             BuildContextMenu();
             _trayIcon.ContextMenuStrip = _contextMenu;
@@ -402,8 +432,9 @@ namespace FlowShield.Desktop.UI
                 var preferences = await _apiClient.GetUserPreferencesAsync();
                 if (preferences != null && preferences.PrimaryDistractions != null)
                 {
-                    // Setup website blocker with user's distractions
+                    // Setup website + app blockers with user's distraction preferences
                     _websiteBlocker.SetBlockedDistractions(preferences.PrimaryDistractions);
+                    _appBlocker.SetBlockedDistractions(preferences.PrimaryDistractions);
 
                     // Check if blocking was previously enabled
                     var blockingEnabled = _dbService.GetSetting("WebsiteBlockingEnabled") == "true";

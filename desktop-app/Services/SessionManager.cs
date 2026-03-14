@@ -2,26 +2,29 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading; // For DispatcherTimer if we want UI thread friendliness, but System.Timers.Timer is better for services
-using FlowShield.Desktop.Models;
 using FlowShield.Desktop.Interfaces;
+using FlowShield.Desktop.Models;
 
 namespace FlowShield.Desktop.Services
 {
     public class SessionManager : ISessionManager
     {
-        private readonly ApiClient _apiClient;
-        private readonly ActivityTracker _activityTracker;
-        private readonly NotificationService _notificationService;
-        private readonly WebsiteBlocker _websiteBlocker;
-        private readonly ApplicationBlocker _appBlocker;
+        private readonly IApiClient _apiClient;
+        private readonly IActivityTracker _activityTracker;
+        private readonly INotificationService _notificationService;
+        private readonly IWebsiteBlocker _websiteBlocker;
+        private readonly IApplicationBlocker _appBlocker;
         private System.Windows.Threading.DispatcherTimer _timer;
 
         public event EventHandler<TimeSpan>? TimerTick;
         public event EventHandler<SessionInfo>? SessionStarted;
         public event EventHandler? SessionEnded;
         public event EventHandler<bool>? SessionStateChanged; // true = running, false = stopped
+        public event EventHandler? SessionPaused;
+        public event EventHandler? SessionResumed;
 
         public bool IsRunning { get; private set; }
+        public bool IsPaused { get; private set; }
         public TimeSpan TimeRemaining { get; private set; }
         public SessionInfo? CurrentSession { get; private set; }
         private DateTime _plannedEndUtc;
@@ -46,7 +49,7 @@ namespace FlowShield.Desktop.Services
             }
         }
 
-        public SessionManager(ApiClient apiClient, ActivityTracker activityTracker, NotificationService notificationService, WebsiteBlocker websiteBlocker, ApplicationBlocker appBlocker)
+        public SessionManager(IApiClient apiClient, IActivityTracker activityTracker, INotificationService notificationService, IWebsiteBlocker websiteBlocker, IApplicationBlocker appBlocker)
         {
             _apiClient = apiClient;
             _activityTracker = activityTracker;
@@ -72,17 +75,28 @@ namespace FlowShield.Desktop.Services
             {
                 var session = await _apiClient.GetActiveSessionAsync();
 
-                if (session != null && session.StartTime.AddMinutes(session.PlannedDuration) > DateTime.UtcNow)
+                if (session != null)
                 {
-                    // Resume session — anchor to server startTime for accuracy
                     CurrentSession = session;
                     _plannedEndUtc = session.StartTime.ToUniversalTime().AddMinutes(session.PlannedDuration);
-                    StartLocalTimer(_plannedEndUtc - DateTime.UtcNow);
 
-                    _activityTracker.CurrentSessionId = session.Id;
-                    _activityTracker.Start();
+                    if (session.IsPaused)
+                    {
+                        // Restore paused state — don't start the timer
+                        IsPaused = true;
+                        IsRunning = true;
+                        TimeRemaining = _plannedEndUtc - DateTime.UtcNow;
+                        if (TimeRemaining < TimeSpan.Zero) TimeRemaining = TimeSpan.Zero;
+                        SessionStateChanged?.Invoke(this, true);
+                    }
+                    else
+                    {
+                        StartLocalTimer(_plannedEndUtc - DateTime.UtcNow);
+                        _activityTracker.CurrentSessionId = session.Id;
+                        _activityTracker.Start();
+                    }
 
-                    // Note: We don't auto-enable blocking on resume safely unless we know it was enabled
+                    // Note: We don't auto-enable blocking on resume safely unless we know it was enabled.
                     // ideally we'd store local state for that. For now, leave it manual or off on resume.
 
                     SessionStarted?.Invoke(this, session);
@@ -200,9 +214,72 @@ namespace FlowShield.Desktop.Services
             catch { }
         }
 
+        public async Task<bool> PauseSessionAsync()
+        {
+            if (!IsRunning || IsPaused || CurrentSession?.Id == null)
+                return false;
+
+            try
+            {
+                await _apiClient.TogglePauseAsync(CurrentSession.Id, "pause");
+
+                _timer.Stop();
+                IsPaused = true;
+                _activityTracker.Stop();
+
+                if (BlockingEnabled)
+                    DisengageBlocking();
+
+                _notificationService.ShowInfo("Session Paused", "Focus session paused. Take a break!");
+                SessionPaused?.Invoke(this, EventArgs.Empty);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _notificationService.ShowError("Failed to pause session", ex.Message);
+                return false;
+            }
+        }
+
+        public async Task<bool> ResumeSessionAsync()
+        {
+            if (!IsRunning || !IsPaused || CurrentSession?.Id == null)
+                return false;
+
+            try
+            {
+                // Server shifts startTime forward by the paused duration — recalculate from returned session
+                var updated = await _apiClient.TogglePauseAsync(CurrentSession.Id, "resume");
+
+                if (updated != null)
+                {
+                    CurrentSession = updated;
+                    _plannedEndUtc = updated.StartTime.ToUniversalTime().AddMinutes(updated.PlannedDuration);
+                }
+
+                IsPaused = false;
+                _activityTracker.CurrentSessionId = CurrentSession.Id;
+                _activityTracker.Start();
+
+                if (BlockingEnabled)
+                    EngageBlocking();
+
+                _timer.Start();
+                _notificationService.ShowSuccess("Session Resumed", "Back to focus mode!");
+                SessionResumed?.Invoke(this, EventArgs.Empty);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _notificationService.ShowError("Failed to resume session", ex.Message);
+                return false;
+            }
+        }
+
         public async Task StopSessionAsync(bool completed = false)
         {
             IsRunning = false;
+            IsPaused = false;
             _timer.Stop();
             // Keep _reSyncTimer running — it detects sessions started on other devices
 
