@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { buildWelcomeEmail } from './email-templates';
 
 // Typed structure for all app settings
 export interface AppSettings {
@@ -22,7 +23,7 @@ const DEFAULTS: AppSettings = {
     welcome: {
       enabled: true,
       subject: 'Welcome to FlowShield!',
-      body: '<h1>Welcome to FlowShield, {{name}}!</h1><p>Start your first focus session today.</p><p><a href="{{appUrl}}/dashboard">Go to Dashboard →</a></p>',
+      body: buildWelcomeEmail({ name: '{{name}}', appUrl: '{{appUrl}}' }),
     },
     verification: {
       enabled: true,
