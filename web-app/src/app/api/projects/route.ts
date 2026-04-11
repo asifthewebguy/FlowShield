@@ -42,13 +42,16 @@ export async function POST(request: NextRequest) {
         if (!parsed.success) {
             return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
         }
-        const { name, color } = parsed.data;
+        const { name, color, hourlyRate, budget, plannedHours } = parsed.data;
 
         const project = await prisma.project.create({
             data: {
                 userId,
                 name,
                 color: color || '#3b82f6',
+                ...(hourlyRate !== undefined && { hourlyRate }),
+                ...(budget !== undefined && { budget }),
+                ...(plannedHours !== undefined && { plannedHours }),
             },
         });
 

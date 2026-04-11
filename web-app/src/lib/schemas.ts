@@ -34,6 +34,15 @@ export const CreateProjectSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, 'Invalid hex color')
     .optional(),
+  hourlyRate: z.number().positive('Hourly rate must be positive').optional(),
+  budget: z.number().positive('Budget must be positive').optional(),
+  plannedHours: z.number().positive('Planned hours must be positive').optional(),
+});
+
+export const UpdateProjectCostSchema = z.object({
+  hourlyRate: z.number().positive('Hourly rate must be positive').nullable().optional(),
+  budget: z.number().positive('Budget must be positive').nullable().optional(),
+  plannedHours: z.number().positive('Planned hours must be positive').nullable().optional(),
 });
 
 export const UpdatePreferencesSchema = z.object({
