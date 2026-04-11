@@ -202,7 +202,7 @@ model Project {
   name         String
   color        String    @default("#3b82f6")
   hourlyRate   Decimal?  @map("hourly_rate") @db.Decimal(10, 2)
-  budget       Decimal?  @db.Decimal(10, 2)
+  budget       Decimal?  @map("budget") @db.Decimal(10, 2)
   plannedHours Float?    @map("planned_hours")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
