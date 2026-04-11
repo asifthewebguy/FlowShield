@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
-import { normalizeCategory } from '@/app/api/categories/route';
+import { resolveCategory } from '@/lib/activity-sync';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,6 +29,14 @@ export async function POST(request: NextRequest) {
     // Source identifies the client sending data: desktop | browser | mobile
     const source: string = (body.source as string) || 'desktop';
 
+    // Load CategoryRules once for the whole batch (browser source only)
+    const categoryRules = source === 'browser'
+      ? await prisma.categoryRule.findMany({
+          where: { OR: [{ isGlobal: true }, { userId }] },
+          orderBy: [{ priority: 'desc' }, { isGlobal: 'asc' }],
+        })
+      : [];
+
     // Store activities in database
     const activityLogs = activities.map((activity: any) => ({
       userId,
@@ -39,7 +47,11 @@ export async function POST(request: NextRequest) {
       url: activity.url || null,
       durationSeconds: activity.durationSeconds,
       activityLevel: activity.activityLevel || 0,
-      category: normalizeCategory(activity.category || 'Unknown'),
+      category: resolveCategory(
+        activity.applicationName || activity.domain || 'Unknown',
+        activity.category || 'Unknown',
+        categoryRules
+      ),
       sessionId: activity.sessionId || null,
       source,
     }));
