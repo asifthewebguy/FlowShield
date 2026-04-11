@@ -1,9 +1,11 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { getToken } from '@/lib/auth-token';
+import { getToken, removeToken } from '@/lib/auth-token';
+import type { WeeklyStatsResult } from '@/lib/reports';
 
 const fetcher = (url: string) => {
   const token = getToken();
@@ -11,32 +13,10 @@ const fetcher = (url: string) => {
   return fetch(url, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
 };
 
-interface WeekStat {
-  weekLabel: string;
-  weekStart: string;
-  totalFocusHours: number;
-  avgProductivityScore: number;
-  sessionsCompleted: number;
-}
-
-interface DeltaField {
-  value: number;
-  prev: number;
-  direction: 'up' | 'down' | 'same';
-  pct?: number;
-  pts?: number;
-  diff?: number;
-}
-
-interface WeeklyData {
-  weeks: WeekStat[];
-  delta: {
-    focusHours: DeltaField & { pct: number };
-    productivityScore: DeltaField & { pts: number };
-    sessionsCompleted: DeltaField & { diff: number };
-  };
+type WeeklyData = WeeklyStatsResult & {
   topCategories: { category: string; hours: number }[];
-}
+  error?: string;
+};
 
 function DeltaCard({
   label,
@@ -72,6 +52,7 @@ function DeltaCard({
 }
 
 export default function WeeklyReportPage() {
+  const router = useRouter();
   const { data, error, isLoading } = useSWR<WeeklyData>(
     '/api/reports/weekly?weeks=8',
     fetcher,
@@ -92,7 +73,17 @@ export default function WeeklyReportPage() {
     );
   }
 
-  if (error || !data) {
+  if (error || (data && data.error)) {
+    if (data?.error === 'Unauthorized' || error?.message?.includes('Unauthorized')) {
+      if (typeof window !== 'undefined') {
+        removeToken();
+        router.push('/auth/login');
+      }
+    }
+    return <div className="p-6 text-red-400">Failed to load weekly report.</div>;
+  }
+
+  if (!data) {
     return <div className="p-6 text-red-400">Failed to load weekly report.</div>;
   }
 
