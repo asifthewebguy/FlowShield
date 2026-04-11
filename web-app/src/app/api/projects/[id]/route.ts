@@ -6,9 +6,10 @@ import { UpdateProjectCostSchema } from '@/lib/schemas';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const userId = getUserIdFromToken(request);
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -21,14 +22,14 @@ export async function PATCH(
     }
 
     const project = await prisma.project.findFirst({
-      where: { id: params.id, userId },
+      where: { id, userId },
     });
     if (!project) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
     const updated = await prisma.project.update({
-      where: { id: params.id },
+      where: { id },
       data: parsed.data,
     });
 

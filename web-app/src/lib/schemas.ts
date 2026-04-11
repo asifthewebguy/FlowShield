@@ -43,7 +43,10 @@ export const UpdateProjectCostSchema = z.object({
   hourlyRate: z.number().positive('Hourly rate must be positive').nullable().optional(),
   budget: z.number().positive('Budget must be positive').nullable().optional(),
   plannedHours: z.number().positive('Planned hours must be positive').nullable().optional(),
-});
+}).refine(
+  (data) => Object.keys(data).length > 0,
+  { message: 'At least one field must be provided' }
+);
 
 export const UpdatePreferencesSchema = z.object({
   workStyle: z.string().optional(),
