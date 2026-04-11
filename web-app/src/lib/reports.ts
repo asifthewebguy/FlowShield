@@ -37,6 +37,13 @@ function direction(curr: number, prev: number): 'up' | 'down' | 'same' {
   return 'same';
 }
 
+function dayNumToLocalDate(dayNum: number, todayDayNum: number): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - (todayDayNum - dayNum));
+  return d;
+}
+
 function toYMD(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -86,7 +93,7 @@ export function getWeeklyStats(dailyStats: DailyStatInput[], numWeeks = 8): Week
     const agg = buckets.get(idx)!;
     // weekStart = today - (idx+1)*7 + 1 days ... today - idx*7
     const weekStartDayNum = todayDay - idx * 7 - 6;
-    const weekStartDate = new Date((weekStartDayNum) * 86400000);
+    const weekStartDate = dayNumToLocalDate(weekStartDayNum, todayDay);
     const weekStart = toYMD(weekStartDate);
     return {
       weekLabel: weekStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -97,37 +104,44 @@ export function getWeeklyStats(dailyStats: DailyStatInput[], numWeeks = 8): Week
     };
   });
 
-  const zero = { totalFocusHours: 0, avgProductivityScore: 0, sessionsCompleted: 0 };
-  const current = weeks[weeks.length - 1] ?? zero;
-  const previous = weeks[weeks.length - 2] ?? zero;
+  // Use bucket map keys directly so sparse data (missing weeks) never shifts which
+  // bucket is "current" vs "previous". Bucket 0 = most recent week, 1 = one week prior.
+  const emptyBucket = { focusMinutes: 0, scoreSum: 0, scoreCount: 0, sessions: 0, weekStartDay: 0 };
+  const currentAgg = buckets.get(0) ?? emptyBucket;
+  const previousAgg = buckets.get(1) ?? emptyBucket;
+
+  const currentFocusHours = Math.round((currentAgg.focusMinutes / 60) * 10) / 10;
+  const previousFocusHours = Math.round((previousAgg.focusMinutes / 60) * 10) / 10;
+  const currentScore = currentAgg.scoreCount > 0 ? Math.round(currentAgg.scoreSum / currentAgg.scoreCount) : 0;
+  const previousScore = previousAgg.scoreCount > 0 ? Math.round(previousAgg.scoreSum / previousAgg.scoreCount) : 0;
+  const currentSessions = currentAgg.sessions;
+  const previousSessions = previousAgg.sessions;
 
   const focusPct =
-    previous.totalFocusHours > 0
-      ? Math.round(
-          ((current.totalFocusHours - previous.totalFocusHours) / previous.totalFocusHours) * 100
-        )
+    previousFocusHours > 0
+      ? Math.round(((currentFocusHours - previousFocusHours) / previousFocusHours) * 100)
       : 0;
 
   return {
     weeks,
     delta: {
       focusHours: {
-        value: current.totalFocusHours,
-        prev: previous.totalFocusHours,
+        value: currentFocusHours,
+        prev: previousFocusHours,
         pct: focusPct,
-        direction: direction(current.totalFocusHours, previous.totalFocusHours),
+        direction: direction(currentFocusHours, previousFocusHours),
       },
       productivityScore: {
-        value: current.avgProductivityScore,
-        prev: previous.avgProductivityScore,
-        pts: current.avgProductivityScore - previous.avgProductivityScore,
-        direction: direction(current.avgProductivityScore, previous.avgProductivityScore),
+        value: currentScore,
+        prev: previousScore,
+        pts: currentScore - previousScore,
+        direction: direction(currentScore, previousScore),
       },
       sessionsCompleted: {
-        value: current.sessionsCompleted,
-        prev: previous.sessionsCompleted,
-        diff: current.sessionsCompleted - previous.sessionsCompleted,
-        direction: direction(current.sessionsCompleted, previous.sessionsCompleted),
+        value: currentSessions,
+        prev: previousSessions,
+        diff: currentSessions - previousSessions,
+        direction: direction(currentSessions, previousSessions),
       },
     },
   };
