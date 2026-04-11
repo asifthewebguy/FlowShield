@@ -95,6 +95,7 @@ export default function ActivityAnalysisPage() {
       const params = new URLSearchParams({
         startDate: startDate.toISOString(),
         endDate: new Date().toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
       const response = await fetch(`/api/activity/analysis?${params}`, {
