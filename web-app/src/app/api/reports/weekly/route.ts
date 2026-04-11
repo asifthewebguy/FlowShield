@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const weeks = Math.min(parseInt(searchParams.get('weeks') ?? '8', 10), 52);
+    const rawWeeks = parseInt(searchParams.get('weeks') ?? '8', 10);
+    const weeks = Math.min(isNaN(rawWeeks) || rawWeeks < 1 ? 8 : rawWeeks, 52);
 
     const since = new Date();
     since.setDate(since.getDate() - weeks * 7);
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
         where: { userId, date: { gte: since } },
         orderBy: { date: 'asc' },
       }),
+      // Top categories are always for the current week (last 7 days), regardless of the `weeks` param
       prisma.activityLog.findMany({
         where: {
           userId,
