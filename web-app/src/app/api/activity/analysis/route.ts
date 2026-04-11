@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { PRODUCTIVE_CATEGORIES } from '@/app/api/categories/route';
+import { getLocalHour, getLocalDate } from '@/lib/timezone';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const timezone = searchParams.get('timezone') || 'UTC';
 
     // Default to last 7 days if no dates provided
     const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -90,7 +92,12 @@ export async function GET(request: NextRequest) {
     // Group by day
     const dailyActivity: Record<string, number> = {};
     activities.forEach(log => {
-      const date = new Date(log.timestamp).toISOString().split('T')[0];
+      let date: string;
+      try {
+        date = getLocalDate(new Date(log.timestamp), timezone);
+      } catch {
+        date = new Date(log.timestamp).toISOString().split('T')[0];
+      }
       if (!dailyActivity[date]) {
         dailyActivity[date] = 0;
       }
@@ -111,7 +118,12 @@ export async function GET(request: NextRequest) {
       hourlyActivity[i] = 0;
     }
     activities.forEach(log => {
-      const hour = new Date(log.timestamp).getHours();
+      let hour: number;
+      try {
+        hour = getLocalHour(new Date(log.timestamp), timezone);
+      } catch {
+        hour = new Date(log.timestamp).getUTCHours();
+      }
       hourlyActivity[hour] += log.durationSeconds / 60;
     });
 
