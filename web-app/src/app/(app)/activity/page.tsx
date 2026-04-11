@@ -462,7 +462,8 @@ export default function ActivityAnalysisPage() {
           </h3>
           <div className="space-y-3">
             {data.dailyStats.slice(-14).map((day) => {
-              const date = new Date(day.date);
+              const [year, month, dayNum] = day.date.split('-').map(Number);
+              const date = new Date(year, month - 1, dayNum);
               const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
               const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               const maxHours = Math.max(...data.dailyStats.map(d => d.hours));
