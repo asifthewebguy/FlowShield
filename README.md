@@ -1,6 +1,6 @@
 <div align="center">
 
-![FlowShield Logo](image-resources/logo.svg)
+![FlowShield Logo](image-resources/logo.jpg)
 
 # FlowShield
 
@@ -12,6 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=flat&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Prisma](https://img.shields.io/badge/Prisma-3982CE?style=flat&logo=Prisma&logoColor=white)](https://www.prisma.io/)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Available-4285F4?style=flat&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/flowshield/pjjmmmefbcmcckgmdoceapgbdnjbffdg)
 
 [Overview](#overview) •
 [Features](#features) •
@@ -111,7 +112,7 @@ The primary product. Deployed on Netlify at [flowshield.app](https://flowshield.
 - Inno Setup installer → `FlowShield-Setup-vX.Y.Z.exe`
 
 ### Browser Extension (`browser-extension/`)
-Chrome Manifest V3 · Firefox Manifest V2
+Chrome Manifest V3 · Firefox Manifest V2 · **[Install from Chrome Web Store](https://chromewebstore.google.com/detail/flowshield/pjjmmmefbcmcckgmdoceapgbdnjbffdg)**
 
 - Tracks active tab URL and domain in 1-minute activity windows
 - Toolbar badge shows remaining session minutes; turns orange < 20%, red on distraction sites
