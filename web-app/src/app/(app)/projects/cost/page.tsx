@@ -66,6 +66,7 @@ export default function ProjectCostPage() {
   const router = useRouter();
   const [period, setPeriod] = useState<'month' | 'lastMonth' | 'all'>('month');
   const [editing, setEditing] = useState<EditState | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { data, isLoading, mutate } = useSWR<CostData>(
     `/api/projects/cost?period=${period}`,
@@ -90,14 +91,19 @@ export default function ProjectCostPage() {
 
   async function saveEdit() {
     if (!editing) return;
+    setSaveError(null);
     const payload = {
-      hourlyRate: editing.hourlyRate ? parseFloat(editing.hourlyRate) : null,
-      budget: editing.budget ? parseFloat(editing.budget) : null,
-      plannedHours: editing.plannedHours ? parseFloat(editing.plannedHours) : null,
+      hourlyRate: editing.hourlyRate !== '' ? Number(editing.hourlyRate) : null,
+      budget: editing.budget !== '' ? Number(editing.budget) : null,
+      plannedHours: editing.plannedHours !== '' ? Number(editing.plannedHours) : null,
     };
-    await patchProject(editing.projectId, payload);
-    setEditing(null);
-    mutate();
+    try {
+      await patchProject(editing.projectId, payload);
+      setEditing(null);
+      mutate();
+    } catch {
+      setSaveError('Failed to save');
+    }
   }
 
   const summary = data?.summary ?? { totalEarned: 0, totalHours: 0, projectCount: 0 };
@@ -126,6 +132,7 @@ export default function ProjectCostPage() {
             <button
               key={p}
               onClick={() => setPeriod(p)}
+              aria-pressed={period === p}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 period === p ? 'bg-sky-600 text-white' : 'text-gray-400 hover:text-white'
               }`}
@@ -276,23 +283,29 @@ export default function ProjectCostPage() {
 
                 {/* Edit / Save / Cancel */}
                 {isEditingThis ? (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={saveEdit}
-                      className="text-emerald-400 hover:text-emerald-300 p-0.5"
-                    >
-                      <Check size={14} />
-                    </button>
-                    <button
-                      onClick={() => setEditing(null)}
-                      className="text-gray-400 hover:text-white p-0.5"
-                    >
-                      <X size={14} />
-                    </button>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={saveEdit}
+                        aria-label="Save changes"
+                        className="text-emerald-400 hover:text-emerald-300 p-0.5"
+                      >
+                        <Check size={14} />
+                      </button>
+                      <button
+                        onClick={() => { setSaveError(null); setEditing(null); }}
+                        aria-label="Cancel edit"
+                        className="text-gray-400 hover:text-white p-0.5"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    {saveError && <span className="text-red-400 text-xs">{saveError}</span>}
                   </div>
                 ) : (
                   <button
                     onClick={() => startEdit(p)}
+                    aria-label="Edit project rates"
                     className="text-gray-500 hover:text-gray-300 p-0.5"
                   >
                     <Edit2 size={14} />
