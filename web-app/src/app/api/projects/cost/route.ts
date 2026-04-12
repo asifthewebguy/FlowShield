@@ -1,19 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getUserIdFromToken } from "@/lib/jwt";
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
+import { NextRequest, NextResponse } from 'next/server';
+import { getUserIdFromToken } from '@/lib/jwt';
+import { prisma } from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 
-function getPeriodRange(period: string): { start: Date; end: Date } {
+const VALID_PERIODS = ['month', 'lastMonth', 'all'] as const;
+type Period = (typeof VALID_PERIODS)[number];
+
+function getPeriodRange(period: Period): { start: Date; end: Date } {
   const now = new Date();
 
-  if (period === "lastMonth") {
+  if (period === 'lastMonth') {
     const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
     return { start, end };
   }
 
-  if (period === "all") {
-    return { start: new Date("2020-01-01"), end: now };
+  if (period === 'all') {
+    return { start: new Date(0), end: now };
   }
 
   // default: month (current calendar month)
@@ -24,14 +27,18 @@ function getPeriodRange(period: string): { start: Date; end: Date } {
 export async function GET(request: NextRequest) {
   const userId = getUserIdFromToken(request);
   if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const period = searchParams.get("period") ?? "month";
-  const { start, end } = getPeriodRange(period);
-
   try {
+    const { searchParams } = new URL(request.url);
+    const rawPeriod = searchParams.get('period') ?? 'month';
+    if (!VALID_PERIODS.includes(rawPeriod as Period)) {
+      return NextResponse.json({ error: 'Invalid period' }, { status: 400 });
+    }
+    const period = rawPeriod as Period;
+    const { start, end } = getPeriodRange(period);
+
     const projects = await prisma.project.findMany({
       where: { userId },
       include: {
@@ -109,9 +116,9 @@ export async function GET(request: NextRequest) {
       projects: projectData,
     });
   } catch (error) {
-    logger.error("Failed to fetch project cost analysis", { error, userId });
+    logger.error('Failed to fetch project cost analysis', { error, userId });
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
