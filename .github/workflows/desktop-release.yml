@@ -66,9 +66,6 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v2
-
       - name: Restore signing cert
         id: cert
         env:
@@ -85,45 +82,49 @@ jobs:
         shell: pwsh
 
       - name: Build MSIX
+        env:
+          CERT_THUMBPRINT: ${{ steps.cert.outputs.CERT_THUMBPRINT }}
         run: |
-          $vsPath = & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" `
-            -latest -products * -property installationPath
-          $wapProjPath = Join-Path $vsPath "MSBuild\Microsoft\DesktopBridge"
-          Write-Host "WapProjPath resolved to: $wapProjPath"
-          if (-not (Test-Path $wapProjPath)) {
-            Write-Error "DesktopBridge MSBuild props not found at $wapProjPath"
-            exit 1
-          }
+          # 1. Publish app (framework-dependent DLL layout for MSIX)
+          dotnet publish desktop-app/FlowShield.Desktop.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=false `
+            -o ./msix-content
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          # Detect highest available UAP SDK version (avoids APPX3217)
-          $uapBase = "C:\Program Files (x86)\Windows Kits\10\Platforms\UAP"
-          if (Test-Path $uapBase) {
-            $targetPlatformVersion = (Get-ChildItem $uapBase | Sort-Object Name -Descending | Select-Object -First 1).Name
-          } else {
-            $targetPlatformVersion = "10.0.19041.0"
-          }
-          Write-Host "TargetPlatformVersion: $targetPlatformVersion"
+          # 2. Copy MSIX manifest and Store assets into the publish folder
+          Copy-Item desktop-app/FlowShield.Packaging/Package.appxmanifest ./msix-content/
+          Copy-Item -Recurse desktop-app/FlowShield.Packaging/Assets ./msix-content/Assets
 
-          msbuild desktop-app/FlowShield.Packaging/FlowShield.Packaging.wapproj `
-            /restore `
-            /p:RuntimeIdentifier=win-x64 `
-            /p:SelfContained=true `
-            /p:WapProjPath="$wapProjPath\" `
-            /p:TargetPlatformVersion=$targetPlatformVersion `
-            /p:Configuration=Release `
-            /p:Platform=x64 `
-            /p:AppxBundlePlatforms=x64 `
-            /p:AppxBundle=Always `
-            /p:UapAppxPackageBuildMode=StoreUpload `
-            /p:PackageCertificateThumbprint=${{ steps.cert.outputs.CERT_THUMBPRINT }} `
-            /p:AppxPackageDir=AppxPackages\
+          # 3. Find MakeAppx.exe and signtool.exe from Windows SDK
+          $kitBin = "C:\Program Files (x86)\Windows Kits\10\bin"
+          $makeAppx = Get-ChildItem $kitBin -Filter "makeappx.exe" -Recurse |
+            Where-Object { $_.DirectoryName -match "x64" } |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          $signtool = Get-ChildItem $kitBin -Filter "signtool.exe" -Recurse |
+            Where-Object { $_.DirectoryName -match "x64" } |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          Write-Host "MakeAppx: $($makeAppx.FullName)"
+          Write-Host "SignTool: $($signtool.FullName)"
+
+          # 4. Pack MSIX
+          New-Item -ItemType Directory -Force -Path ./AppxPackages | Out-Null
+          & $makeAppx.FullName pack /d ./msix-content /p ./AppxPackages/FlowShield.msix /nv
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          # 5. Sign MSIX
+          & $signtool.FullName sign /fd SHA256 /sha1 $env:CERT_THUMBPRINT `
+            /tr http://timestamp.digicert.com /td SHA256 `
+            ./AppxPackages/FlowShield.msix
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          Write-Host "MSIX built: ./AppxPackages/FlowShield.msix"
         shell: pwsh
 
       - name: Upload MSIX to release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $msix = Get-ChildItem "AppxPackages\" -Filter "*.msixupload" -Recurse | Select-Object -First 1
-          if (-not $msix) { $msix = Get-ChildItem "AppxPackages\" -Filter "*.msixbundle" -Recurse | Select-Object -First 1 }
+          $msix = Get-ChildItem "AppxPackages\" -Filter "*.msix" -Recurse | Select-Object -First 1
           gh release upload ${{ github.ref_name }} $msix.FullName --repo ${{ github.repository }}
         shell: pwsh
