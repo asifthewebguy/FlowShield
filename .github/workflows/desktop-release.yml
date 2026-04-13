@@ -70,7 +70,9 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Restore NuGet packages
-        run: dotnet restore desktop-app/FlowShield.Desktop.csproj -r win-x64
+        run: |
+          dotnet restore desktop-app/FlowShield.Desktop.csproj -r win-x64
+          dotnet restore desktop-app/FlowShield.Desktop.csproj -r any
 
       - name: Restore signing cert
         id: cert
