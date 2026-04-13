@@ -3,7 +3,7 @@
 ; Download from: https://jrsoftware.org/isdl.php
 
 #define MyAppName "FlowShield"
-#define MyAppVersion "3.0.0"
+#define MyAppVersion "3.0.1"
 #define MyAppPublisher "FlowShield"
 #define MyAppURL "https://github.com/asifthewebguy/FlowShield"
 #define MyAppExeName "FlowShield.exe"

@@ -1,3 +1,21 @@
+# FlowShield Desktop — v3.0.1
+
+## What's New in v3.0.1
+
+### Splash Screen
+A branded splash screen now appears on startup while services initialise — showing the FlowShield logo, tagline, and animated status dots. Closes automatically when the app is ready.
+
+### Microsoft Store (MSIX) Support
+- MSIX packaging project added for Microsoft Store submission
+- App no longer requires administrator elevation at launch when installed from the Store
+- Website blocking gracefully reports "not available in Store edition" instead of failing
+- Auto-start managed via Windows Settings when installed as MSIX
+
+### Store Assets
+Updated Store listing artwork with final FlowShield branding.
+
+---
+
 # FlowShield Desktop — v3.0.0 (Polish & Release)
 
 This is the final sprint in the Desktop v2.x → v3.0 roadmap. It brings a polished session experience, full parity with the web dashboard, and comprehensive test coverage across all major services.
