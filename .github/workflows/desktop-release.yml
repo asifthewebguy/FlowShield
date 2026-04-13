@@ -94,11 +94,22 @@ jobs:
           $wapProjPath = Join-Path $vsPath "MSBuild\Microsoft\DesktopBridge"
           Write-Host "WapProjPath resolved to: $wapProjPath"
           if (-not (Test-Path $wapProjPath)) {
-            Write-Error "DesktopBridge MSBuild props not found at $wapProjPath — UWP workload may not be installed"
+            Write-Error "DesktopBridge MSBuild props not found at $wapProjPath"
             exit 1
           }
+
+          # Detect highest available UAP SDK version (avoids APPX3217)
+          $uapBase = "C:\Program Files (x86)\Windows Kits\10\Platforms\UAP"
+          if (Test-Path $uapBase) {
+            $targetPlatformVersion = (Get-ChildItem $uapBase | Sort-Object Name -Descending | Select-Object -First 1).Name
+          } else {
+            $targetPlatformVersion = "10.0.19041.0"
+          }
+          Write-Host "TargetPlatformVersion: $targetPlatformVersion"
+
           msbuild desktop-app/FlowShield.Packaging/FlowShield.Packaging.wapproj `
             /p:WapProjPath="$wapProjPath\" `
+            /p:TargetPlatformVersion=$targetPlatformVersion `
             /p:Configuration=Release `
             /p:Platform=x64 `
             /p:AppxBundlePlatforms=x64 `
