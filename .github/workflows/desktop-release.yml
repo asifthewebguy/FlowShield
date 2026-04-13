@@ -69,11 +69,6 @@ jobs:
       - name: Add msbuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Restore NuGet packages
-        run: |
-          dotnet restore desktop-app/FlowShield.Desktop.csproj -r win-x64
-          dotnet restore desktop-app/FlowShield.Desktop.csproj -r any
-
       - name: Restore signing cert
         id: cert
         env:
@@ -110,6 +105,7 @@ jobs:
           Write-Host "TargetPlatformVersion: $targetPlatformVersion"
 
           msbuild desktop-app/FlowShield.Packaging/FlowShield.Packaging.wapproj `
+            /restore `
             /p:WapProjPath="$wapProjPath\" `
             /p:TargetPlatformVersion=$targetPlatformVersion `
             /p:Configuration=Release `
