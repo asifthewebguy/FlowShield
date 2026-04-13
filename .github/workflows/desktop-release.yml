@@ -93,7 +93,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           # 2. Copy MSIX manifest and Store assets into the publish folder
-          Copy-Item desktop-app/FlowShield.Packaging/Package.appxmanifest ./msix-content/
+          Copy-Item desktop-app/FlowShield.Packaging/Package.appxmanifest ./msix-content/AppxManifest.xml
           Copy-Item -Recurse desktop-app/FlowShield.Packaging/Assets ./msix-content/Assets
 
           # 3. Find MakeAppx.exe and signtool.exe from Windows SDK
