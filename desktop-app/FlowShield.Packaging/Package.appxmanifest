@@ -20,7 +20,7 @@
 
   <Properties>
     <DisplayName>FlowShield</DisplayName>
-    <PublisherDisplayName>FlowShield</PublisherDisplayName>
+    <PublisherDisplayName>AsifTheWebGuy</PublisherDisplayName>
     <Description>Productivity and focus session tracking for Windows</Description>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>

@@ -94,7 +94,8 @@ jobs:
 
           # 2. Copy MSIX manifest and Store assets into the publish folder
           Copy-Item desktop-app/FlowShield.Packaging/Package.appxmanifest ./msix-content/AppxManifest.xml
-          Copy-Item -Recurse desktop-app/FlowShield.Packaging/Assets ./msix-content/Assets
+          New-Item -ItemType Directory -Force -Path ./msix-content/Assets | Out-Null
+          Copy-Item desktop-app/FlowShield.Packaging/Assets/* ./msix-content/Assets/ -Force
 
           # 3. Find MakeAppx.exe and signtool.exe from Windows SDK
           $kitBin = "C:\Program Files (x86)\Windows Kits\10\bin"
