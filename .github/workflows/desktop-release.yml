@@ -107,6 +107,7 @@ jobs:
           msbuild desktop-app/FlowShield.Packaging/FlowShield.Packaging.wapproj `
             /restore `
             /p:RuntimeIdentifier=win-x64 `
+            /p:SelfContained=true `
             /p:WapProjPath="$wapProjPath\" `
             /p:TargetPlatformVersion=$targetPlatformVersion `
             /p:Configuration=Release `
