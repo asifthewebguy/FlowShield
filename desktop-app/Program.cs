@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FlowShield.Desktop.Services;
@@ -15,11 +16,20 @@ namespace FlowShield.Desktop
         private static TrayApplication? _trayApp;
         private static WebsiteBlocker? _websiteBlocker;
 
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern int GetCurrentPackageFullName(ref uint length, char[] name);
+
+        private static bool IsRunningAsPackaged()
+        {
+            try { uint len = 0; return GetCurrentPackageFullName(ref len, null) != 15700; }
+            catch { return false; }
+        }
+
         [STAThread]
         static void Main()
         {
-            // 1. Check for Admin privileges
-            if (!IsAdministrator())
+            // 1. Check for Admin privileges (skip when running as MSIX — hosts-file writes are already guarded)
+            if (!IsRunningAsPackaged() && !IsAdministrator())
             {
                 // Restart as Admin
                 try
@@ -74,7 +84,11 @@ namespace FlowShield.Desktop
                 AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
                 Console.CancelKeyPress += OnCancelKeyPress;
 
+                // Show splash while we initialise services
+                SplashWindow.Show();
+
                 // Initialize database with DPAPI-protected encryption key
+                SplashWindow.SetStatusText("Initialising database");
                 var dbService = new DatabaseService();
                 var dbPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -98,10 +112,12 @@ namespace FlowShield.Desktop
                 dbService.Initialize(encryptionKey);
 
                 // Recover any stale hosts file blocks left by a prior crash
+                SplashWindow.SetStatusText("Checking system state");
                 _websiteBlocker = new WebsiteBlocker();
                 _websiteBlocker.RecoverStaleBlocks();
 
                 // Start activity tracker
+                SplashWindow.SetStatusText("Starting activity tracker");
                 var activityTracker = new ActivityTracker(dbService);
                 activityTracker.Start();
 
@@ -114,12 +130,17 @@ namespace FlowShield.Desktop
                 });
 
                 // Create system tray application
+                SplashWindow.SetStatusText("Ready");
                 _trayApp = new TrayApplication(activityTracker, dbService);
+
+                // Dismiss splash before entering the message loop
+                SplashWindow.Close();
 
                 Application.Run(_trayApp);
             }
             catch (Exception ex)
             {
+                SplashWindow.Close();
                 LoggingService.Logger.Fatal(ex, "Fatal error starting FlowShield");
                 MessageBox.Show(
                     $"Fatal error starting FlowShield:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
