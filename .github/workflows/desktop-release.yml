@@ -86,7 +86,16 @@ jobs:
 
       - name: Build MSIX
         run: |
+          $vsPath = & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -products * -property installationPath
+          $wapProjPath = Join-Path $vsPath "MSBuild\Microsoft\DesktopBridge"
+          Write-Host "WapProjPath resolved to: $wapProjPath"
+          if (-not (Test-Path $wapProjPath)) {
+            Write-Error "DesktopBridge MSBuild props not found at $wapProjPath — UWP workload may not be installed"
+            exit 1
+          }
           msbuild desktop-app/FlowShield.Packaging/FlowShield.Packaging.wapproj `
+            /p:WapProjPath="$wapProjPath\" `
             /p:Configuration=Release `
             /p:Platform=x64 `
             /p:AppxBundlePlatforms=x64 `
