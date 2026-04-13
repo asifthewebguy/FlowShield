@@ -85,7 +85,7 @@ namespace FlowShield.Desktop
                 Console.CancelKeyPress += OnCancelKeyPress;
 
                 // Show splash while we initialise services
-                SplashWindow.Show();
+                SplashWindow.ShowSplash();
 
                 // Initialize database with DPAPI-protected encryption key
                 SplashWindow.SetStatusText("Initialising database");
@@ -134,13 +134,13 @@ namespace FlowShield.Desktop
                 _trayApp = new TrayApplication(activityTracker, dbService);
 
                 // Dismiss splash before entering the message loop
-                SplashWindow.Close();
+                SplashWindow.CloseSplash();
 
                 Application.Run(_trayApp);
             }
             catch (Exception ex)
             {
-                SplashWindow.Close();
+                SplashWindow.CloseSplash();
                 LoggingService.Logger.Fatal(ex, "Fatal error starting FlowShield");
                 MessageBox.Show(
                     $"Fatal error starting FlowShield:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",

@@ -68,7 +68,7 @@ namespace FlowShield.Desktop.UI
         private static Dispatcher? _splashDispatcher;
 
         /// <summary>Shows the splash on a background STA thread so the main thread can initialise.</summary>
-        public static void Show()
+        public static void ShowSplash()
         {
             var ready = new ManualResetEventSlim();
 
@@ -76,7 +76,7 @@ namespace FlowShield.Desktop.UI
             {
                 _splashDispatcher = Dispatcher.CurrentDispatcher;
                 _instance = new SplashWindow();
-                _instance.Show();
+                ((System.Windows.Window)_instance).Show();
                 ready.Set();
                 Dispatcher.Run(); // pump messages on this thread
             });
@@ -96,11 +96,11 @@ namespace FlowShield.Desktop.UI
         }
 
         /// <summary>Closes the splash and shuts down its dispatcher.</summary>
-        public static void Close()
+        public static void CloseSplash()
         {
             _splashDispatcher?.Invoke(() =>
             {
-                _instance?.Close();
+                ((System.Windows.Window?)_instance)?.Close();
                 _instance = null;
                 Dispatcher.CurrentDispatcher.InvokeShutdown();
             });
