@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 using Serilog;
 
@@ -98,6 +99,15 @@ namespace FlowShield.Desktop.Services
             }
         }
 
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern int GetCurrentPackageFullName(ref uint length, char[] name);
+
+        private static bool IsRunningAsPackaged()
+        {
+            try { uint len = 0; return GetCurrentPackageFullName(ref len, null) != 15700; }
+            catch { return false; }
+        }
+
         public void SetBlockedDistractions(List<string> distractionTypes)
         {
             _blockedDomains.Clear();
@@ -173,6 +183,11 @@ namespace FlowShield.Desktop.Services
 
         public bool EnableBlocking()
         {
+            if (IsRunningAsPackaged())
+            {
+                Log.Warning("Website blocking is not available in the Store edition. Download from flowshield.app for full features.");
+                return false;
+            }
             if (!IsRunningAsAdministrator())
             {
                 throw new UnauthorizedAccessException("Administrator privileges required to modify hosts file");
@@ -229,6 +244,11 @@ namespace FlowShield.Desktop.Services
 
         public bool DisableBlocking()
         {
+            if (IsRunningAsPackaged())
+            {
+                Log.Warning("Website blocking is not available in the Store edition.");
+                return true; // Nothing to disable — we never blocked anything
+            }
             if (!IsRunningAsAdministrator())
             {
                 throw new UnauthorizedAccessException("Administrator privileges required to modify hosts file");

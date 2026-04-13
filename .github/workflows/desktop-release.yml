@@ -52,3 +52,55 @@ jobs:
           desktop-app/installer/FlowShield-Setup-v*.exe
         body_path: RELEASE_NOTES.md
         generate_release_notes: false
+
+  msix-release:
+    name: Build & Sign MSIX (Microsoft Store)
+    runs-on: windows-latest
+    needs: build-windows
+    if: startsWith(github.ref, 'refs/tags/v') && !startsWith(github.ref, 'refs/tags/ext-')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore signing cert
+        id: cert
+        env:
+          PFX_BASE64: ${{ secrets.STORE_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.STORE_PFX_PASSWORD }}
+        run: |
+          $pfxPath = "$env:RUNNER_TEMP\store.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:PFX_BASE64))
+          $cert = Import-PfxCertificate -FilePath $pfxPath `
+            -CertStoreLocation "Cert:\CurrentUser\My" `
+            -Password (ConvertTo-SecureString $env:PFX_PASSWORD -AsPlainText -Force)
+          echo "CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+          Remove-Item $pfxPath
+        shell: pwsh
+
+      - name: Build MSIX
+        run: |
+          msbuild desktop-app/FlowShield.Packaging/FlowShield.Packaging.wapproj `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:AppxBundlePlatforms=x64 `
+            /p:AppxBundle=Always `
+            /p:UapAppxPackageBuildMode=StoreUpload `
+            /p:PackageCertificateThumbprint=${{ steps.cert.outputs.CERT_THUMBPRINT }} `
+            /p:AppxPackageDir=AppxPackages\
+        shell: pwsh
+
+      - name: Upload MSIX to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $msix = Get-ChildItem "AppxPackages\" -Filter "*.msixupload" -Recurse | Select-Object -First 1
+          if (-not $msix) { $msix = Get-ChildItem "AppxPackages\" -Filter "*.msixbundle" -Recurse | Select-Object -First 1 }
+          gh release upload ${{ github.ref_name }} $msix.FullName --repo ${{ github.repository }}
+        shell: pwsh

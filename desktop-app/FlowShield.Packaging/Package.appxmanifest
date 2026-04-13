@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  IgnorableNamespaces="uap rescap desktop">
+
+  <!--
+    Publisher must match your Partner Center Publisher ID exactly.
+    Format: CN=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+    Find it in Partner Center → Account settings → Organization profile → Publisher ID.
+    The self-signed cert CN must match this value.
+  -->
+  <Identity
+    Name="FlowShield.FlowShield"
+    Publisher="CN=FC7020DE-37E2-458E-998A-41854C4460C8"
+    Version="3.0.0.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>FlowShield</DisplayName>
+    <PublisherDisplayName>FlowShield</PublisherDisplayName>
+    <Description>Productivity and focus session tracking for Windows</Description>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.17763.0"
+      MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application
+      Id="App"
+      Executable="FlowShield.exe"
+      EntryPoint="Windows.FullTrustApplication">
+
+      <uap:VisualElements
+        DisplayName="FlowShield"
+        Description="Productivity and focus session tracking for Windows"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile
+          Wide310x150Logo="Assets\Wide310x150Logo.png"
+          Square310x310Logo="Assets\Square310x310Logo.png"
+          ShortName="FlowShield" />
+        <uap:SplashScreen Image="Assets\SplashScreen.png" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <!-- Startup task — users toggle this in Windows Settings > Apps > Startup -->
+        <desktop:Extension
+          Category="windows.startupTask"
+          Executable="FlowShield.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask
+            TaskId="FlowShieldStartupTask"
+            Enabled="false"
+            DisplayName="FlowShield" />
+        </desktop:Extension>
+      </Extensions>
+
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Required for WinForms/WPF desktop bridge apps -->
+    <rescap:Capability Name="runFullTrust" />
+    <!-- Network access for syncing with flowshield.app -->
+    <Capability Name="internetClient" />
+    <Capability Name="privateNetworkClientServer" />
+  </Capabilities>
+
+</Package>
