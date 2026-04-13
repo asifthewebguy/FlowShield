@@ -13,7 +13,7 @@
     The self-signed cert CN must match this value.
   -->
   <Identity
-    Name="FlowShield.FlowShield"
+    Name="ATWG.FlowShield"
     Publisher="CN=FC7020DE-37E2-458E-998A-41854C4460C8"
     Version="3.0.1.0"
     ProcessorArchitecture="x64" />
