@@ -1,3 +1,13 @@
+# FlowShield Desktop — v3.0.2
+
+## What's New in v3.0.2
+
+### Bug Fixes
+- **Fixed: App appeared frozen on launch (Microsoft Store certification fix)** — The always-on-top splash screen was blocking the login form on first run, making the app appear unresponsive. Splash now closes before any dialog is shown.
+- **Fixed: Infinite login dialog loop** — Cancelling the login dialog no longer re-opens it recursively. The app now stays in the system tray and lets you sign in later via right-click → Sign In.
+
+---
+
 # FlowShield Desktop — v3.0.1
 
 ## What's New in v3.0.1
