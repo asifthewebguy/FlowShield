@@ -12,7 +12,7 @@ public interface ISessionManager
     SessionInfo? CurrentSession { get; }
     bool BlockingEnabled { get; set; }
     Task InitializeAsync();
-    Task<bool> StartSessionAsync(int durationMinutes, string sessionType = "WORK");
+    Task<bool> StartSessionAsync(int durationMinutes, string sessionType = "WORK", string? projectId = null);
     Task StopSessionAsync(bool completed = false);
     Task<bool> PauseSessionAsync();
     Task<bool> ResumeSessionAsync();

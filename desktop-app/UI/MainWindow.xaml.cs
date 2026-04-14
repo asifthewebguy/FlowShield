@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -10,11 +12,14 @@ namespace FlowShield.Desktop.UI
     public partial class MainWindow : Window
     {
         private readonly SessionManager _sessionManager;
+        private readonly ApiClient _apiClient;
+        private List<ProjectModel> _projects = new();
 
-        public MainWindow(SessionManager sessionManager)
+        public MainWindow(SessionManager sessionManager, ApiClient apiClient)
         {
             InitializeComponent();
             _sessionManager = sessionManager;
+            _apiClient = apiClient;
 
             // Subscribe to events
             _sessionManager.TimerTick += OnTimerTick;
@@ -23,6 +28,32 @@ namespace FlowShield.Desktop.UI
             _sessionManager.SessionResumed += (s, e) => UpdateUI();
 
             UpdateUI();
+            _ = LoadProjectsAsync();
+        }
+
+        private async System.Threading.Tasks.Task LoadProjectsAsync()
+        {
+            try
+            {
+                var projects = await _apiClient.GetProjectsAsync();
+                _projects = projects ?? new List<ProjectModel>();
+
+                ProjectComboBox.Items.Clear();
+                ProjectComboBox.Items.Add(new ComboBoxItem { Content = "— No Project —", Tag = null });
+                foreach (var p in _projects)
+                    ProjectComboBox.Items.Add(new ComboBoxItem { Content = p.Name, Tag = p.Id });
+                ProjectComboBox.SelectedIndex = 0;
+            }
+            catch { /* silently ignore — project picker is optional */ }
+        }
+
+        private void ProjectComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
+
+        private string? GetSelectedProjectId()
+        {
+            if (ProjectComboBox.SelectedItem is ComboBoxItem item && item.Tag is string id)
+                return id;
+            return null;
         }
 
         private void OnTimerTick(object? sender, TimeSpan remaining)
@@ -115,8 +146,7 @@ namespace FlowShield.Desktop.UI
             }
             else
             {
-                // Default to 25m for the quick widget
-                await _sessionManager.StartSessionAsync(25);
+                await _sessionManager.StartSessionAsync(25, "WORK", GetSelectedProjectId());
             }
         }
 

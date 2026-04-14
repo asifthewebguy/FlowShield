@@ -120,11 +120,11 @@ namespace FlowShield.Desktop.Services
             }
         }
 
-        public async Task<bool> StartSessionAsync(int durationMinutes, string sessionType = "WORK")
+        public async Task<bool> StartSessionAsync(int durationMinutes, string sessionType = "WORK", string? projectId = null)
         {
             try
             {
-                var session = await _apiClient.StartSessionAsync(durationMinutes, sessionType);
+                var session = await _apiClient.StartSessionAsync(durationMinutes, sessionType, projectId);
                 if (session != null)
                 {
                     CurrentSession = session;

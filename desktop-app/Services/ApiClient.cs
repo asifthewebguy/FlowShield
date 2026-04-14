@@ -184,7 +184,7 @@ namespace FlowShield.Desktop.Services
             }
         }
 
-        public async Task<SessionInfo?> StartSessionAsync(int durationMinutes, string sessionType = "WORK")
+        public async Task<SessionInfo?> StartSessionAsync(int durationMinutes, string sessionType = "WORK", string? projectId = null)
         {
             if (string.IsNullOrEmpty(_authToken))
                 throw new InvalidOperationException("Not authenticated");
@@ -199,7 +199,8 @@ namespace FlowShield.Desktop.Services
             var sessionData = new
             {
                 plannedDuration = durationMinutes,
-                sessionType
+                sessionType,
+                projectId
             };
 
             var json = JsonConvert.SerializeObject(sessionData);

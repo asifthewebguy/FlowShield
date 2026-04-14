@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="FlowShield Widget" 
-        Height="400" Width="320"
+        Height="450" Width="320"
         WindowStyle="None"
         AllowsTransparency="False"
         Background="#111827"
@@ -200,7 +200,19 @@
 
             <!-- Controls -->
             <StackPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,0,0,30">
-                
+
+                <!-- Project Selector -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+                    <TextBlock Text="Project:" Foreground="#9CA3AF" FontSize="12"
+                               FontFamily="Segoe UI" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <ComboBox x:Name="ProjectComboBox"
+                              Width="180" Height="28"
+                              FontSize="12" FontFamily="Segoe UI"
+                              Background="#1F2937" Foreground="White"
+                              BorderBrush="#374151"
+                              SelectionChanged="ProjectComboBox_SelectionChanged"/>
+                </StackPanel>
+
                 <!-- Blocking Toggle -->
                 <CheckBox x:Name="BlockingToggle" 
                           Content="Deep Work Mode"
