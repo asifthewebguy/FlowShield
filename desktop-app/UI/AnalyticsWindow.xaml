@@ -4,8 +4,8 @@
         Title="FlowShield Analytics"
         Width="700" Height="560"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        AllowsTransparency="False"
+        Background="#111827"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize">
 

@@ -4,8 +4,8 @@
         Title="FlowShield Goals"
         Width="480" Height="520"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        AllowsTransparency="False"
+        Background="#111827"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize">
 

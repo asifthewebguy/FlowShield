@@ -4,8 +4,8 @@
         Title="FlowShield AI Coach"
         Width="500" Height="620"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        AllowsTransparency="False"
+        Background="#111827"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize">
 

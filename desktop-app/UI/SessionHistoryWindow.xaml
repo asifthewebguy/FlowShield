@@ -4,8 +4,8 @@
         Title="FlowShield Session History"
         Width="540" Height="580"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        AllowsTransparency="False"
+        Background="#111827"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize">
 

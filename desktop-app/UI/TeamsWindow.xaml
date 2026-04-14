@@ -4,8 +4,8 @@
         Title="FlowShield Teams"
         Width="520" Height="600"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        AllowsTransparency="False"
+        Background="#111827"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize">
 
