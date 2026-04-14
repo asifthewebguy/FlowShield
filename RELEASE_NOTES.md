@@ -1,3 +1,12 @@
+# FlowShield Desktop — v3.0.4
+
+## What's New in v3.0.4
+
+### Bug Fixes
+- **Fixed: Exit menu item does nothing** — Clicking Exit was deadlocking: the sync flush on exit called an async method synchronously on the UI thread, which blocked forever waiting for itself. The flush now runs on a background thread with a 5-second timeout, so Exit always works.
+
+---
+
 # FlowShield Desktop — v3.0.3
 
 ## What's New in v3.0.3
