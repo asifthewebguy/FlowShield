@@ -105,6 +105,18 @@ namespace FlowShield.Desktop.UI
             // If cancelled, app remains in tray — user can right-click → Sign In later.
         }
 
+        /// <summary>
+        /// Runs <paramref name="action"/> when the user is authenticated;
+        /// otherwise shows the login dialog so they can sign in first.
+        /// </summary>
+        private void RequireAuth(Action action)
+        {
+            if (_apiClient.IsAuthenticated())
+                action();
+            else
+                ShowLoginDialog();
+        }
+
         private void SubscribeToEvents()
         {
             // Activity Tracker events
@@ -158,42 +170,42 @@ namespace FlowShield.Desktop.UI
 
             // Show Widget
             var showWidgetItem = new ToolStripMenuItem { Text = "Show Widget" };
-            showWidgetItem.Click += (s, e) => ShowMainWindow();
+            showWidgetItem.Click += (s, e) => RequireAuth(ShowMainWindow);
             _contextMenu.Items.Add(showWidgetItem);
 
             // View Analytics
             var analyticsItem = new ToolStripMenuItem { Text = "View Analytics" };
-            analyticsItem.Click += (s, e) => ShowAnalyticsWindow();
+            analyticsItem.Click += (s, e) => RequireAuth(ShowAnalyticsWindow);
             _contextMenu.Items.Add(analyticsItem);
 
             // Goals
             var goalsItem = new ToolStripMenuItem { Text = "Goals" };
-            goalsItem.Click += (s, e) => ShowGoalsWindow();
+            goalsItem.Click += (s, e) => RequireAuth(ShowGoalsWindow);
             _contextMenu.Items.Add(goalsItem);
 
             // Projects
             var projectsItem = new ToolStripMenuItem { Text = "Projects" };
-            projectsItem.Click += (s, e) => ShowProjectsWindow();
+            projectsItem.Click += (s, e) => RequireAuth(ShowProjectsWindow);
             _contextMenu.Items.Add(projectsItem);
 
             // AI Coach
             var coachItem = new ToolStripMenuItem { Text = "✨ AI Coach" };
-            coachItem.Click += (s, e) => ShowCoachWindow();
+            coachItem.Click += (s, e) => RequireAuth(ShowCoachWindow);
             _contextMenu.Items.Add(coachItem);
 
             // Leaderboard
             var leaderboardItem = new ToolStripMenuItem { Text = "🏆 Leaderboard" };
-            leaderboardItem.Click += (s, e) => ShowLeaderboardWindow();
+            leaderboardItem.Click += (s, e) => RequireAuth(ShowLeaderboardWindow);
             _contextMenu.Items.Add(leaderboardItem);
 
             // Teams
             var teamsItem = new ToolStripMenuItem { Text = "👥 My Teams" };
-            teamsItem.Click += (s, e) => ShowTeamsWindow();
+            teamsItem.Click += (s, e) => RequireAuth(ShowTeamsWindow);
             _contextMenu.Items.Add(teamsItem);
 
             // Session History
             var historyItem = new ToolStripMenuItem { Text = "🕐 Session History" };
-            historyItem.Click += (s, e) => ShowSessionHistoryWindow();
+            historyItem.Click += (s, e) => RequireAuth(ShowSessionHistoryWindow);
             _contextMenu.Items.Add(historyItem);
 
             // Start Focus Session — grouped by session type
@@ -205,7 +217,7 @@ namespace FlowShield.Desktop.UI
             {
                 var item = new ToolStripMenuItem { Text = label };
                 var m = min;
-                item.Click += async (s, e) => await _sessionManager.StartSessionAsync(m, "WORK");
+                item.Click += async (s, e) => { if (_apiClient.IsAuthenticated()) await _sessionManager.StartSessionAsync(m, "WORK"); else ShowLoginDialog(); };
                 workItem.DropDownItems.Add(item);
             }
             startSessionItem.DropDownItems.Add(workItem);
@@ -216,7 +228,7 @@ namespace FlowShield.Desktop.UI
             {
                 var item = new ToolStripMenuItem { Text = label };
                 var m = min;
-                item.Click += async (s, e) => await _sessionManager.StartSessionAsync(m, "STUDY");
+                item.Click += async (s, e) => { if (_apiClient.IsAuthenticated()) await _sessionManager.StartSessionAsync(m, "STUDY"); else ShowLoginDialog(); };
                 studyItem.DropDownItems.Add(item);
             }
             startSessionItem.DropDownItems.Add(studyItem);
@@ -227,7 +239,7 @@ namespace FlowShield.Desktop.UI
             {
                 var item = new ToolStripMenuItem { Text = label };
                 var m = min;
-                item.Click += async (s, e) => await _sessionManager.StartSessionAsync(m, "CREATIVE");
+                item.Click += async (s, e) => { if (_apiClient.IsAuthenticated()) await _sessionManager.StartSessionAsync(m, "CREATIVE"); else ShowLoginDialog(); };
                 creativeItem.DropDownItems.Add(item);
             }
             startSessionItem.DropDownItems.Add(creativeItem);
@@ -262,19 +274,19 @@ namespace FlowShield.Desktop.UI
             {
                 Text = _activityTracker.IsTracking ? "Pause Tracking" : "Resume Tracking"
             };
-            toggleItem.Click += ToggleTracking;
+            toggleItem.Click += (s, e) => RequireAuth(() => ToggleTracking(s, e));
             _contextMenu.Items.Add(toggleItem);
 
             // Sync Now
             var syncItem = new ToolStripMenuItem { Text = "Sync Now" };
-            syncItem.Click += async (s, e) => await _syncService.SyncNowAsync();
+            syncItem.Click += async (s, e) => { if (_apiClient.IsAuthenticated()) await _syncService.SyncNowAsync(); else ShowLoginDialog(); };
             _contextMenu.Items.Add(syncItem);
 
             _contextMenu.Items.Add(new ToolStripSeparator());
 
             // Today's Stats
             var statsItem = new ToolStripMenuItem { Text = "Today's Stats" };
-            statsItem.Click += ShowStats;
+            statsItem.Click += (s, e) => RequireAuth(() => ShowStats(s, e));
             _contextMenu.Items.Add(statsItem);
 
             // Settings
