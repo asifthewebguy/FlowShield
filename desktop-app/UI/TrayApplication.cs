@@ -208,7 +208,11 @@ namespace FlowShield.Desktop.UI
             _contextMenu.Items.Add(historyItem);
 
             // Start Focus Session — grouped by session type
-            var startSessionItem = new ToolStripMenuItem { Text = "Start Focus Session" };
+            var startSessionItem = new ToolStripMenuItem
+            {
+                Text    = "Start Focus Session",
+                Enabled = !_sessionManager.IsRunning
+            };
 
             // Work
             var workItem = new ToolStripMenuItem { Text = "💼 Work" };
@@ -439,7 +443,7 @@ namespace FlowShield.Desktop.UI
         {
             if (_mainWindow == null || !_mainWindow.IsLoaded)
             {
-                _mainWindow = new MainWindow(_sessionManager);
+                _mainWindow = new MainWindow(_sessionManager, _apiClient);
                 ElementHost.EnableModelessKeyboardInterop(_mainWindow);
                 _mainWindow.Show();
                 _mainWindow.Activate();

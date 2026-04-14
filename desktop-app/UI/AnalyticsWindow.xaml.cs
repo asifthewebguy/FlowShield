@@ -105,9 +105,39 @@ namespace FlowShield.Desktop.UI
         private void CloseButton_Click(object sender, RoutedEventArgs e)
             => Hide();
 
+        private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            WindowState = WindowState == WindowState.Maximized
+                ? WindowState.Normal
+                : WindowState.Maximized;
+        }
+
+        private void Window_StateChanged(object? sender, EventArgs e)
+        {
+            if (WindowState == WindowState.Maximized)
+            {
+                // Stay within the work area so the taskbar stays visible
+                MaxHeight = SystemParameters.WorkArea.Height;
+                MaxWidth  = SystemParameters.WorkArea.Width;
+                Left      = SystemParameters.WorkArea.Left;
+                Top       = SystemParameters.WorkArea.Top;
+                OuterBorder.CornerRadius = new System.Windows.CornerRadius(0);
+                MaximizeBtn.Content = "❐";
+                MaximizeBtn.ToolTip = "Restore";
+            }
+            else
+            {
+                MaxHeight = double.PositiveInfinity;
+                MaxWidth  = double.PositiveInfinity;
+                OuterBorder.CornerRadius = new System.Windows.CornerRadius(20);
+                MaximizeBtn.Content = "⬜";
+                MaximizeBtn.ToolTip = "Maximize";
+            }
+        }
+
         private void DragWindow(object sender, MouseButtonEventArgs e)
         {
-            if (e.ChangedButton == MouseButton.Left)
+            if (e.ChangedButton == MouseButton.Left && WindowState == WindowState.Normal)
                 DragMove();
         }
 

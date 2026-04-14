@@ -1,3 +1,12 @@
+# FlowShield Desktop — v3.0.7
+
+## What's New in v3.0.7
+
+### Features
+- **Project selector in widget** — The session widget now shows a project dropdown above the Start button. Your projects load automatically when the widget opens. Select a project before starting a session and it will be linked to that session on the web dashboard.
+
+---
+
 # FlowShield Desktop — v3.0.6
 
 ## What's New in v3.0.6
