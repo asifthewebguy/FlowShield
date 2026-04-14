@@ -190,8 +190,7 @@ namespace FlowShield.Desktop.UI
             _contextMenu.Items.Add(projectsItem);
 
             // AI Coach
-            var coachItem = new ToolStripMenuItem { Text = "✨ AI Coach" };
-            coachItem.Click += (s, e) => RequireAuth(ShowCoachWindow);
+            var coachItem = new ToolStripMenuItem { Text = "✨ AI Coach (Coming Soon)", Enabled = false };
             _contextMenu.Items.Add(coachItem);
 
             // Leaderboard
