@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using FlowShield.Desktop.Services;
 using Newtonsoft.Json.Linq;
@@ -843,10 +844,11 @@ namespace FlowShield.Desktop.UI
             _activityTracker.Stop();
             _syncService.Stop();
 
-            // Flush any remaining activities synchronously before exit
+            // Flush any remaining activities before exit — run on thread pool to avoid
+            // deadlocking the UI thread. Cap at 5 s so exit always completes.
             try
             {
-                _syncService.SyncNowAsync().GetAwaiter().GetResult();
+                Task.Run(() => _syncService.SyncNowAsync()).Wait(TimeSpan.FromSeconds(5));
             }
             catch (Exception ex)
             {
