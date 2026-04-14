@@ -102,10 +102,7 @@ namespace FlowShield.Desktop.UI
                 // Register device and load user preferences
                 RegisterDeviceAndLoadPreferencesAsync();
             }
-            else
-            {
-                ShowLoginDialog();
-            }
+            // If cancelled, app remains in tray — user can right-click → Sign In later.
         }
 
         private void SubscribeToEvents()

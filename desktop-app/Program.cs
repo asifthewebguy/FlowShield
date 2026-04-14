@@ -129,12 +129,14 @@ namespace FlowShield.Desktop
                     await updateService.CheckAndPromptAsync();
                 });
 
-                // Create system tray application
+                // Dismiss splash before creating TrayApplication — the constructor may show
+                // a login dialog, and the Topmost splash would cover it, making the app
+                // appear frozen to the user.
                 SplashWindow.SetStatusText("Ready");
-                _trayApp = new TrayApplication(activityTracker, dbService);
-
-                // Dismiss splash before entering the message loop
                 SplashWindow.CloseSplash();
+
+                // Create system tray application
+                _trayApp = new TrayApplication(activityTracker, dbService);
 
                 Application.Run(_trayApp);
             }
