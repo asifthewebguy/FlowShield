@@ -1,3 +1,13 @@
+# FlowShield Desktop — v3.0.3
+
+## What's New in v3.0.3
+
+### Bug Fixes
+- **Fixed: Can't type in AI Coach and other windows** — All WPF windows (AI Coach, Analytics, Goals, Projects, Teams, Leaderboard, Session History, Main Widget) had `AllowsTransparency=True` which triggers a Windows API restriction that silently blocks keyboard input to text fields. All windows now use a solid background instead.
+- **Feature menu items now prompt sign-in** — Clicking any feature in the tray menu (Show Widget, Analytics, Goals, AI Coach, etc.) when not logged in now opens the sign-in dialog instead of silently failing.
+
+---
+
 # FlowShield Desktop — v3.0.2
 
 ## What's New in v3.0.2
