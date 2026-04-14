@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Windows.Forms.Integration;
 using FlowShield.Desktop.Services;
 using Newtonsoft.Json.Linq;
 using Serilog;
@@ -439,7 +440,9 @@ namespace FlowShield.Desktop.UI
             if (_mainWindow == null || !_mainWindow.IsLoaded)
             {
                 _mainWindow = new MainWindow(_sessionManager);
+                ElementHost.EnableModelessKeyboardInterop(_mainWindow);
                 _mainWindow.Show();
+                _mainWindow.Activate();
             }
             else
             {
@@ -455,7 +458,9 @@ namespace FlowShield.Desktop.UI
             if (_goalsWindow == null || !_goalsWindow.IsLoaded)
             {
                 _goalsWindow = new GoalsWindow(_apiClient);
+                ElementHost.EnableModelessKeyboardInterop(_goalsWindow);
                 _goalsWindow.Show();
+                _goalsWindow.Activate();
             }
             else
             {
@@ -471,7 +476,9 @@ namespace FlowShield.Desktop.UI
             if (_projectsWindow == null || !_projectsWindow.IsLoaded)
             {
                 _projectsWindow = new ProjectsWindow(_apiClient);
+                ElementHost.EnableModelessKeyboardInterop(_projectsWindow);
                 _projectsWindow.Show();
+                _projectsWindow.Activate();
             }
             else
             {
@@ -487,7 +494,9 @@ namespace FlowShield.Desktop.UI
             if (_coachWindow == null || !_coachWindow.IsLoaded)
             {
                 _coachWindow = new CoachWindow(_apiClient);
+                ElementHost.EnableModelessKeyboardInterop(_coachWindow);
                 _coachWindow.Show();
+                _coachWindow.Activate();
             }
             else
             {
@@ -503,7 +512,9 @@ namespace FlowShield.Desktop.UI
             if (_leaderboardWindow == null || !_leaderboardWindow.IsLoaded)
             {
                 _leaderboardWindow = new LeaderboardWindow(_apiClient);
+                ElementHost.EnableModelessKeyboardInterop(_leaderboardWindow);
                 _leaderboardWindow.Show();
+                _leaderboardWindow.Activate();
             }
             else
             {
@@ -519,7 +530,9 @@ namespace FlowShield.Desktop.UI
             if (_sessionHistoryWindow == null || !_sessionHistoryWindow.IsLoaded)
             {
                 _sessionHistoryWindow = new SessionHistoryWindow(_apiClient);
+                ElementHost.EnableModelessKeyboardInterop(_sessionHistoryWindow);
                 _sessionHistoryWindow.Show();
+                _sessionHistoryWindow.Activate();
             }
             else
             {
@@ -535,7 +548,9 @@ namespace FlowShield.Desktop.UI
             if (_teamsWindow == null || !_teamsWindow.IsLoaded)
             {
                 _teamsWindow = new TeamsWindow(_apiClient);
+                ElementHost.EnableModelessKeyboardInterop(_teamsWindow);
                 _teamsWindow.Show();
+                _teamsWindow.Activate();
             }
             else
             {
@@ -551,7 +566,9 @@ namespace FlowShield.Desktop.UI
             if (_analyticsWindow == null || !_analyticsWindow.IsLoaded)
             {
                 _analyticsWindow = new AnalyticsWindow(_apiClient);
+                ElementHost.EnableModelessKeyboardInterop(_analyticsWindow);
                 _analyticsWindow.Show();
+                _analyticsWindow.Activate();
             }
             else
             {

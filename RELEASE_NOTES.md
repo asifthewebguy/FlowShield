@@ -1,3 +1,12 @@
+# FlowShield Desktop — v3.0.6
+
+## What's New in v3.0.6
+
+### Bug Fixes
+- **Fixed: Can't type in Projects and other windows** — WPF windows opened from the WinForms tray host were not receiving keyboard character messages (`WM_CHAR`). Pasting via Ctrl+V worked but direct typing did not. Fixed by enabling modeless keyboard interop (`ElementHost.EnableModelessKeyboardInterop`) for all WPF windows before they are shown. Affects Projects, Goals, Teams, Analytics, Session History, Leaderboard, and the widget.
+
+---
+
 # FlowShield Desktop — v3.0.5
 
 ## What's New in v3.0.5
