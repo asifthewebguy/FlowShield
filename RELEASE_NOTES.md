@@ -1,3 +1,12 @@
+# FlowShield Desktop — v3.0.5
+
+## What's New in v3.0.5
+
+### Changes
+- **Removed AI Coach from tray menu** — AI Coach will return in a future update.
+
+---
+
 # FlowShield Desktop — v3.0.4
 
 ## What's New in v3.0.4
