@@ -197,6 +197,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <!-- Text input + buttons -->
@@ -234,6 +235,15 @@
                     <TextBlock x:Name="StatusText" Grid.Row="1"
                                Foreground="#4B5563" FontSize="11" FontFamily="Segoe UI"
                                Margin="0,6,0,0" Visibility="Collapsed"/>
+
+                    <!-- Report row -->
+                    <TextBlock Grid.Row="2" Margin="0,6,0,0" HorizontalAlignment="Right">
+                        <Hyperlink Click="ReportContent_Click"
+                                   Foreground="#4B5563"
+                                   TextDecorations="None">
+                            <Run Text="⚑ Report inappropriate content"/>
+                        </Hyperlink>
+                    </TextBlock>
                 </Grid>
             </Border>
         </Grid>

@@ -976,7 +976,7 @@ namespace FlowShield.Desktop.Services
         [JsonProperty("userId")]
         public string UserId { get; set; } = "";
 
-        [JsonProperty("userName")]
+        [JsonProperty("name")]
         public string UserName { get; set; } = "";
 
         [JsonProperty("totalMinutes")]

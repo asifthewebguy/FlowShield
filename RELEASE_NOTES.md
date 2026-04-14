@@ -1,3 +1,17 @@
+# FlowShield Desktop — v3.0.8
+
+## What's New in v3.0.8
+
+### Bug Fixes
+- **Fixed: Project dropdown unreadable in widget** — The project selector ComboBox popup was rendering with white text on a white background. Fixed by overriding WPF system color resources (`WindowBrushKey`, `WindowTextBrushKey`, `HighlightBrushKey`) within the ComboBox to enforce the dark theme in the popup's visual tree.
+- **Fixed: Goals dropdown unreadable** — Same white-on-white popup issue in the Goals window. Same fix applied.
+- **Fixed: Leaderboard shows no participant names** — The desktop client was deserializing the `"userName"` JSON field but the web API returns `"name"`. Fixed JSON property mapping so leaderboard entries display correctly.
+- **Fixed: Pause/Resume state in widget** — When a session was paused, the Start button still showed "Stop Session". It now shows "Resume" (green) when paused and "Stop Session" (red) when running. Clicking Resume correctly resumes the session instead of stopping it.
+- **Fixed: In-app update prompt suppressed in Store builds** — The auto-updater (GitHub Releases check) no longer runs when FlowShield is installed via the Microsoft Store (MSIX package). The Store manages updates directly. This satisfies Microsoft Store certification requirement 10.2.5 (Security). Direct-download EXE users continue to receive update prompts as before.
+- **Added: Report inappropriate AI content link** — CoachWindow now includes a "Report inappropriate content" link that opens a pre-filled GitHub issue to report AI-generated responses. Required for Microsoft Store certification of generative AI features.
+
+---
+
 # FlowShield Desktop — v3.0.7
 
 ## What's New in v3.0.7

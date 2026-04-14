@@ -155,6 +155,18 @@ namespace FlowShield.Desktop.UI
             Hide();
         }
 
+        private void ReportContent_Click(object sender, RoutedEventArgs e)
+        {
+            var url = "https://github.com/asifthewebguy/FlowShield/issues/new" +
+                      "?title=AI+Coach+inappropriate+content+report" +
+                      "&labels=ai-content-report" +
+                      "&template=ai-content-report.md";
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url)
+            {
+                UseShellExecute = true
+            });
+        }
+
         private void DragWindow(object sender, MouseButtonEventArgs e)
         {
             if (e.ChangedButton == MouseButton.Left) DragMove();

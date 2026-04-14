@@ -76,8 +76,16 @@ namespace FlowShield.Desktop.UI
 
             if (_sessionManager.IsRunning)
             {
-                StartButton.Content = "Stop Session";
-                StartButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")); // Red-500
+                if (_sessionManager.IsPaused)
+                {
+                    StartButton.Content = "Resume";
+                    StartButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")); // Green-500
+                }
+                else
+                {
+                    StartButton.Content = "Stop Session";
+                    StartButton.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")); // Red-500
+                }
                 StatusText.Text = _sessionManager.IsPaused ? "Paused" : "Focusing...";
                 StatusText.Foreground = new SolidColorBrush(_sessionManager.IsPaused
                     ? (Color)ColorConverter.ConvertFromString("#FBBF24")  // Amber-400
@@ -142,7 +150,10 @@ namespace FlowShield.Desktop.UI
         {
             if (_sessionManager.IsRunning)
             {
-                await _sessionManager.StopSessionAsync();
+                if (_sessionManager.IsPaused)
+                    await _sessionManager.ResumeSessionAsync();
+                else
+                    await _sessionManager.StopSessionAsync();
             }
             else
             {

@@ -226,7 +226,14 @@
                               FontSize="12" FontFamily="Segoe UI"
                               Background="#1F2937" Foreground="White"
                               BorderBrush="#374151"
-                              SelectionChanged="ProjectComboBox_SelectionChanged"/>
+                              SelectionChanged="ProjectComboBox_SelectionChanged">
+                        <ComboBox.Resources>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}"         Color="#1F2937"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}"     Color="White"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"      Color="#3B82F6"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"  Color="White"/>
+                        </ComboBox.Resources>
+                    </ComboBox>
                 </StackPanel>
 
                 <!-- Blocking Toggle -->

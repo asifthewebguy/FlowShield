@@ -121,13 +121,17 @@ namespace FlowShield.Desktop
                 var activityTracker = new ActivityTracker(dbService);
                 activityTracker.Start();
 
-                // Check for updates in the background after startup
-                var updateService = new UpdateService();
-                _ = Task.Run(async () =>
+                // Check for updates in the background after startup.
+                // Skip when running as an MSIX package — the Store manages updates.
+                if (!IsRunningAsPackage())
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(10));
-                    await updateService.CheckAndPromptAsync();
-                });
+                    var updateService = new UpdateService();
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(10));
+                        await updateService.CheckAndPromptAsync();
+                    });
+                }
 
                 // Dismiss splash before creating TrayApplication — the constructor may show
                 // a login dialog, and the Topmost splash would cover it, making the app
@@ -237,6 +241,25 @@ namespace FlowShield.Desktop
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error
             );
+        }
+
+        /// <summary>
+        /// Returns true when the app is running as an MSIX package (i.e. installed from the
+        /// Microsoft Store). In that case the Store manages updates, so we must not prompt the
+        /// user to download a new version outside the Store.
+        /// </summary>
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern int GetCurrentPackageFullName(ref int packageFullNameLength, System.Text.StringBuilder? packageFullName);
+
+        private static bool IsRunningAsPackage()
+        {
+            try
+            {
+                int length = 0;
+                // Returns 15700 (APPMODEL_ERROR_NO_PACKAGE) when not packaged
+                return GetCurrentPackageFullName(ref length, null) != 15700;
+            }
+            catch { return false; }
         }
     }
 }

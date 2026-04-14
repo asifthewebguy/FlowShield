@@ -194,6 +194,12 @@
                                   Background="#1F2937" Foreground="White"
                                   BorderBrush="#374151" FontFamily="Segoe UI" FontSize="13"
                                   VerticalContentAlignment="Center">
+                            <ComboBox.Resources>
+                                <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}"         Color="#1F2937"/>
+                                <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}"     Color="White"/>
+                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"      Color="#3B82F6"/>
+                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"  Color="White"/>
+                            </ComboBox.Resources>
                             <ComboBoxItem Content="Daily Focus Time"  Tag="DAILY_TIME"   IsSelected="True"/>
                             <ComboBoxItem Content="Weekly Focus Time" Tag="WEEKLY_TIME"/>
                             <ComboBoxItem Content="Streak (days)"     Tag="STREAK"/>
