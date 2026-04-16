@@ -16,6 +16,37 @@ function suggestedBreakMinutes(plannedDurationMin: number): number {
   return 5;
 }
 
+// Play a short two-note chime via Web Audio API — no asset needed.
+function playEndChime() {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioCtx = window.AudioContext
+      || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const gain = ctx.createGain();
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+
+    [523.25, 783.99].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      const start = now + i * 0.18;
+      osc.start(start);
+      osc.stop(start + 0.5);
+    });
+
+    setTimeout(() => ctx.close().catch(() => {}), 900);
+  } catch {
+    // Audio isn't critical — ignore failures.
+  }
+}
+
 interface Project {
   id: string;
   name: string;
@@ -53,7 +84,6 @@ export default function FocusTimer({
     fetcher
   );
 
-  const endChimeRef = useRef<HTMLAudioElement>(null);
   const autoEndTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const prefsInitialized = useRef(false);
   const endedSessionIdRef = useRef<string | null>(null);
@@ -176,7 +206,7 @@ export default function FocusTimer({
       // Notify only once per session
       if (endedSessionIdRef.current !== sessionId) {
         endedSessionIdRef.current = sessionId;
-        endChimeRef.current?.play().catch(() => {});
+        playEndChime();
         if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
           try {
             new Notification('Focus session complete', {
@@ -442,7 +472,6 @@ export default function FocusTimer({
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
-      <audio ref={endChimeRef} src="/sounds/session-end.mp3" preload="auto" />
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
           Focus Session
