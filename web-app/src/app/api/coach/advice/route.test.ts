@@ -156,7 +156,10 @@ describe('GET /api/coach/advice', () => {
     expect(fullText).toContain('Keep it up.');
     expect(fullText).toContain('[DONE]');
     expect(redisSetex).toHaveBeenCalledTimes(1);
-    expect(redisSetex.mock.calls[0][1]).toBe(86400); // 24h TTL
-    expect(redisSetex.mock.calls[0][2]).toBe('Great focus! Keep it up.');
+    expect(redisSetex).toHaveBeenCalledWith(
+      expect.any(String), // cache key
+      86400, // 24h TTL
+      'Great focus! Keep it up.'
+    );
   });
 });
