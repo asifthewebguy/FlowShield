@@ -22,7 +22,7 @@ export default function CoachPage() {
     }
   }, [router]);
 
-  const fetchAdvice = () => {
+  const fetchAdvice = async (cacheOnly = false) => {
     const token = getToken();
     if (!token) return;
 
@@ -31,21 +31,42 @@ export default function CoachPage() {
     setAdvice('');
     adviceRef.current = '';
 
-    const eventSource = new EventSource(
-      `/api/coach/advice?token=${encodeURIComponent(token)}`
-    );
+    try {
+      const url = cacheOnly ? '/api/coach/advice?cacheOnly=1' : '/api/coach/advice';
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    // Pass token via query param for SSE (EventSource can't set headers)
-    // The route reads it from Authorization header OR query param
-    fetch('/api/coach/advice', {
-      headers: { Authorization: `Bearer ${token}` },
-    }).then(async (res) => {
+      // 204 No Content = cache probe miss. Show empty state + let the Generate button handle it.
+      if (res.status === 204) {
+        setIsLoading(false);
+        setHasLoaded(false);
+        return;
+      }
+
       if (!res.ok || !res.body) {
         setError('Failed to get advice. Please try again.');
         setIsLoading(false);
         return;
       }
 
+      const contentType = res.headers.get('Content-Type') || '';
+
+      // JSON response — cached advice, zero-activity empty state, or probe hit.
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        if (data.error) {
+          setError(data.error);
+        } else if (typeof data.advice === 'string') {
+          adviceRef.current = data.advice;
+          setAdvice(data.advice);
+        }
+        setIsLoading(false);
+        setHasLoaded(true);
+        return;
+      }
+
+      // SSE stream — live Claude generation
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
 
@@ -89,14 +110,17 @@ export default function CoachPage() {
       };
 
       pump();
-    }).catch(() => {
+    } catch {
       setError('Connection failed. Please try again.');
       setIsLoading(false);
-    });
+    }
   };
 
+  // On mount, probe the cache only. If cached or zero-activity, render instantly.
+  // Otherwise the user clicks "Generate advice" to burn a Claude call explicitly.
   useEffect(() => {
-    fetchAdvice(); // eslint-disable-line react-hooks/set-state-in-effect
+    fetchAdvice(true); // eslint-disable-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -136,11 +160,22 @@ export default function CoachPage() {
               </p>
             </div>
           )}
+
+          {!isLoading && !advice && !error && !hasLoaded && (
+            <div className="flex flex-col items-start gap-3 text-gray-600 dark:text-gray-300 text-sm">
+              <p>
+                Nothing cached yet. Click below to generate fresh advice from your last 7 days of activity.
+              </p>
+              <Button variant="primary" size="sm" onClick={() => fetchAdvice(false)}>
+                Generate advice
+              </Button>
+            </div>
+          )}
         </Card>
 
-        {hasLoaded && (
+        {hasLoaded && advice && (
           <div className="mt-4 flex justify-end">
-            <Button variant="secondary" size="sm" onClick={fetchAdvice}>
+            <Button variant="secondary" size="sm" onClick={() => fetchAdvice(false)}>
               Refresh Advice
             </Button>
           </div>

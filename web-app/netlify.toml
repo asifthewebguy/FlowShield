@@ -1,5 +1,5 @@
 [build]
-  command = "prisma generate && npm run build"
+  command = "prisma migrate deploy && prisma generate && npm run build"
   publish = ".next"
   functions = "netlify/functions"
 

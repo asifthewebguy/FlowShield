@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     const token = sign(
       { userId: user.id, email: user.email, role: user.role },
       getJwtSecret(),
-      { expiresIn: rememberMe ? '30d' : '1h' } // 30 days if rememberMe is true, else 1 hour
+      { expiresIn: rememberMe ? '30d' : '7d' } // 30 days if rememberMe is true, else 7 days
     );
 
     // Return user data (excluding password) and token

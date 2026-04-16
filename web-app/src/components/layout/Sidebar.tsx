@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { removeToken, removeUserData } from '@/lib/auth-token';
 import {
   LayoutDashboard,
   BarChart3,
@@ -11,6 +12,8 @@ import {
   Users,
   Sparkles,
   UserCircle,
+  History,
+  LogOut,
   PanelLeftClose,
   PanelLeft,
 } from 'lucide-react';
@@ -23,6 +26,7 @@ interface SidebarProps {
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/sessions', label: 'Sessions', icon: History },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/activity', label: 'Activity', icon: Activity },
   { href: '/reports/weekly', label: 'Reports', icon: FileBarChart },
@@ -34,9 +38,17 @@ const navItems = [
 
 export default function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const handleNavClick = () => {
     onMobileClose?.();
+  };
+
+  const handleLogout = () => {
+    removeToken();
+    removeUserData();
+    onMobileClose?.();
+    router.push('/');
   };
 
   return (
@@ -139,7 +151,24 @@ export default function Sidebar({ collapsed, onToggle, onMobileClose }: SidebarP
       </nav>
 
       {/* Bottom section */}
-      <div className="relative shrink-0 p-2 border-t border-gray-200/60 dark:border-white/[0.04]">
+      <div className="relative shrink-0 p-2 border-t border-gray-200/60 dark:border-white/[0.04] space-y-1">
+        <button
+          onClick={handleLogout}
+          title={collapsed ? 'Log out' : undefined}
+          aria-label="Log out"
+          className={[
+            'flex items-center rounded-lg w-full',
+            'text-gray-500 dark:text-gray-500',
+            'hover:bg-red-50 dark:hover:bg-red-500/[0.08]',
+            'hover:text-red-600 dark:hover:text-red-400',
+            'transition-all duration-150 ease-out',
+            'h-9',
+            collapsed ? 'justify-center' : 'px-3 gap-3',
+          ].join(' ')}
+        >
+          <LogOut size={18} strokeWidth={1.75} className="shrink-0" />
+          {!collapsed && <span className="text-sm font-medium">Log out</span>}
+        </button>
         <button
           onClick={onToggle}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}

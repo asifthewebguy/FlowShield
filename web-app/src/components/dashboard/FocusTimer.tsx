@@ -48,6 +48,15 @@ export default function FocusTimer({
 }: FocusTimerProps) {
   const [currentSession, setCurrentSession] = useState(propSession);
   const { data: projects, mutate: refreshProjects } = useSWR<Project[]>('/api/projects', fetcher);
+  const { data: prefsData, mutate: mutatePrefs } = useSWR<{ preferences: { soundEnabled?: boolean } }>(
+    '/api/user/preferences',
+    fetcher
+  );
+
+  const endChimeRef = useRef<HTMLAudioElement>(null);
+  const autoEndTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const prefsInitialized = useRef(false);
+  const endedSessionIdRef = useRef<string | null>(null);
 
   // Sync state with propSession from server
   useEffect(() => {
@@ -117,13 +126,20 @@ export default function FocusTimer({
     }
   }, [currentSession]);
 
+  const cancelAutoEnd = useCallback(() => {
+    if (autoEndTimeoutRef.current) {
+      clearTimeout(autoEndTimeoutRef.current);
+      autoEndTimeoutRef.current = null;
+    }
+  }, []);
+
   const handleEndSession = useCallback(async () => {
     if (currentSession) {
       try {
+        cancelAutoEnd();
         await onSessionEnd(currentSession.id);
         setTimeRemaining(0);
         onSessionUpdate?.();
-        setSoundEnabled(false);
         const until = Date.now() + COOLDOWN_MS;
         localStorage.setItem(COOLDOWN_KEY, String(until));
         setCooldownRemaining(COOLDOWN_MS);
@@ -131,7 +147,7 @@ export default function FocusTimer({
         console.error('Failed to end session:', error);
       }
     }
-  }, [currentSession, onSessionEnd, onSessionUpdate]);
+  }, [currentSession, onSessionEnd, onSessionUpdate, cancelAutoEnd]);
 
   // Main focus timer countdown
   useEffect(() => {
@@ -152,9 +168,42 @@ export default function FocusTimer({
       !currentSession.isPaused &&
       breakPhase === 'none'
     ) {
-      // Timer ran out naturally — suggest a break for WORK sessions ≥ 15 min
+      // Timer ran out naturally — chime, notify, and schedule auto-end grace.
       timerWasRunning.current = false;
       const plannedMin: number = currentSession.plannedDuration ?? 0;
+      const sessionId: string = currentSession.id;
+
+      // Notify only once per session
+      if (endedSessionIdRef.current !== sessionId) {
+        endedSessionIdRef.current = sessionId;
+        endChimeRef.current?.play().catch(() => {});
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification('Focus session complete', {
+              body: `Your ${plannedMin}-minute session is up. Take a break or end the session.`,
+              tag: `session-end-${sessionId}`,
+            });
+          } catch (err) {
+            console.warn('Notification failed', err);
+          }
+        }
+
+        // Auto-end after 5-minute grace if no interaction
+        cancelAutoEnd();
+        autoEndTimeoutRef.current = setTimeout(async () => {
+          try {
+            const token = getToken();
+            await fetch(`/api/sessions/${sessionId}/auto-end`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            onSessionUpdate?.();
+          } catch (err) {
+            console.error('Auto-end failed', err);
+          }
+        }, 5 * 60 * 1000);
+      }
+
       if (currentSession.sessionType === 'WORK' && plannedMin >= 15) {
         const breakSecs = suggestedBreakMinutes(plannedMin) * 60;
         setBreakDurationSecs(breakSecs);
@@ -166,7 +215,7 @@ export default function FocusTimer({
     }
 
     return () => clearInterval(interval);
-  }, [currentSession, timeRemaining, handleEndSession, breakPhase]);
+  }, [currentSession, timeRemaining, handleEndSession, breakPhase, cancelAutoEnd, onSessionUpdate]);
 
   // Break countdown timer
   useEffect(() => {
@@ -197,21 +246,116 @@ export default function FocusTimer({
     return () => clearInterval(interval);
   }, [cooldownRemaining]);
 
+  // Initialize sound preference from server once it loads
+  useEffect(() => {
+    if (prefsInitialized.current) return;
+    if (prefsData?.preferences) {
+      setSoundEnabled(prefsData.preferences.soundEnabled ?? true);
+      prefsInitialized.current = true;
+    }
+  }, [prefsData]);
+
+  // Request notification permission once (session-end alerts)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  // If the user returns after the session's planned end + grace already elapsed,
+  // auto-end immediately (handles the "tracked 8 hours" scenario from issue #2).
+  useEffect(() => {
+    if (!currentSession || currentSession.completed || currentSession.isPaused) return;
+    const plannedEnd = new Date(currentSession.startTime).getTime()
+      + currentSession.plannedDuration * 60 * 1000;
+    const graceEnd = plannedEnd + 5 * 60 * 1000;
+    const now = Date.now();
+    if (now < plannedEnd) return; // still within planned time
+    if (endedSessionIdRef.current === currentSession.id) return; // already handled
+
+    const sessionId: string = currentSession.id;
+    if (now >= graceEnd) {
+      // Past grace — fire auto-end immediately
+      endedSessionIdRef.current = sessionId;
+      (async () => {
+        try {
+          const token = getToken();
+          await fetch(`/api/sessions/${sessionId}/auto-end`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          onSessionUpdate?.();
+        } catch (err) {
+          console.error('Auto-end on mount failed', err);
+        }
+      })();
+    }
+  }, [currentSession, onSessionUpdate]);
+
+  // Tab title countdown — show remaining time in the browser tab while session is active.
+  useEffect(() => {
+    if (!currentSession || currentSession.completed || currentSession.isPaused) return;
+    const originalTitle = document.title;
+    const startTimeMs = new Date(currentSession.startTime).getTime();
+    const plannedEnd = startTimeMs + currentSession.plannedDuration * 60 * 1000;
+    const tick = () => {
+      const s = Math.max(0, Math.floor((plannedEnd - Date.now()) / 1000));
+      const mins = Math.floor(s / 60).toString().padStart(2, '0');
+      const secs = (s % 60).toString().padStart(2, '0');
+      document.title = `${mins}:${secs} • FlowShield`;
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => {
+      clearInterval(iv);
+      document.title = originalTitle;
+    };
+    // Narrowed deps are intentional — avoid restarting on unrelated currentSession field changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSession?.id, currentSession?.startTime, currentSession?.plannedDuration, currentSession?.completed, currentSession?.isPaused]);
+
+  // Cleanup auto-end timer on unmount
+  useEffect(() => () => cancelAutoEnd(), [cancelAutoEnd]);
+
+  const handleToggleSound = useCallback(async () => {
+    const next = !soundEnabled;
+    setSoundEnabled(next); // optimistic
+    try {
+      const token = getToken();
+      await fetch('/api/user/preferences', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ soundEnabled: next }),
+      });
+      mutatePrefs();
+    } catch (err) {
+      console.error('Failed to sync sound preference', err);
+    }
+  }, [soundEnabled, mutatePrefs]);
+
   const handleStartBreak = () => {
+    cancelAutoEnd();
     setBreakPhase('active');
   };
 
   const handleSkipBreak = useCallback(async () => {
+    cancelAutoEnd();
     setBreakPhase('none');
     timerWasRunning.current = false;
     await handleEndSession();
-  }, [handleEndSession]);
+  }, [handleEndSession, cancelAutoEnd]);
 
   const handleEndBreak = useCallback(async () => {
+    cancelAutoEnd();
     setBreakPhase('none');
     setBreakTimeRemaining(0);
     await handleEndSession();
-  }, [handleEndSession]);
+  }, [handleEndSession, cancelAutoEnd]);
 
   const handleStartSession = async () => {
     try {
@@ -219,7 +363,7 @@ export default function FocusTimer({
       await onSessionStart(selectedDuration, sessionType, selectedProjectId || undefined);
       setTimeRemaining(selectedDuration * 60);
       onSessionUpdate?.();
-      setSoundEnabled(true); // Auto-enable sound on start
+      // Sound preference is managed by UserPreferences — do not auto-enable here.
     } catch (error) {
       console.error('Failed to start session:', error);
     } finally {
@@ -298,6 +442,7 @@ export default function FocusTimer({
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+      <audio ref={endChimeRef} src="/sounds/session-end.mp3" preload="auto" />
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
           Focus Session
@@ -305,7 +450,7 @@ export default function FocusTimer({
         {/* Sound Controls */}
         <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 p-2 rounded-lg">
           <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
+            onClick={handleToggleSound}
             className={`p-2 rounded-md transition-colors ${soundEnabled ? 'text-primary-600 bg-white dark:bg-gray-600 shadow-sm' : 'text-gray-400'}`}
             title={soundEnabled ? "Mute Focus Sound" : "Enable Focus Sound"}
           >
