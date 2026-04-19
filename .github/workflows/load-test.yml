@@ -16,6 +16,8 @@ jobs:
   load-test:
     name: k6 — POST /api/activity/sync
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout code
@@ -34,10 +36,39 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y k6
 
+      - name: Fetch load-test JWT
+        env:
+          BASE_URL: ${{ github.event.inputs.base_url || 'https://flowshield.app' }}
+          LOAD_TEST_EMAIL:    ${{ secrets.LOAD_TEST_EMAIL }}
+          LOAD_TEST_PASSWORD: ${{ secrets.LOAD_TEST_PASSWORD }}
+        run: |
+          if [ -z "$LOAD_TEST_EMAIL" ] || [ -z "$LOAD_TEST_PASSWORD" ]; then
+            echo "::error::LOAD_TEST_EMAIL or LOAD_TEST_PASSWORD secret is not set"
+            exit 1
+          fi
+          body=$(jq -n --arg e "$LOAD_TEST_EMAIL" --arg p "$LOAD_TEST_PASSWORD" \
+            '{email:$e, password:$p, rememberMe:true}')
+          response=$(curl -sS -w "\n%{http_code}" -X POST "$BASE_URL/api/auth/login" \
+            -H "Content-Type: application/json" \
+            -d "$body")
+          status=$(echo "$response" | tail -n1)
+          payload=$(echo "$response" | sed '$d')
+          if [ "$status" != "200" ]; then
+            echo "::error::Login to $BASE_URL failed with status $status"
+            echo "$payload"
+            exit 1
+          fi
+          token=$(echo "$payload" | jq -r '.token // empty')
+          if [ -z "$token" ]; then
+            echo "::error::Login returned 200 but no token field"
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "TOKEN=$token" >> "$GITHUB_ENV"
+
       - name: Run load test
         env:
           BASE_URL: ${{ github.event.inputs.base_url || 'https://flowshield.app' }}
-          TOKEN:    ${{ secrets.LOAD_TEST_TOKEN }}
         run: |
           k6 run \
             --env BASE_URL="$BASE_URL" \
