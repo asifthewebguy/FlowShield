@@ -1,3 +1,4 @@
 *.file
 .claude
 .env.worktrees/
+browser-extension/dist/
