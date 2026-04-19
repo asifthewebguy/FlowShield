@@ -2,27 +2,32 @@
 // Runs on flowshield.app pages. Syncs the web app's localStorage token
 // to the extension so the two stay in sync automatically.
 
+// Popup pulls the token on demand via GET_TOKEN (reliable — no race condition).
+// SET_TOKEN lets a popup login propagate back to the web app's localStorage.
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type === 'GET_TOKEN') {
+    sendResponse({ token: localStorage.getItem('token') || null });
+    return true;
+  }
+  if (msg.type === 'SET_TOKEN') {
+    if (msg.token) localStorage.setItem('token', msg.token);
+    else           localStorage.removeItem('token');
+    sendResponse({ ok: true });
+    return true;
+  }
+});
+
+// Best-effort push on load and on storage changes (tab-to-extension sync).
 function pushToken() {
   const token = localStorage.getItem('token');
-  const msg   = token ? { type: 'TOKEN_UPDATED', token } : { type: 'TOKEN_CLEARED' };
-
-  // Use browser.* (always promise-based in Firefox) — chrome.storage.local.set()
-  // does NOT return a Promise from a content script context in Firefox MV2.
-  (token
-    ? browser.storage.local.set({ token })
-    : browser.storage.local.remove('token')
-  ).then(() => {
-    // Notify background so it can refresh session/prefs data. Fire-and-forget.
-    browser.runtime.sendMessage(msg).catch(() => {});
-  }).catch(() => {});
+  browser.storage.local
+    .set(token ? { token } : {})
+    .catch(() => {});
+  if (!token) browser.storage.local.remove('token').catch(() => {});
 }
 
-// Push on load
 pushToken();
 
-// Push whenever localStorage changes (login / logout on this tab)
 window.addEventListener('storage', (e) => {
-  if (e.key === 'token') {
-    pushToken();
-  }
+  if (e.key === 'token') pushToken();
 });

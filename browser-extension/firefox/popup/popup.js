@@ -58,7 +58,39 @@ function clearError() {
 }
 
 // ─── Auth ──────────────────────────────────────────────────────────────────────
+
+// Pull the token directly from the flowshield.app tab's localStorage.
+// This is the reliable path for Firefox MV2 — avoids all content-script
+// message-passing race conditions on extension startup.
+async function syncTokenFromWebApp() {
+  return new Promise(resolve => {
+    chrome.tabs.query({ url: 'https://flowshield.app/*' }, tabs => {
+      if (!tabs || !tabs.length) return resolve();
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_TOKEN' }, resp => {
+        if (chrome.runtime.lastError || !resp) return resolve();
+        const op = resp.token
+          ? chrome.storage.local.set({ token: resp.token })
+          : chrome.storage.local.remove('token');
+        Promise.resolve(op).then(resolve).catch(resolve);
+      });
+    });
+  });
+}
+
+// Write token back to the flowshield.app tab so the web app stays logged in.
+function syncTokenToWebApp(token) {
+  chrome.tabs.query({ url: 'https://flowshield.app/*' }, tabs => {
+    if (!tabs || !tabs.length) return;
+    chrome.tabs.sendMessage(
+      tabs[0].id,
+      { type: 'SET_TOKEN', token },
+      () => void chrome.runtime.lastError
+    );
+  });
+}
+
 async function checkAuth() {
+  await syncTokenFromWebApp();
   const { token } = await chrome.storage.local.get('token');
   if (token) {
     showScreen('main');
@@ -99,6 +131,7 @@ formLogin.addEventListener('submit', async (e) => {
     }
 
     await chrome.storage.local.set({ token: data.token, user: JSON.stringify(data.user) });
+    syncTokenToWebApp(data.token);
     // Notify background service worker
     chrome.runtime.sendMessage({ type: 'TOKEN_UPDATED' });
     showScreen('main');
