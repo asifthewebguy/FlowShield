@@ -59,33 +59,50 @@ function clearError() {
 
 // ─── Auth ──────────────────────────────────────────────────────────────────────
 
-// Pull the token directly from the flowshield.app tab's localStorage.
-// This is the reliable path for Firefox MV2 — avoids all content-script
-// message-passing race conditions on extension startup.
+// Find the first open flowshield.app tab, checking active tab first.
+function findFlowShieldTab(callback) {
+  chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+    const active = tabs && tabs[0];
+    if (active && active.url && active.url.startsWith('https://flowshield.app/')) {
+      return callback(active);
+    }
+    // Fall back: any flowshield.app tab in any window
+    chrome.tabs.query({}, allTabs => {
+      const fsTab = allTabs && allTabs.find(
+        t => t.url && t.url.startsWith('https://flowshield.app/')
+      );
+      callback(fsTab || null);
+    });
+  });
+}
+
+// Read localStorage token directly via executeScript (MV2 only).
+// No content-script injection required — works as long as the tab exists.
 async function syncTokenFromWebApp() {
   return new Promise(resolve => {
-    chrome.tabs.query({ url: 'https://flowshield.app/*' }, tabs => {
-      if (!tabs || !tabs.length) return resolve();
-      chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_TOKEN' }, resp => {
-        if (chrome.runtime.lastError || !resp) return resolve();
-        const op = resp.token
-          ? chrome.storage.local.set({ token: resp.token })
-          : chrome.storage.local.remove('token');
-        Promise.resolve(op).then(resolve).catch(resolve);
+    findFlowShieldTab(tab => {
+      if (!tab) return resolve();
+      chrome.tabs.executeScript(tab.id, { code: 'localStorage.getItem("token")' }, results => {
+        if (chrome.runtime.lastError || !results) return resolve();
+        const token = results[0];
+        if (token) {
+          chrome.storage.local.set({ token }, resolve);
+        } else {
+          chrome.storage.local.remove('token', resolve);
+        }
       });
     });
   });
 }
 
-// Write token back to the flowshield.app tab so the web app stays logged in.
+// Write token back to the web app's localStorage after popup login.
 function syncTokenToWebApp(token) {
-  chrome.tabs.query({ url: 'https://flowshield.app/*' }, tabs => {
-    if (!tabs || !tabs.length) return;
-    chrome.tabs.sendMessage(
-      tabs[0].id,
-      { type: 'SET_TOKEN', token },
-      () => void chrome.runtime.lastError
-    );
+  findFlowShieldTab(tab => {
+    if (!tab) return;
+    const code = token
+      ? `localStorage.setItem("token", ${JSON.stringify(token)})`
+      : 'localStorage.removeItem("token")';
+    chrome.tabs.executeScript(tab.id, { code }, () => void chrome.runtime.lastError);
   });
 }
 
