@@ -4,22 +4,17 @@
 
 function pushToken() {
   const token = localStorage.getItem('token');
+  const msg   = token ? { type: 'TOKEN_UPDATED', token } : { type: 'TOKEN_CLEARED' };
 
-  // Write directly to storage so the popup finds the token immediately,
-  // bypassing the Firefox MV2 event-page message-passing race entirely.
-  const storageOp = token
-    ? chrome.storage.local.set({ token })
-    : chrome.storage.local.remove('token');
-
-  storageOp.then(() => {
-    // Also notify background so it can refresh session/prefs data.
-    // Fire-and-forget — if the event page isn't awake yet that's fine;
-    // the popup's FORCE_POLL_SESSION will trigger the fetch instead.
-    chrome.runtime.sendMessage(
-      token ? { type: 'TOKEN_UPDATED', token } : { type: 'TOKEN_CLEARED' },
-      () => void chrome.runtime.lastError
-    );
-  });
+  // Use browser.* (always promise-based in Firefox) — chrome.storage.local.set()
+  // does NOT return a Promise from a content script context in Firefox MV2.
+  (token
+    ? browser.storage.local.set({ token })
+    : browser.storage.local.remove('token')
+  ).then(() => {
+    // Notify background so it can refresh session/prefs data. Fire-and-forget.
+    browser.runtime.sendMessage(msg).catch(() => {});
+  }).catch(() => {});
 }
 
 // Push on load
