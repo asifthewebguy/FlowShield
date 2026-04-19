@@ -1,0 +1,311 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 300px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  background: #0f172a;
+  color: #e2e8f0;
+  user-select: none;
+}
+
+/* ── Header ─────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #1e293b;
+  background: #0f172a;
+}
+
+.logo {
+  font-size: 15px;
+  color: #e2e8f0;
+  letter-spacing: -0.3px;
+}
+
+.logo strong {
+  color: #38bdf8;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-icon:hover {
+  color: #e2e8f0;
+  background: #1e293b;
+}
+
+/* ── Auth screen ─────────────────────────────────── */
+#screen-auth {
+  padding: 20px 16px 16px;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+#form-login {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+input[type="email"],
+input[type="password"] {
+  width: 100%;
+  padding: 9px 12px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input:focus {
+  border-color: #38bdf8;
+}
+
+.error-msg {
+  font-size: 12px;
+  color: #f87171;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.link-small {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  color: #38bdf8;
+  margin-top: 12px;
+  text-decoration: none;
+}
+
+.link-small:hover {
+  text-decoration: underline;
+}
+
+/* ── Buttons ─────────────────────────────────────── */
+.btn-primary {
+  display: block;
+  width: 100%;
+  padding: 9px 16px;
+  background: #0ea5e9;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  margin-top: 4px;
+  transition: background 0.15s;
+}
+
+.btn-primary:hover { background: #0284c7; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary {
+  display: block;
+  width: 100%;
+  padding: 7px 16px;
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.btn-secondary:hover { background: #263548; color: #e2e8f0; }
+
+.btn-block { width: 100%; }
+
+/* ── Main screen ─────────────────────────────────── */
+#screen-main {
+  padding-bottom: 4px;
+}
+
+/* ── Distraction banner ──────────────────────────── */
+.distraction-banner {
+  background: #450a0a;
+  border-bottom: 1px solid #7f1d1d;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #fca5a5;
+}
+
+.distraction-domain {
+  font-weight: 600;
+  font-size: 11px;
+  color: #f87171;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Session section ─────────────────────────────── */
+#section-session {
+  padding: 16px 16px 0;
+}
+
+.no-session-msg {
+  text-align: center;
+  color: #475569;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.session-type {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #38bdf8;
+  margin-bottom: 10px;
+}
+
+/* Timer ring */
+.timer-ring-container {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 10px;
+}
+
+.timer-ring {
+  width: 120px;
+  height: 120px;
+  transform: rotate(-90deg);
+}
+
+.ring-bg {
+  fill: none;
+  stroke: #1e293b;
+  stroke-width: 8;
+}
+
+.ring-progress {
+  fill: none;
+  stroke: #0ea5e9;
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 264;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1s linear, stroke 0.3s;
+}
+
+.timer-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.timer-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #f1f5f9;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-label {
+  font-size: 10px;
+  color: #475569;
+  margin-top: 2px;
+}
+
+.session-meta {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #475569;
+  margin-bottom: 10px;
+}
+
+/* ── Current tab ─────────────────────────────────── */
+.current-tab-section {
+  padding: 10px 16px 8px;
+  border-top: 1px solid #1e293b;
+  margin-top: 12px;
+}
+
+.section-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: #475569;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.tab-domain-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab-dot {
+  font-size: 10px;
+  color: #22c55e;
+}
+
+.tab-dot.distraction {
+  color: #ef4444;
+}
+
+.tab-domain {
+  font-size: 12px;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Footer links ────────────────────────────────── */
+.footer-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px 10px;
+  border-top: 1px solid #1e293b;
+  font-size: 11px;
+  color: #334155;
+}
+
+.footer-links a {
+  color: #475569;
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  color: #38bdf8;
+}
