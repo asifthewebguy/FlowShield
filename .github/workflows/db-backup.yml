@@ -26,7 +26,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends postgresql-client-17
 
-          pg_dump --version
+          # pg16 ships pre-installed on ubuntu-latest; prepend v17 bins so
+          # `pg_dump` resolves to 17 (Neon serves Postgres 17.x).
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
           aws --version
 
       - name: Dump database
