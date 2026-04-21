@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long-xyz';
-process.env.ANTHROPIC_API_KEY = 'test-anthropic-key';
+process.env.GOOGLE_AI_API_KEY = 'test-gemini-key';
 
 const mocks = vi.hoisted(() => ({
   redisGet: vi.fn(),
   redisSetex: vi.fn(async () => 'OK'),
-  anthropicStream: vi.fn(),
+  generateContentStream: vi.fn(),
   userFindUnique: vi.fn(),
   sessionFindMany: vi.fn(),
   dailyStatsFindMany: vi.fn(),
@@ -34,17 +34,19 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
-vi.mock('@anthropic-ai/sdk', () => {
+vi.mock('@google/generative-ai', () => {
   return {
-    default: class MockAnthropic {
-      messages = {
-        stream: mocks.anthropicStream,
-      };
+    GoogleGenerativeAI: class MockGoogleGenerativeAI {
+      getGenerativeModel() {
+        return {
+          generateContentStream: mocks.generateContentStream,
+        };
+      }
     },
   };
 });
 
-const { redisGet, redisSetex, anthropicStream } = mocks;
+const { redisGet, redisSetex, generateContentStream } = mocks;
 
 import { GET } from './route';
 
@@ -70,17 +72,17 @@ describe('GET /api/coach/advice', () => {
     vi.clearAllMocks();
     redisGet.mockReset();
     redisSetex.mockClear();
-    anthropicStream.mockReset();
+    generateContentStream.mockReset();
   });
 
   it('returns 204 on cacheOnly miss', async () => {
     redisGet.mockResolvedValueOnce(null);
     const res = await GET(makeRequest('/api/coach/advice?cacheOnly=1'));
     expect(res.status).toBe(204);
-    expect(anthropicStream).not.toHaveBeenCalled();
+    expect(generateContentStream).not.toHaveBeenCalled();
   });
 
-  it('returns JSON cached advice on cache hit (no Claude call)', async () => {
+  it('returns JSON cached advice on cache hit (no Gemini call)', async () => {
     redisGet.mockResolvedValueOnce('Previously generated advice.');
     const res = await GET(makeRequest('/api/coach/advice'));
     expect(res.status).toBe(200);
@@ -88,7 +90,7 @@ describe('GET /api/coach/advice', () => {
     const data = await res.json();
     expect(data.advice).toBe('Previously generated advice.');
     expect(data.cached).toBe(true);
-    expect(anthropicStream).not.toHaveBeenCalled();
+    expect(generateContentStream).not.toHaveBeenCalled();
   });
 
   it('short-circuits with empty-state advice when user has zero activity', async () => {
@@ -100,13 +102,13 @@ describe('GET /api/coach/advice', () => {
     const data = await res.json();
     expect(data.empty).toBe(true);
     expect(typeof data.advice).toBe('string');
-    expect(anthropicStream).not.toHaveBeenCalled();
+    expect(generateContentStream).not.toHaveBeenCalled();
     expect(redisSetex).not.toHaveBeenCalled();
   });
 
-  it('falls through to Claude on Redis read failure', async () => {
+  it('falls through to Gemini on Redis read failure', async () => {
     redisGet.mockRejectedValueOnce(new Error('Redis down'));
-    primePrisma({ sessions: [] }); // still zero-activity → short-circuits without Claude
+    primePrisma({ sessions: [] }); // still zero-activity → short-circuits without Gemini
     const res = await GET(makeRequest('/api/coach/advice'));
     expect(res.status).toBe(200);
     // Did not crash when Redis threw
@@ -114,7 +116,7 @@ describe('GET /api/coach/advice', () => {
     expect(data.empty).toBe(true);
   });
 
-  it('streams Claude and writes to cache when user has activity', async () => {
+  it('streams Gemini and writes to cache when user has activity', async () => {
     redisGet.mockResolvedValueOnce(null);
     const now = new Date();
     primePrisma({
@@ -124,18 +126,12 @@ describe('GET /api/coach/advice', () => {
       ],
     });
 
-    // Stub Anthropic stream: one text_delta, then iteration ends
-    anthropicStream.mockReturnValue({
-      async *[Symbol.asyncIterator]() {
-        yield {
-          type: 'content_block_delta',
-          delta: { type: 'text_delta', text: 'Great focus! ' },
-        };
-        yield {
-          type: 'content_block_delta',
-          delta: { type: 'text_delta', text: 'Keep it up.' },
-        };
-      },
+    // Stub Gemini stream: two text chunks, then iteration ends
+    generateContentStream.mockResolvedValueOnce({
+      stream: (async function* () {
+        yield { text: () => 'Great focus! ' };
+        yield { text: () => 'Keep it up.' };
+      })(),
     });
 
     const res = await GET(makeRequest('/api/coach/advice'));

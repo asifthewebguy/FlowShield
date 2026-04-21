@@ -60,7 +60,7 @@
 - **Project cost analysis** — per-project hourly rates, budget tracking, progress bars, earnings chart; inline editing of rates and budgets
 
 ### AI Coach
-- Powered by Claude Opus 4.6 (Anthropic)
+- Powered by Gemini 2.5 Flash Lite (Google)
 - Personalized coaching advice streamed via Server-Sent Events
 - Context-aware: uses your recent session data, productivity trends, and goals
 
@@ -271,7 +271,7 @@ Desktop tests cover: categorization, version comparison, activity levels, DB CRU
 | v1.8.0 | Categorization — 45 default rules, user overrides |
 | v1.9.0 | Android — Expo SDK 54, React Native, 5-screen MVP |
 | v1.9.5 | Quality — 140 tests, 12 E2E specs, OpenAPI, security headers |
-| v2.0.0 | AI Coach — Claude Opus 4.6 SSE; Teams + Leaderboard; Reports + Project Cost |
+| v2.0.0 | AI Coach — Gemini 2.5 Flash Lite SSE; Teams + Leaderboard; Reports + Project Cost |
 
 ### Desktop App — Upcoming
 

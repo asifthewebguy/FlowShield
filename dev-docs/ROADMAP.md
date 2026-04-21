@@ -218,7 +218,7 @@ FlowShield is at v1.1.6 with a working web dashboard (Next.js/Prisma/PostgreSQL 
 
 **Goal:** Phase 2 differentiators — AI coaching and team productivity.
 
-- [x] `@anthropic-ai/sdk` installed; `/api/coach/advice` streams personalized advice via SSE using Claude Opus 4.6 with adaptive thinking — builds context from last 7 days of sessions, activity logs, and daily stats
+- [x] `/api/coach/advice` streams personalized advice via SSE using **Gemini 2.5 Flash Lite** (`@google/generative-ai`) — builds context from last 7 days of sessions, activity logs, and daily stats. _(Originally shipped on Claude Opus 4.6 + adaptive thinking; swapped to Gemini on 2026-04-21 for ~99% cost reduction.)_
 - [x] `/coach` page — real-time streaming UI (fetch + ReadableStream reader), shows typed-out AI advice with cursor animation; includes Teams section (create/join/list)
 - [x] "AI Coach" card on dashboard (replaces static Quick Tips) — links to `/coach` page
 - [x] `Team` and `TeamMembership` Prisma models (`teams`, `team_memberships` tables); migration `20260310000000_add_teams`; `TeamRole` enum (OWNER/ADMIN/MEMBER)
@@ -226,7 +226,7 @@ FlowShield is at v1.1.6 with a working web dashboard (Next.js/Prisma/PostgreSQL 
 - [x] `getPredictiveSchedule()` insight in `src/lib/insights.ts` — suggests optimal session time based on historical peak-hour + best-day-of-week analysis; included in `generateInsights()`
 - [x] 3 new unit tests for `getPredictiveSchedule` — 115 total tests passing (up from 112)
 
-**New env vars needed:** `ANTHROPIC_API_KEY` (Anthropic console → API Keys)
+**Env var needed:** `GOOGLE_AI_API_KEY` (Google AI Studio → aistudio.google.com/app/apikey)
 
 **Key files:** `web-app/src/app/api/coach/advice/route.ts` (new), `web-app/src/app/coach/page.tsx` (new), `web-app/src/app/api/teams/` (new), `web-app/prisma/schema.prisma`, `web-app/prisma/migrations/20260310000000_add_teams/`, `web-app/src/lib/insights.ts`, `web-app/src/app/dashboard/page.tsx`
 

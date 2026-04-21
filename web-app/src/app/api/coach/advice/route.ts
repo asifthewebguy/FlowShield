@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { verify } from 'jsonwebtoken';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken, getJwtSecret } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
@@ -28,9 +28,7 @@ function getUserIdFromRequestOrQuery(request: NextRequest): string | null {
   }
 }
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
 
 async function readCache(userId: string): Promise<string | null> {
   try {
@@ -166,28 +164,29 @@ Keep your response to 150–250 words. Do not include a greeting like "Hi [name]
 
 Based on this data, give ${userName} 2–3 specific, actionable coaching tips to improve their productivity this week. Reference their actual numbers.`;
 
-    // Stream Claude's response as SSE + accumulate for cache write
+    // Stream Gemini's response as SSE + accumulate for cache write
     const encoder = new TextEncoder();
     let fullText = '';
 
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const claudeStream = anthropic.messages.stream({
-            model: 'claude-opus-4-6',
-            max_tokens: 512,
-            thinking: { type: 'adaptive' },
-            system: systemPrompt,
-            messages: [{ role: 'user', content: userPrompt }],
+          const model = genAI.getGenerativeModel({
+            model: 'gemini-2.5-flash-lite',
+            systemInstruction: systemPrompt,
+            generationConfig: {
+              maxOutputTokens: 2048,
+              temperature: 0.7,
+            },
           });
 
-          for await (const event of claudeStream) {
-            if (
-              event.type === 'content_block_delta' &&
-              event.delta.type === 'text_delta'
-            ) {
-              fullText += event.delta.text;
-              const data = JSON.stringify({ text: event.delta.text });
+          const result = await model.generateContentStream(userPrompt);
+
+          for await (const chunk of result.stream) {
+            const text = chunk.text();
+            if (text) {
+              fullText += text;
+              const data = JSON.stringify({ text });
               controller.enqueue(encoder.encode(`data: ${data}\n\n`));
             }
           }

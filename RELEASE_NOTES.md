@@ -131,7 +131,7 @@ A new **👥 My Teams** window lets you create a team, join one with an invite c
 ## What's New in v2.7.0 (Sprint 17 — AI Coach & Leaderboard)
 
 ### AI Coach
-The **✨ AI Coach** window streams personalized focus advice powered by Claude Opus 4.6. The coach uses your recent activity data to give context-aware suggestions for improving your productivity.
+The **✨ AI Coach** window streams personalized focus advice powered by Gemini 2.5 Flash Lite. The coach uses your recent activity data to give context-aware suggestions for improving your productivity.
 
 ### Leaderboard
 The **🏆 Leaderboard** window shows how you rank against your team or global users across daily, weekly, and monthly periods.

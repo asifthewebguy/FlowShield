@@ -11,7 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
+    "@google/generative-ai": "^0.24.1",
     "@sentry/nextjs": "^10.42.0",
     "@upstash/redis": "^1.36.3",
     "bcryptjs": "^2.4.3",
@@ -43,6 +43,7 @@
     "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.16",
+    "baseline-browser-mapping": "^2.10.20",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.0.10",
     "postcss": "^8.4.32",
