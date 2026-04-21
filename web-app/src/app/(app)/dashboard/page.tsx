@@ -8,6 +8,8 @@ import FocusTimer from '@/components/dashboard/FocusTimer';
 import GoalsWidget from '@/components/dashboard/GoalsWidget';
 import GamificationStats from '@/components/dashboard/GamificationStats';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
+import EmailVerificationBanner from '@/components/dashboard/EmailVerificationBanner';
+import InstallPrompts from '@/components/dashboard/InstallPrompts';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { getPusherClient } from '@/lib/pusher-client';
@@ -135,6 +137,8 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+        <EmailVerificationBanner />
+        <InstallPrompts />
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Focus Timer */}
           <div className="lg:col-span-2">
