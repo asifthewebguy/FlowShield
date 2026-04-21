@@ -1,0 +1,73 @@
+name: Database Backup
+
+on:
+  schedule:
+    # Sundays 03:00 UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Install pg_dump 17 and AWS CLI
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl ca-certificates gnupg lsb-release awscli
+
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc > /dev/null
+          sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            > /etc/apt/sources.list.d/pgdg.list'
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+
+          pg_dump --version
+          aws --version
+
+      - name: Dump database
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          TIMESTAMP=$(date -u +%Y-%m-%d)
+          FILENAME="flowshield-prod-${TIMESTAMP}.dump"
+          pg_dump -Fc --no-owner --no-acl --file="$FILENAME" "$DATABASE_URL"
+          echo "DUMP_FILE=$FILENAME" >> "$GITHUB_ENV"
+          SIZE=$(du -h "$FILENAME" | cut -f1)
+          echo "Dump created: $FILENAME ($SIZE)"
+
+      - name: Upload to S3-compatible bucket
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_SECRET_ACCESS_KEY }}
+          BACKUP_ENDPOINT_URL: ${{ secrets.BACKUP_ENDPOINT_URL }}
+          BACKUP_BUCKET: ${{ secrets.BACKUP_BUCKET }}
+          AWS_DEFAULT_REGION: us-east-005
+        run: |
+          set -euo pipefail
+          aws s3 cp "$DUMP_FILE" "s3://$BACKUP_BUCKET/$DUMP_FILE" \
+            --endpoint-url "$BACKUP_ENDPOINT_URL"
+
+      - name: Rotate (keep 4 most recent dumps)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_SECRET_ACCESS_KEY }}
+          BACKUP_ENDPOINT_URL: ${{ secrets.BACKUP_ENDPOINT_URL }}
+          BACKUP_BUCKET: ${{ secrets.BACKUP_BUCKET }}
+          AWS_DEFAULT_REGION: us-east-005
+        run: |
+          set -euo pipefail
+          aws s3 ls "s3://$BACKUP_BUCKET/" --endpoint-url "$BACKUP_ENDPOINT_URL" \
+            | awk '{print $4}' \
+            | grep -E '^flowshield-prod-[0-9]{4}-[0-9]{2}-[0-9]{2}\.dump$' \
+            | sort -r \
+            | tail -n +5 \
+            | while read -r old; do
+                echo "Deleting old dump: $old"
+                aws s3 rm "s3://$BACKUP_BUCKET/$old" --endpoint-url "$BACKUP_ENDPOINT_URL"
+              done
