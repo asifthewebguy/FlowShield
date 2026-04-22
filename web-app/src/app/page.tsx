@@ -13,19 +13,24 @@ import Footer from '@/components/landing/Footer';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <>
+      <a href="#main-content" className="skip-to-content">
+        Skip to main content
+      </a>
       <Navbar />
-      <Hero />
-      <SocialProof />
-      <FeaturesGrid />
-      <TimerShowcase />
-      <AnalyticsShowcase />
-      <AICoachShowcase />
-      <CrossPlatform />
-      <TeamsSection />
-      <Pricing />
-      <FAQ />
+      <main id="main-content" className="min-h-screen bg-surface-0 text-white">
+        <Hero />
+        <SocialProof />
+        <FeaturesGrid />
+        <TimerShowcase />
+        <AnalyticsShowcase />
+        <AICoachShowcase />
+        <CrossPlatform />
+        <TeamsSection />
+        <Pricing />
+        <FAQ />
+      </main>
       <Footer />
-    </div>
+    </>
   );
 }

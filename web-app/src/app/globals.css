@@ -9,19 +9,15 @@
   --surface-1: #f9fafb;
   --surface-2: #f3f4f6;
   --surface-3: #e5e7eb;
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(0, 0, 0, 0.06);
 }
 
 .dark {
-  --background: #0a0a0f;
-  --foreground: #ededed;
+  --background: #0a0c0f;
+  --foreground: #e8eaef;
   --border: rgba(255, 255, 255, 0.08);
-  --surface-1: #12121a;
-  --surface-2: #1a1a24;
-  --surface-3: #22222e;
-  --glass-bg: rgba(255, 255, 255, 0.04);
-  --glass-border: rgba(255, 255, 255, 0.06);
+  --surface-1: #121418;
+  --surface-2: #1a1c21;
+  --surface-3: #222429;
 }
 
 body {
@@ -56,39 +52,6 @@ html {
 }
 
 @layer components {
-  /* Glass morphism */
-  .glass {
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--glass-border);
-  }
-
-  /* Gradient border card */
-  .gradient-border {
-    position: relative;
-  }
-
-  .gradient-border::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, #0ea5e9, #8b5cf6);
-    border-radius: 12px 12px 0 0;
-  }
-
-  /* Primary glow */
-  .glow-primary {
-    box-shadow: 0 0 12px rgba(14, 165, 233, 0.25), 0 0 4px rgba(14, 165, 233, 0.1);
-  }
-
-  .glow-accent {
-    box-shadow: 0 0 12px rgba(139, 92, 246, 0.25), 0 0 4px rgba(139, 92, 246, 0.1);
-  }
-
   /* Shimmer skeleton */
   .skeleton-shimmer {
     background: linear-gradient(
@@ -102,6 +65,36 @@ html {
   }
 }
 
+/* Focus visible — global */
+:root {
+  --focus-ring: #38bdf8;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Skip to content link */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 0.75rem 1.5rem;
+  background: var(--background);
+  color: var(--focus-ring);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+
+.skip-to-content:focus {
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
@@ -109,7 +102,7 @@ html {
   .animate-reveal {
     opacity: 1;
     transform: translateY(0);
-    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+    transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .animate-reveal.will-animate {
     opacity: 0;
@@ -133,5 +126,32 @@ html {
   }
   .animate-reveal-delay-5 {
     transition-delay: 0.5s;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-reveal,
+  .animate-reveal.will-animate,
+  .animate-reveal.visible {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .skeleton-shimmer {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

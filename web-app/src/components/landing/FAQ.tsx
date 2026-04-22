@@ -40,35 +40,45 @@ export default function FAQ() {
   return (
     <section
       ref={ref as React.RefObject<HTMLElement>}
-      className="py-24 bg-gray-900"
+      className="py-24 bg-surface-1"
     >
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Larger heading, no label — varies from other sections */}
         <div className={`text-center mb-12 animate-reveal ${isVisible ? 'visible' : ''}`}>
-          <p className="text-primary-400 text-sm font-semibold tracking-wider uppercase">FAQ</p>
-          <h2 className="text-3xl md:text-4xl font-bold text-white mt-2">
+          <h2 className="font-display text-4xl md:text-5xl font-bold text-white">
             Common Questions
           </h2>
         </div>
 
-        <div className={`divide-y divide-gray-700/50 animate-reveal animate-reveal-delay-1 ${isVisible ? 'visible' : ''}`}>
+        <div className={`divide-y divide-surface-3 animate-reveal animate-reveal-delay-1 ${isVisible ? 'visible' : ''}`}>
           {faqs.map((faq, i) => (
             <div key={i}>
               <button
+                id={`faq-button-${i}`}
                 onClick={() => setOpenIndex(openIndex === i ? null : i)}
                 className="w-full flex items-center justify-between py-5 text-left"
+                aria-expanded={openIndex === i}
+                aria-controls={`faq-panel-${i}`}
               >
                 <span className="text-sm font-medium text-gray-200">{faq.q}</span>
                 <svg
                   className={`w-5 h-5 text-gray-400 flex-shrink-0 ml-4 transition-transform duration-200 ${openIndex === i ? 'rotate-180' : ''}`}
                   fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}
+                  aria-hidden="true"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                 </svg>
               </button>
               <div
-                className={`overflow-hidden transition-all duration-300 ${openIndex === i ? 'max-h-48 pb-5' : 'max-h-0'}`}
+                id={`faq-panel-${i}`}
+                role="region"
+                aria-labelledby={`faq-button-${i}`}
+                className="grid transition-[grid-template-rows] duration-300 ease-out"
+                style={{ gridTemplateRows: openIndex === i ? '1fr' : '0fr' }}
               >
-                <p className="text-sm text-gray-400 leading-relaxed">{faq.a}</p>
+                <div className="overflow-hidden">
+                  <p className="pb-5 text-sm text-gray-400 leading-relaxed">{faq.a}</p>
+                </div>
               </div>
             </div>
           ))}
