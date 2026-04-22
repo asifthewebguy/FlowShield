@@ -4,6 +4,7 @@ import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
 import { redis } from '@/lib/redis';
+import { classifySessionProject } from '@/lib/project-classifier';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -23,7 +24,7 @@ export async function PATCH(
 
     const { id } = await context.params;
     const body = await request.json();
-    const { endTime, productivityScore, completed } = body;
+    const { endTime, productivityScore, completed, projectId } = body;
 
     // Verify session belongs to user
     const existingSession = await prisma.session.findUnique({
@@ -34,6 +35,21 @@ export async function PATCH(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
+    // Validate projectId: undefined = no change, null = clear, string = set (must be user's project)
+    const projectIdProvided = Object.prototype.hasOwnProperty.call(body, 'projectId');
+    if (projectIdProvided && projectId !== null) {
+      if (typeof projectId !== 'string') {
+        return NextResponse.json({ error: 'Invalid projectId' }, { status: 400 });
+      }
+      const owned = await prisma.project.findFirst({
+        where: { id: projectId, userId },
+        select: { id: true },
+      });
+      if (!owned) {
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      }
+    }
+
     // Calculate actual duration if endTime is provided
     let actualDuration;
     if (endTime) {
@@ -42,15 +58,33 @@ export async function PATCH(
       actualDuration = Math.round((end.getTime() - start.getTime()) / 60000); // minutes
     }
 
-    const updatedSession = await prisma.session.update({
+    let updatedSession = await prisma.session.update({
       where: { id },
       data: {
         ...(endTime && { endTime: new Date(endTime) }),
         ...(actualDuration !== undefined && { actualDuration }),
         ...(productivityScore !== undefined && { productivityScore }),
         ...(completed !== undefined && { completed }),
+        ...(projectIdProvided && { projectId: projectId ?? null }),
       },
     });
+
+    // Auto-classify only when completing a session the user didn't link to a project.
+    // Skip if the user explicitly set projectId in this request (respects user intent).
+    if (completed && !projectIdProvided && !updatedSession.projectId) {
+      try {
+        const guessed = await classifySessionProject(id, userId);
+        if (guessed) {
+          updatedSession = await prisma.session.update({
+            where: { id },
+            data: { projectId: guessed },
+          });
+          logger.info(`Session ${id} auto-classified to project ${guessed}`);
+        }
+      } catch (err) {
+        logger.warn('Project auto-classify failed', err);
+      }
+    }
 
     // Update DailyStats if session is completed
     if (completed && actualDuration) {

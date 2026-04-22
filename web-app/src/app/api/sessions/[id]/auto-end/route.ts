@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
 import { redis } from '@/lib/redis';
 import { sendSessionEndPush } from '@/lib/pushNotify';
+import { classifySessionProject } from '@/lib/project-classifier';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const plannedEnd = new Date(plannedEndMs);
     const actualDuration = session.plannedDuration; // clamp
 
-    const updatedSession = await prisma.session.update({
+    let updatedSession = await prisma.session.update({
       where: { id },
       data: {
         endTime: plannedEnd,
@@ -62,6 +63,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
         completed: true,
       },
     });
+
+    // Auto-classify only when the user didn't link the session to a project up front.
+    if (!updatedSession.projectId) {
+      try {
+        const guessed = await classifySessionProject(id, userId);
+        if (guessed) {
+          updatedSession = await prisma.session.update({
+            where: { id },
+            data: { projectId: guessed },
+          });
+          logger.info(`Session ${id} auto-classified to project ${guessed} on auto-end`);
+        }
+      } catch (err) {
+        logger.warn('Project auto-classify failed on auto-end', err);
+      }
+    }
 
     // Update DailyStats for the day the session ENDED (i.e. plannedEnd), not now.
     const statsDate = new Date(plannedEnd);

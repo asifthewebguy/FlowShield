@@ -18,12 +18,28 @@ interface SessionRow {
   project: { id: string; name: string; color: string } | null;
 }
 
+interface ProjectOption {
+  id: string;
+  name: string;
+  color: string;
+}
+
 const fetcher = async (url: string) => {
   const token = getToken();
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error('Failed to fetch sessions');
+  if (!res.ok) throw new Error('Failed to fetch');
   return res.json();
 };
+
+async function assignSessionProject(sessionId: string, projectId: string | null) {
+  const token = getToken();
+  const res = await fetch(`/api/sessions/${sessionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ projectId }),
+  });
+  if (!res.ok) throw new Error('Failed to assign project');
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
@@ -39,9 +55,22 @@ export default function SessionsHistoryPage() {
     '/api/sessions?limit=50',
     fetcher
   );
+  const { data: projects } = useSWR<ProjectOption[]>('/api/projects', fetcher);
   const [editing, setEditing] = useState<SessionRow | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   const sessions = data?.sessions ?? [];
+  const projectOptions = projects ?? [];
+
+  async function handleAssign(sessionId: string, value: string) {
+    setAssignError(null);
+    try {
+      await assignSessionProject(sessionId, value === '' ? null : value);
+      mutate();
+    } catch {
+      setAssignError('Failed to update project. Try again.');
+    }
+  }
 
   return (
     <div className="p-6 lg:p-8 max-w-3xl mx-auto">
@@ -55,6 +84,12 @@ export default function SessionsHistoryPage() {
       {error && (
         <Card className="mb-4">
           <p className="text-sm text-danger-500">Failed to load sessions. Please refresh.</p>
+        </Card>
+      )}
+
+      {assignError && (
+        <Card className="mb-4">
+          <p className="text-sm text-danger-500">{assignError}</p>
         </Card>
       )}
 
@@ -91,30 +126,39 @@ export default function SessionsHistoryPage() {
                     <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
                       {s.sessionType.toLowerCase()}
                     </span>
-                    {s.project && (
-                      <span
-                        className="text-xs px-2 py-0.5 rounded-full"
-                        style={{ backgroundColor: `${s.project.color}20`, color: s.project.color }}
-                      >
-                        {s.project.name}
-                      </span>
-                    )}
                     {!s.completed && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
                         In progress
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Planned {s.plannedDuration} min
-                    {actualMin !== null && (
-                      <>
-                        {' · '}
-                        Actual <span className={durationDiffers ? 'font-semibold text-amber-600' : ''}>
-                          {actualMin} min
-                        </span>
-                      </>
-                    )}
+                  <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-3 flex-wrap">
+                    <span>
+                      Planned {s.plannedDuration} min
+                      {actualMin !== null && (
+                        <>
+                          {' · '}
+                          Actual <span className={durationDiffers ? 'font-semibold text-amber-600' : ''}>
+                            {actualMin} min
+                          </span>
+                        </>
+                      )}
+                    </span>
+                    <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      <span>Project:</span>
+                      <select
+                        value={s.project?.id ?? ''}
+                        onChange={(e) => handleAssign(s.id, e.target.value)}
+                        className="text-xs bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                      >
+                        <option value="">— None —</option>
+                        {projectOptions.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                 </div>
                 <Button
