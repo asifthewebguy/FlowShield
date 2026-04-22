@@ -39,3 +39,33 @@ export async function PATCH(
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const userId = getUserIdFromToken(request);
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const project = await prisma.project.findFirst({
+      where: { id, userId },
+    });
+    if (!project) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    // Sessions with this projectId get their projectId nulled out by the DB
+    // foreign-key constraint (ON DELETE SET NULL). History is preserved.
+    await prisma.project.delete({ where: { id } });
+    logger.info(`Project deleted: ${id} by user ${userId}`);
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    logger.error('Error deleting project:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}

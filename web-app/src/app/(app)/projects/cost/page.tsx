@@ -13,7 +13,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import { AlertTriangle, Edit2, X, Check } from 'lucide-react';
+import { AlertTriangle, Edit2, Trash2, X, Check } from 'lucide-react';
 import { getToken, removeToken } from '@/lib/auth-token';
 
 interface ProjectCost {
@@ -60,6 +60,15 @@ async function patchProject(
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error('Failed to update project');
+}
+
+async function deleteProject(id: string) {
+  const token = getToken();
+  const res = await fetch(`/api/projects/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to delete project');
 }
 
 export default function ProjectCostPage() {
@@ -169,7 +178,7 @@ export default function ProjectCostPage() {
       ) : (
         <div className="bg-gray-800 rounded-xl overflow-hidden">
           {/* Header */}
-          <div className="grid grid-cols-[1fr_80px_100px_90px_120px_40px] gap-2 px-4 py-3 border-b border-gray-700 text-xs text-gray-400 uppercase tracking-wide">
+          <div className="grid grid-cols-[1fr_80px_100px_90px_120px_72px] gap-2 px-4 py-3 border-b border-gray-700 text-xs text-gray-400 uppercase tracking-wide">
             <div>Project</div>
             <div>Rate</div>
             <div>Hours</div>
@@ -184,7 +193,7 @@ export default function ProjectCostPage() {
             return (
               <div
                 key={p.id}
-                className={`grid grid-cols-[1fr_80px_100px_90px_120px_40px] gap-2 px-4 py-3 border-b border-gray-700/50 items-center text-sm ${
+                className={`grid grid-cols-[1fr_80px_100px_90px_120px_72px] gap-2 px-4 py-3 border-b border-gray-700/50 items-center text-sm ${
                   p.isOverBudget ? 'border-l-2 border-l-red-500' : ''
                 }`}
               >
@@ -303,13 +312,30 @@ export default function ProjectCostPage() {
                     {saveError && <span className="text-red-400 text-xs">{saveError}</span>}
                   </div>
                 ) : (
-                  <button
-                    onClick={() => startEdit(p)}
-                    aria-label="Edit project rates"
-                    className="text-gray-500 hover:text-gray-300 p-0.5"
-                  >
-                    <Edit2 size={14} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => startEdit(p)}
+                      aria-label="Edit project rates"
+                      className="text-gray-500 hover:text-gray-300 p-0.5"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm(`Delete project "${p.name}"? Sessions will be preserved but unlinked.`)) return;
+                        try {
+                          await deleteProject(p.id);
+                          mutate();
+                        } catch {
+                          window.alert('Failed to delete project.');
+                        }
+                      }}
+                      aria-label="Delete project"
+                      className="text-gray-500 hover:text-red-400 p-0.5"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 )}
               </div>
             );
