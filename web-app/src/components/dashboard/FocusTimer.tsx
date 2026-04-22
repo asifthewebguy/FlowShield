@@ -115,6 +115,17 @@ export default function FocusTimer({
   const [breakDurationSecs, setBreakDurationSecs] = useState(0);
   const timerWasRunning = useRef(false);
 
+  // Recovery: if the active session is cleared by the server (session completed
+  // elsewhere, SWR refresh, etc.) while a break phase is still lingering, none
+  // of the four render branches below match and the card collapses to just its
+  // title. Reset break state so the post-session form renders again.
+  useEffect(() => {
+    if (!currentSession && breakPhase !== 'none') {
+      setBreakPhase('none');
+      setBreakTimeRemaining(0);
+    }
+  }, [currentSession, breakPhase]);
+
   // Project Creation State
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
