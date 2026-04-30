@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
+import { UpdateProfileSchema } from '@/lib/schemas';
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,14 +50,21 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { name, timezone, preferences } = body;
+    const body = await request.json().catch(() => ({}));
+    const parsed = UpdateProfileSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0].message },
+        { status: 400 }
+      );
+    }
+    const { name, timezone, preferences } = parsed.data;
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        ...(name && { name }),
-        ...(timezone && { timezone }),
+        ...(name !== undefined && { name }),
+        ...(timezone !== undefined && { timezone }),
         ...(preferences && {
           preferences: {
             update: preferences,

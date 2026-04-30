@@ -63,3 +63,36 @@ export const PushSendSchema = z.object({
   body: z.string().min(1).max(500),
   userId: z.string().uuid(),
 });
+
+const PasswordStrength = z
+  .string()
+  .min(8, 'Password must be at least 8 characters')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+  .regex(/[0-9]/, 'Password must contain at least one number');
+
+export const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: PasswordStrength,
+});
+
+export const DeleteAccountSchema = z.object({
+  password: z.string().min(1, 'Password is required to confirm deletion'),
+});
+
+export const UpdateProfileSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  timezone: z.string().min(1).max(64).optional(),
+  preferences: z
+    .object({
+      workStyle: z.string().max(50).optional(),
+      preferredDuration: z.number().int().min(5).max(240).optional(),
+      primaryDistractions: z.array(z.string().max(100)).max(50).optional(),
+      workEnvironment: z.string().max(50).optional(),
+      breakReminders: z.boolean().optional(),
+      soundEnabled: z.boolean().optional(),
+      darkMode: z.boolean().optional(),
+    })
+    .strict()
+    .optional(),
+});

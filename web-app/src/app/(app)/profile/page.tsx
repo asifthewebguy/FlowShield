@@ -754,6 +754,203 @@ export default function ProfilePage() {
             </Button>
           </div>
         </form>
+
+        <AccountAndPrivacyCard onMessage={setMessage} />
+    </div>
+  );
+}
+
+function AccountAndPrivacyCard({
+  onMessage,
+}: {
+  onMessage: (m: { type: 'success' | 'error'; text: string } | null) => void;
+}) {
+  const router = useRouter();
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+
+  const [delPassword, setDelPassword] = useState('');
+  const [delConfirm, setDelConfirm] = useState(false);
+  const [delSaving, setDelSaving] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    onMessage(null);
+    if (pwNew !== pwConfirm) {
+      onMessage({ type: 'error', text: 'New passwords do not match.' });
+      return;
+    }
+    const token = getToken();
+    if (!token) return;
+    setPwSaving(true);
+    try {
+      const res = await fetch('/api/user/password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ currentPassword: pwCurrent, newPassword: pwNew }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onMessage({ type: 'error', text: data.error || 'Failed to change password.' });
+        return;
+      }
+      onMessage({ type: 'success', text: 'Password updated successfully.' });
+      setPwCurrent('');
+      setPwNew('');
+      setPwConfirm('');
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
+  const handleExport = async () => {
+    onMessage(null);
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch('/api/export', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        onMessage({ type: 'error', text: 'Failed to export your data.' });
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `flowshield-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      onMessage({ type: 'success', text: 'Your data has been downloaded.' });
+    } catch {
+      onMessage({ type: 'error', text: 'Failed to export your data.' });
+    }
+  };
+
+  const handleDelete = async (e: React.FormEvent) => {
+    e.preventDefault();
+    onMessage(null);
+    if (!delConfirm) {
+      onMessage({ type: 'error', text: 'Please confirm you understand this is permanent.' });
+      return;
+    }
+    const token = getToken();
+    if (!token) return;
+    setDelSaving(true);
+    try {
+      const res = await fetch('/api/user/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: delPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        onMessage({ type: 'error', text: data.error || 'Failed to delete account.' });
+        return;
+      }
+      removeToken();
+      router.push('/auth/signup?deleted=true');
+    } finally {
+      setDelSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-8 space-y-6">
+      <Card>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
+          Change Password
+        </h3>
+        <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+          <Input
+            label="Current password"
+            type="password"
+            required
+            value={pwCurrent}
+            onChange={(e) => setPwCurrent(e.target.value)}
+          />
+          <Input
+            label="New password"
+            type="password"
+            required
+            minLength={8}
+            value={pwNew}
+            onChange={(e) => setPwNew(e.target.value)}
+            placeholder="At least 8 characters"
+          />
+          <Input
+            label="Confirm new password"
+            type="password"
+            required
+            minLength={8}
+            value={pwConfirm}
+            onChange={(e) => setPwConfirm(e.target.value)}
+          />
+          <Button type="submit" variant="primary" size="sm" disabled={pwSaving}>
+            {pwSaving ? 'Updating…' : 'Update password'}
+          </Button>
+        </form>
+      </Card>
+
+      <Card>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+          Your data (GDPR)
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Download a copy of all your FlowShield data at any time.
+        </p>
+        <Button type="button" variant="secondary" size="sm" onClick={handleExport}>
+          Download my data
+        </Button>
+      </Card>
+
+      <Card className="border-2 border-red-200 dark:border-red-500/20">
+        <h3 className="text-sm font-semibold text-red-700 dark:text-red-400 mb-2">
+          Danger zone — Delete account
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          This permanently deletes your account, sessions, activity logs, goals,
+          devices, and projects. This cannot be undone.
+        </p>
+        <form onSubmit={handleDelete} className="space-y-4 max-w-md">
+          <Input
+            label="Confirm with your password"
+            type="password"
+            required
+            value={delPassword}
+            onChange={(e) => setDelPassword(e.target.value)}
+          />
+          <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={delConfirm}
+              onChange={(e) => setDelConfirm(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-gray-300 dark:border-white/20 text-red-500 focus:ring-red-500"
+            />
+            <span>I understand this is permanent and cannot be reversed.</span>
+          </label>
+          <Button
+            type="submit"
+            variant="secondary"
+            size="sm"
+            disabled={delSaving || !delConfirm || !delPassword}
+            className="!bg-red-600 hover:!bg-red-700 !text-white !border-red-600"
+          >
+            {delSaving ? 'Deleting…' : 'Delete my account'}
+          </Button>
+        </form>
+      </Card>
     </div>
   );
 }
