@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
-import { redis } from '@/lib/redis';
+import { bustCoachCacheIfPaid } from '@/lib/coach-quota';
 import { classifySessionProject } from '@/lib/project-classifier';
 
 type RouteContext = {
@@ -118,14 +118,11 @@ export async function PATCH(
 
     triggerUserEvent(userId, 'session-update');
 
-    // Bust the AI Coach cache so fresh advice reflects this session
+    // Bust the AI Coach cache for paid tiers so their next visit gets fresh
+    // advice that reflects this session. FREE users are intentionally NOT
+    // busted — their monthly quota is gated by `User.lastCoachCallAt`.
     if (completed) {
-      try {
-        const dateKey = new Date().toISOString().slice(0, 10);
-        await redis.del(`coach:${userId}:${dateKey}`);
-      } catch (err) {
-        logger.warn('Coach cache bust failed after session PATCH', err);
-      }
+      await bustCoachCacheIfPaid(userId);
     }
 
     return NextResponse.json({ session: updatedSession });

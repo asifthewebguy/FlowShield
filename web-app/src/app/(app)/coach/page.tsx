@@ -7,12 +7,20 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
+type Tier = 'FREE' | 'PRO' | 'TEAM';
+
+function formatResetDate(d: Date): string {
+  return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
 export default function CoachPage() {
   const router = useRouter();
   const [advice, setAdvice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [tier, setTier] = useState<Tier | null>(null);
+  const [nextResetAt, setNextResetAt] = useState<Date | null>(null);
   const adviceRef = useRef('');
 
   useEffect(() => {
@@ -44,6 +52,18 @@ export default function CoachPage() {
         return;
       }
 
+      // 429 = FREE tier already used their monthly call. Show next-reset copy.
+      if (res.status === 429) {
+        const data = await res.json().catch(() => ({}));
+        if (data.tier) setTier(data.tier as Tier);
+        if (data.nextResetAt) setNextResetAt(new Date(data.nextResetAt));
+        const reset = data.nextResetAt ? formatResetDate(new Date(data.nextResetAt)) : 'next month';
+        setError(`You've used your AI Coach call for this month. Next refresh on ${reset}.`);
+        setIsLoading(false);
+        setHasLoaded(true);
+        return;
+      }
+
       if (!res.ok || !res.body) {
         setError('Failed to get advice. Please try again.');
         setIsLoading(false);
@@ -55,6 +75,8 @@ export default function CoachPage() {
       // JSON response — cached advice, zero-activity empty state, or probe hit.
       if (contentType.includes('application/json')) {
         const data = await res.json();
+        if (data.tier) setTier(data.tier as Tier);
+        if (data.nextResetAt) setNextResetAt(new Date(data.nextResetAt));
         if (data.error) {
           setError(data.error);
         } else if (typeof data.advice === 'string') {
@@ -119,8 +141,8 @@ export default function CoachPage() {
   // On mount, probe the cache only. If cached or zero-activity, render instantly.
   // Otherwise the user clicks "Generate advice" to burn a Claude call explicitly.
   useEffect(() => {
-    fetchAdvice(true); // eslint-disable-line react-hooks/set-state-in-effect
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAdvice(true);
   }, []);
 
   return (
@@ -173,13 +195,28 @@ export default function CoachPage() {
           )}
         </Card>
 
-        {hasLoaded && advice && (
-          <div className="mt-4 flex justify-end">
-            <Button variant="secondary" size="sm" onClick={() => fetchAdvice(false)}>
-              Refresh Advice
-            </Button>
-          </div>
-        )}
+        {hasLoaded && advice && (() => {
+          const freeUsedUp = tier === 'FREE';
+          const resetCopy = nextResetAt ? formatResetDate(nextResetAt) : null;
+          return (
+            <div className="mt-4 flex items-center justify-end gap-3">
+              {freeUsedUp && resetCopy && (
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Free plan: next refresh on {resetCopy}
+                </span>
+              )}
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={freeUsedUp}
+                onClick={() => fetchAdvice(false)}
+                title={freeUsedUp ? 'You get one call per calendar month on the Free plan.' : undefined}
+              >
+                Refresh Advice
+              </Button>
+            </div>
+          );
+        })()}
 
         {/* Teams Section */}
         <TeamsSection />

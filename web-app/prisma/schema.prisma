@@ -28,6 +28,7 @@ model User {
   verificationTokenExpires DateTime?
   role              UserRole         @default(USER)
   subscriptionTier  SubscriptionTier @default(FREE)
+  lastCoachCallAt   DateTime?
   subscriptions     Subscription[]
   categoryRules     CategoryRule[]
 

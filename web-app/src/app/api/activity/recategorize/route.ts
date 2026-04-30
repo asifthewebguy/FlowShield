@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { normalizeCategory, CATEGORIES } from '@/app/api/categories/route';
+import { bustCoachCacheIfPaid } from '@/lib/coach-quota';
 
 /**
  * POST /api/activity/recategorize
@@ -59,6 +60,9 @@ export async function POST(request: NextRequest) {
         data: { category: newCategory },
       });
 
+      // Recategorization changes coach context; bust paid-tier cache.
+      await bustCoachCacheIfPaid(userId);
+
       return NextResponse.json({
         message: 'Category corrected',
         updatedCount: updated.count + 1,
@@ -85,6 +89,8 @@ export async function POST(request: NextRequest) {
         },
         data: { category: newCategory },
       });
+
+      await bustCoachCacheIfPaid(userId);
 
       return NextResponse.json({
         message: 'Category corrected for application',
@@ -134,6 +140,8 @@ export async function POST(request: NextRequest) {
           updatedCount++;
         }
       }
+
+      await bustCoachCacheIfPaid(userId);
 
       return NextResponse.json({
         message: 'Bulk recategorization complete',

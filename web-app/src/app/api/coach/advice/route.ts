@@ -5,21 +5,12 @@ import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken, getJwtSecret } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { redis } from '@/lib/redis';
-
-const ADVICE_CACHE_TTL_DAILY_SECONDS = 24 * 60 * 60;        // 24h — paid tiers
-const ADVICE_CACHE_TTL_MONTHLY_SECONDS = 31 * 24 * 60 * 60; // 31d — FREE tier (1 gen/month)
-
-function coachCacheKey(userId: string, tier: string): string {
-  const iso = new Date().toISOString();
-  // FREE users key by calendar month (YYYY-MM) so the entry only rolls over
-  // on the 1st. Paid tiers key by day (YYYY-MM-DD) for the existing 24h cache.
-  const dateKey = tier === 'FREE' ? iso.slice(0, 7) : iso.slice(0, 10);
-  return `coach:${userId}:${dateKey}`;
-}
-
-function cacheTtlFor(tier: string): number {
-  return tier === 'FREE' ? ADVICE_CACHE_TTL_MONTHLY_SECONDS : ADVICE_CACHE_TTL_DAILY_SECONDS;
-}
+import {
+  coachCacheKey,
+  coachCacheTtl,
+  freeTierCanCall,
+  nextFreeTierResetAt,
+} from '@/lib/coach-quota';
 
 // EventSource cannot set Authorization headers, so the client can pass the JWT
 // as ?token=... on this SSE endpoint. Fall back to that when the header is absent.
@@ -36,8 +27,6 @@ function getUserIdFromRequestOrQuery(request: NextRequest): string | null {
   }
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
-
 async function readCache(userId: string, tier: string): Promise<string | null> {
   try {
     const cached = await redis.get<string>(coachCacheKey(userId, tier));
@@ -50,7 +39,7 @@ async function readCache(userId: string, tier: string): Promise<string | null> {
 
 async function writeCache(userId: string, tier: string, text: string): Promise<void> {
   try {
-    await redis.setex(coachCacheKey(userId, tier), cacheTtlFor(tier), text);
+    await redis.setex(coachCacheKey(userId, tier), coachCacheTtl(tier), text);
   } catch (err) {
     logger.warn('Coach cache write failed', err);
   }
@@ -60,15 +49,26 @@ async function writeCache(userId: string, tier: string, text: string): Promise<v
  * GET /api/coach/advice
  *   - `?cacheOnly=1` → fast JSON probe. Returns cached advice (200) or 204 on miss.
  *   - Zero activity in last 7 days → JSON empty-state message, no Gemini call.
- *   - Cache hit → JSON cached advice.
- *   - Otherwise → SSE stream from Gemini, cached to Redis on completion.
+ *   - Cache hit → JSON cached advice (does NOT consume FREE quota).
+ *   - FREE tier already used this month + cache miss → 429 with `nextResetAt`.
+ *   - Otherwise → SSE stream from Gemini, cached + lastCoachCallAt stamped on completion.
  *
- * Rate limiting via cache granularity:
- *   - FREE tier: cached for 31 days under month key (1 generation per calendar month)
- *   - PRO / TEAM: cached for 24h under day key (existing behavior)
+ * Quota for FREE tier is durable: enforced via `User.lastCoachCallAt` in the
+ * database, so a Redis outage cannot grant unlimited calls. Cache is purely a
+ * perf layer.
  */
 export async function GET(request: NextRequest) {
   try {
+    // Fail fast and visibly when the API key isn't configured rather than
+    // surfacing the failure as an error inside an opened SSE stream.
+    if (!process.env.GOOGLE_AI_API_KEY) {
+      logger.error('Coach disabled: GOOGLE_AI_API_KEY is not set');
+      return new Response(
+        JSON.stringify({ error: 'AI Coach is not configured' }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const userId = getUserIdFromRequestOrQuery(request);
 
     if (!userId) {
@@ -81,10 +81,14 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const cacheOnly = url.searchParams.get('cacheOnly') === '1';
 
-    // Fetch user first — tier determines the cache key (monthly for FREE, daily for paid).
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { name: true, subscriptionTier: true, preferences: true },
+      select: {
+        name: true,
+        subscriptionTier: true,
+        lastCoachCallAt: true,
+        preferences: true,
+      },
     });
 
     if (!user) {
@@ -95,15 +99,40 @@ export async function GET(request: NextRequest) {
     }
 
     const tier = user.subscriptionTier ?? 'FREE';
+    const isFree = tier === 'FREE';
+    const nextResetAt = nextFreeTierResetAt();
 
-    // Serve from cache when available (tier-aware key + TTL)
+    // Cache hit — serve immediately. For FREE this does NOT consume their
+    // monthly call (quota is already recorded by the original generation
+    // that populated the cache).
     const cached = await readCache(userId, tier);
     if (cached) {
-      return new Response(JSON.stringify({ advice: cached, cached: true, tier }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          advice: cached,
+          cached: true,
+          tier,
+          ...(isFree && { nextResetAt: nextResetAt.toISOString() }),
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
     }
+
+    // Durable FREE-tier quota check (DB column). If they've already called this
+    // calendar month and the cache missed (e.g. Redis flush, cache eviction, or
+    // outage), refuse the call cleanly with the next reset time.
+    if (isFree && !freeTierCanCall(user.lastCoachCallAt)) {
+      return new Response(
+        JSON.stringify({
+          error: 'Monthly limit reached',
+          code: 'FREE_TIER_LIMIT',
+          tier,
+          nextResetAt: nextResetAt.toISOString(),
+        }),
+        { status: 429, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (cacheOnly) {
       return new Response(null, { status: 204 });
     }
@@ -134,13 +163,19 @@ export async function GET(request: NextRequest) {
       .reduce((sum, s) => sum + (s.actualDuration || 0), 0);
     const completedSessions = sessions.filter(s => s.completed).length;
 
-    // Zero-activity short-circuit — no Gemini call, no cache write
+    // Zero-activity short-circuit — no Gemini call, no cache write, no quota consumed
     if (totalFocusMinutes === 0 && completedSessions === 0) {
       const advice = 'Start a focus session to unlock personalized advice. Flow gets smarter with every session you complete.';
-      return new Response(JSON.stringify({ advice, cached: false, empty: true, tier }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          advice,
+          cached: false,
+          empty: true,
+          tier,
+          ...(isFree && { nextResetAt: nextResetAt.toISOString() }),
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     // Summarize activity by category
@@ -187,12 +222,17 @@ Keep your response to 150–250 words. Do not include a greeting like "Hi [name]
 
 Based on this data, give ${userName} 2–3 specific, actionable coaching tips to improve their productivity this week. Reference their actual numbers.`;
 
-    // Stream Gemini's response as SSE + accumulate for cache write
+    // Stream Gemini's response as SSE + accumulate for cache write.
+    // We persist to cache + stamp lastCoachCallAt ONLY on a clean stream
+    // completion, never on a mid-stream error — partial advice would burn
+    // the FREE user's monthly call without giving them usable text.
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
     const encoder = new TextEncoder();
     let fullText = '';
 
     const stream = new ReadableStream({
       async start(controller) {
+        let streamErrored = false;
         try {
           const model = genAI.getGenerativeModel({
             model: 'gemini-2.5-flash-lite',
@@ -213,19 +253,30 @@ Based on this data, give ${userName} 2–3 specific, actionable coaching tips to
               controller.enqueue(encoder.encode(`data: ${data}\n\n`));
             }
           }
-
-          if (fullText.length > 0) {
-            await writeCache(userId, tier, fullText);
-          }
-
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
         } catch (err) {
+          streamErrored = true;
           logger.error('Coach stream error:', err);
           const errData = JSON.stringify({ error: 'Stream failed' });
           controller.enqueue(encoder.encode(`data: ${errData}\n\n`));
           controller.close();
+          return;
         }
+
+        // Clean completion only: persist cache + stamp quota.
+        if (!streamErrored && fullText.length > 0) {
+          await writeCache(userId, tier, fullText);
+          try {
+            await prisma.user.update({
+              where: { id: userId },
+              data: { lastCoachCallAt: new Date() },
+            });
+          } catch (err) {
+            logger.warn('Failed to record coach call timestamp', err);
+          }
+        }
+
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
       },
     });
 
