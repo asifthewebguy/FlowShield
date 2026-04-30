@@ -1,4 +1,5 @@
 import Pusher from 'pusher';
+import { logger } from './logger';
 
 export const pusher = new Pusher({
   appId:   process.env.PUSHER_APP_ID!,
@@ -9,13 +10,16 @@ export const pusher = new Pusher({
 });
 
 /**
- * Trigger a per-user channel event. Errors are swallowed so a Pusher
- * outage never breaks the main API response.
+ * Trigger a per-user channel event. Errors are logged (so a misconfigured
+ * key or outage isn't invisible) but never thrown — keeping the request
+ * path resilient when realtime is degraded.
  */
 export function triggerUserEvent(
   userId: string,
   event: string,
   data: object = {}
 ): void {
-  pusher.trigger(`user-${userId}`, event, data).catch(() => {});
+  pusher.trigger(`user-${userId}`, event, data).catch((err) => {
+    logger.warn('Pusher trigger failed', { userId, event, err });
+  });
 }

@@ -12,6 +12,24 @@ interface HeatmapWidgetProps {
     year?: number;
 }
 
+/**
+ * Longest run of consecutive days with focus minutes > 0. Days are walked
+ * in calendar order (the `days` array is already chronological).
+ */
+function computeMaxStreak(days: HeatmapData[]): number {
+    let best = 0;
+    let current = 0;
+    for (const day of days) {
+        if (day.count > 0) {
+            current++;
+            if (current > best) best = current;
+        } else {
+            current = 0;
+        }
+    }
+    return best;
+}
+
 export default function HeatmapWidget({ data, year = new Date().getFullYear() }: HeatmapWidgetProps) {
     const [hoveredDay, setHoveredDay] = useState<{ date: string; count: number } | null>(null);
 
@@ -46,7 +64,7 @@ export default function HeatmapWidget({ data, year = new Date().getFullYear() }:
     // Calculate stats
     const totalMinutes = data.reduce((sum, item) => sum + item.count, 0);
     const activeDays = data.filter(item => item.count > 0).length;
-    const maxStreak = 0; // Placeholder, would need logic to calculate from sorted dates
+    const maxStreak = computeMaxStreak(days);
 
     return (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
@@ -57,6 +75,7 @@ export default function HeatmapWidget({ data, year = new Date().getFullYear() }:
                     </h3>
                     <p className="text-gray-500 dark:text-gray-400 text-sm">
                         {totalMinutes} minutes focused across {activeDays} active days
+                        {maxStreak > 0 && ` · ${maxStreak}-day streak`}
                     </p>
                 </div>
 
