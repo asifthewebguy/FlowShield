@@ -150,18 +150,17 @@ export default function FocusTimer({
 
   useEffect(() => {
     if (currentSession && !currentSession.completed) {
-      if (currentSession.isPaused) {
-        if (currentSession.pausedAt) {
-          const elapsedMs = new Date(currentSession.pausedAt).getTime() - new Date(currentSession.startTime).getTime();
-          const elapsedSeconds = Math.floor(elapsedMs / 1000);
-          const remaining = (currentSession.plannedDuration * 60) - elapsedSeconds;
-          setTimeRemaining(Math.max(0, remaining));
-        }
-      } else {
-        const plannedEnd = new Date(currentSession.startTime).getTime() + (currentSession.plannedDuration * 60 * 1000);
-        const remaining = Math.max(0, Math.floor((plannedEnd - Date.now()) / 1000));
-        setTimeRemaining(remaining);
-      }
+      // Always anchor remaining time to the server-issued startTime (not to
+      // wall-clock countdown ticks). When paused, freeze elapsed at the
+      // server's pausedAt; while running, recompute from now.
+      const startMs = new Date(currentSession.startTime).getTime();
+      const plannedEndMs = startMs + currentSession.plannedDuration * 60 * 1000;
+      const referenceMs =
+        currentSession.isPaused && currentSession.pausedAt
+          ? new Date(currentSession.pausedAt).getTime()
+          : Date.now();
+      const remaining = Math.max(0, Math.floor((plannedEndMs - referenceMs) / 1000));
+      setTimeRemaining(remaining);
     } else {
       setTimeRemaining(0);
     }
@@ -443,6 +442,7 @@ export default function FocusTimer({
 
     const action = currentSession.isPaused ? 'resume' : 'pause';
     const activeState = !currentSession.isPaused;
+    const previousSession = currentSession;
 
     // OPTIMISTIC UPDATE
     setCurrentSession((prev: any) => ({
@@ -454,7 +454,7 @@ export default function FocusTimer({
     try {
       setIsProcessing(true);
       const token = getToken();
-      await fetch(`/api/sessions/${currentSession.id}/toggle-pause`, {
+      const res = await fetch(`/api/sessions/${currentSession.id}/toggle-pause`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -462,10 +462,21 @@ export default function FocusTimer({
         },
         body: JSON.stringify({ action })
       });
+      // fetch() does not throw on 4xx/5xx — check response and revert on
+      // server failure so the UI doesn't silently desync from server state.
+      if (!res.ok) {
+        throw new Error(`Toggle pause failed (${res.status})`);
+      }
+      const data = await res.json().catch(() => null);
+      if (data?.session) {
+        // Sync to server-issued state (e.g. resumed startTime) so subsequent
+        // remaining-time math uses authoritative values.
+        setCurrentSession(data.session);
+      }
       onSessionUpdate?.();
     } catch (error) {
       console.error('Failed to toggle pause:', error);
-      setCurrentSession(propSession); // Revert
+      setCurrentSession(previousSession); // Revert to pre-click state
     } finally {
       setIsProcessing(false);
     }

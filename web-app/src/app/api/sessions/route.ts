@@ -23,6 +23,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Race check: refuse to create a second active session for the same user.
+    // A session is "active" when it hasn't been marked completed and has no
+    // endTime yet. Returning 409 with the existing session id lets the client
+    // recover gracefully (jump to the running session) without leaving stray
+    // half-completed rows that would later confuse analytics.
+    const existing = await prisma.session.findFirst({
+      where: { userId, completed: false, endTime: null },
+      select: { id: true, startTime: true },
+      orderBy: { startTime: 'desc' },
+    });
+    if (existing) {
+      return NextResponse.json(
+        {
+          error: 'You already have an active session.',
+          code: 'SESSION_ALREADY_ACTIVE',
+          activeSessionId: existing.id,
+        },
+        { status: 409 }
+      );
+    }
+
     const session = await prisma.session.create({
       data: {
         userId,

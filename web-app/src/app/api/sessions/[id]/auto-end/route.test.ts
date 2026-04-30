@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   bustCoachCacheIfPaid: vi.fn(async () => undefined),
   triggerUserEvent: vi.fn(),
   sendSessionEndPush: vi.fn(async () => 1),
+  autoClassifyIfNeeded: vi.fn(async (_id: string, _userId: string, session: any) => session),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -37,6 +38,10 @@ vi.mock('@/lib/coach-quota', () => ({
 
 vi.mock('@/lib/pushNotify', () => ({
   sendSessionEndPush: mocks.sendSessionEndPush,
+}));
+
+vi.mock('@/lib/auto-classify-helper', () => ({
+  autoClassifyIfNeeded: mocks.autoClassifyIfNeeded,
 }));
 
 const { sessionFindUnique, sessionUpdate, triggerUserEvent, bustCoachCacheIfPaid, sendSessionEndPush } = mocks;
