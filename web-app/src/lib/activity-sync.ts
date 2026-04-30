@@ -17,20 +17,43 @@ interface CategoryRuleLike {
   category: string;
 }
 
+interface ActivityFields {
+  applicationName: string;
+  processName?: string | null;
+  windowTitle?: string | null;
+  url?: string | null;
+}
+
+function fieldValue(activity: ActivityFields, field: string): string | null {
+  switch (field) {
+    case 'applicationName': return activity.applicationName ?? null;
+    case 'processName':     return activity.processName ?? null;
+    case 'windowTitle':     return activity.windowTitle ?? null;
+    case 'url':             return activity.url ?? null;
+    default:                return null;
+  }
+}
+
 /**
  * Resolves the category for a synced activity.
  *
  * - If the client already sent a specific category, trust it (after normalization).
- * - If the client sent a generic category (Browsing/Unknown), try to match a
- *   server-side CategoryRule by applicationName keyword.
+ * - If the client sent a generic category (Browsing/Unknown), evaluate every
+ *   server-side CategoryRule in priority order across all match fields
+ *   (applicationName, processName, windowTitle, url). The first hit wins.
  * - Falls back to the client-sent category if no rule matches.
  *
- * @param applicationName - e.g. "messenger.com" or "chrome.exe"
- * @param clientCategory  - category sent by the client
- * @param rules           - pre-loaded CategoryRules (sorted by priority desc, isGlobal asc)
+ * The previous implementation only consulted `applicationName` rules even
+ * when a user had configured a `windowTitle` or `url` rule — those rules
+ * silently did nothing at sync time. This fix evaluates all configured
+ * fields so user overrides actually apply.
+ *
+ * @param fields  - activity metadata (applicationName, processName, windowTitle, url)
+ * @param clientCategory - category sent by the client
+ * @param rules - pre-loaded CategoryRules (sorted by priority desc, isGlobal asc)
  */
 export function resolveCategory(
-  applicationName: string,
+  fields: ActivityFields | string,
   clientCategory: string,
   rules: CategoryRuleLike[]
 ): string {
@@ -38,10 +61,17 @@ export function resolveCategory(
     return normalizeCategory(clientCategory);
   }
 
-  const lowerName = applicationName.toLowerCase();
-  const matched = rules.find(
-    (r) => r.matchField === 'applicationName' && lowerName.includes(r.keyword)
-  );
+  // Backwards-compat: callers that pass a bare applicationName string get
+  // wrapped automatically so older sync paths keep working.
+  const activity: ActivityFields =
+    typeof fields === 'string' ? { applicationName: fields } : fields;
 
-  return matched ? matched.category : normalizeCategory(clientCategory);
+  for (const rule of rules) {
+    const value = fieldValue(activity, rule.matchField);
+    if (value && value.toLowerCase().includes(rule.keyword.toLowerCase())) {
+      return normalizeCategory(rule.category);
+    }
+  }
+
+  return normalizeCategory(clientCategory);
 }

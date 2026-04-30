@@ -12,8 +12,9 @@ import { getSettings } from '@/lib/settings';
  * Secured with CRON_SECRET header.
  */
 export async function GET(request: NextRequest) {
-  // Validate the cron secret
-  const secret = request.headers.get('x-cron-secret') ?? request.nextUrl.searchParams.get('secret');
+  // Validate the cron secret. Header-only — query string would leak the
+  // secret into server access logs and CDN logs.
+  const secret = request.headers.get('x-cron-secret');
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -166,5 +167,19 @@ export async function GET(request: NextRequest) {
   }
 
   logger.info(`Weekly digest complete: ${sent} sent, ${failed} failed`);
+
+  // Surface a hard failure when the digest tried to send to >0 users and
+  // every send failed. External cron schedulers can fail-alert on 5xx, so
+  // this turns "silently sent zero emails" into a paged signal. A partial
+  // failure (sent > 0) still returns 200 so we don't retry-storm the whole
+  // batch on one bad address.
+  if (activeUsers.length > 0 && sent === 0 && failed > 0) {
+    logger.error(`Weekly digest sent ZERO emails to ${failed} users — check Resend/email config`);
+    return NextResponse.json(
+      { sent, failed, total: activeUsers.length, error: 'All digest sends failed' },
+      { status: 500 }
+    );
+  }
+
   return NextResponse.json({ sent, failed, total: activeUsers.length });
 }
