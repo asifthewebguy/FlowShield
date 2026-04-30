@@ -31,5 +31,14 @@ public interface IApiClient
     Task<bool> RegisterDeviceAsync();
     void Logout();
 
+    /// <summary>
+    /// API error code from the most recent failed <see cref="LoginAsync"/>.
+    /// E.g. "EMAIL_NOT_VERIFIED". Null on success.
+    /// </summary>
+    string? LastLoginErrorCode { get; }
+
+    /// <summary>Human-readable message from the most recent failed login.</summary>
+    string? LastLoginErrorMessage { get; }
+
     event EventHandler? SessionExpired;
 }

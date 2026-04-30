@@ -12,6 +12,19 @@ export interface User {
   name: string | null;
 }
 
+/**
+ * Auth-flow error that preserves the API's error `code` (e.g. EMAIL_NOT_VERIFIED)
+ * so screens can show specific copy / CTAs without parsing the message string.
+ */
+export class AuthError extends Error {
+  code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = 'AuthError';
+    this.code = code;
+  }
+}
+
 export interface Session {
   id: string;
   startTime: string;
@@ -95,7 +108,9 @@ export const api = {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Login failed');
+      // Preserve API error code (e.g. EMAIL_NOT_VERIFIED) so callers can
+      // surface a specific CTA like "Resend verification email".
+      throw new AuthError(data.error || 'Login failed', data.code);
     }
     const data = await res.json();
     await setToken(data.token);
