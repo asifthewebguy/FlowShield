@@ -2,6 +2,7 @@
 //! same code can be unit-tested without spinning up a webview.
 
 mod api;
+mod blocking;
 mod commands;
 mod error;
 mod store;
@@ -144,6 +145,8 @@ pub fn run() {
             commands::sessions::session_toggle_pause,
             commands::projects::projects_list,
             commands::projects::projects_create,
+            commands::blocking::blocking_apply,
+            commands::blocking::blocking_clear,
         ])
         .run(tauri::generate_context!())
         .expect("error while running FlowShield desktop");

@@ -96,6 +96,34 @@ npm run tauri icon path/to/source.png
 
 Real icons are needed before any signed release.
 
+## Hosts-file blocking (Phase 6)
+
+Deep-work mode maps blocked domains to `127.0.0.1` in the OS hosts
+file. Writing the hosts file requires admin/root, so the desktop app
+needs to be launched with elevated privileges for the
+`blocking_apply` / `blocking_clear` commands to succeed:
+
+```bash
+# Linux / macOS — dev:
+sudo -E WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri:dev
+
+# Windows — right-click → "Run as administrator", or via an elevated
+# terminal:  powershell -Command "Start-Process npm 'run tauri:dev' -Verb RunAs"
+```
+
+If launched without elevation the commands return a `Permission
+denied` AppError that the frontend surfaces as a toast — the rest of
+the app keeps working. Phase 6.5 will add a `pkexec`/UAC-based
+helper so users don't have to re-launch with sudo.
+
+A one-time backup of the user's pristine hosts file is saved to
+`<hosts>.flowshield-backup` before the very first edit and never
+overwritten — you can restore it manually at any time:
+
+```bash
+sudo cp /etc/hosts.flowshield-backup /etc/hosts
+```
+
 ## Build
 
 ```bash

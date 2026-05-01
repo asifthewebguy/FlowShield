@@ -3,6 +3,7 @@
 //! modules makes the per-feature surface obvious.
 
 pub mod auth;
+pub mod blocking;
 pub mod ping;
 pub mod projects;
 pub mod sessions;
