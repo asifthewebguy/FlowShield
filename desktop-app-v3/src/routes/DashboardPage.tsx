@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import {
   isPermissionGranted,
   requestPermission,
@@ -7,6 +8,7 @@ import {
 import { useAuthStore } from '../lib/auth';
 import { useSessionStore } from '../lib/sessions';
 import { useProjectsStore, type Project } from '../lib/projects';
+import { usePrefsStore } from '../lib/preferences';
 import { Button } from '../components/Button';
 import { Timer } from '../components/Timer';
 
@@ -90,6 +92,11 @@ export function DashboardPage() {
   useEffect(() => {
     void projects.refresh();
   }, [projects.refresh]);
+
+  const prefs = usePrefsStore();
+  useEffect(() => {
+    void prefs.refresh();
+  }, [prefs.refresh]);
 
   // Detect the active → null transition (auto-end OR manual End) and fire
   // notification + start cooldown. Tracks previous session id via ref so we
@@ -179,6 +186,12 @@ export function DashboardPage() {
               onStart={() => void start(duration, type, selectedProjectId)}
             />
           )}
+
+          <DeepWorkCard
+            distractions={prefs.current?.primaryDistractions ?? []}
+            loading={prefs.loading}
+            error={prefs.error}
+          />
         </div>
       </main>
     </div>
@@ -385,6 +398,149 @@ function SessionPicker({
       >
         {inCooldown ? `Cool-down · ${cdLabel}` : `Start ${duration}-minute session`}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Deep-work toggle card. Shows the user's primaryDistractions (configured
+ * on the web at flowshield.app/settings) and exposes Apply / Stop buttons
+ * that invoke the blocking_apply / blocking_clear Tauri commands. Each
+ * action triggers an OS-native elevation prompt (polkit / Keychain / UAC).
+ *
+ * Phase 6.7 keeps `blocking` UI-only: there's no auto-apply on session
+ * start or auto-clear on session end yet. That lifecycle wiring lands in
+ * 6.8 once we settle on whether Apply should fire silently or always
+ * prompt for elevation.
+ */
+function DeepWorkCard({
+  distractions,
+  loading,
+  error,
+}: {
+  distractions: string[];
+  loading: boolean;
+  error: string | null;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [active, setActive] = useState(false);
+  const [opError, setOpError] = useState<string | null>(null);
+
+  const apply = async () => {
+    setBusy(true);
+    setOpError(null);
+    try {
+      await invoke('blocking_apply', { domains: distractions });
+      setActive(true);
+    } catch (err) {
+      setOpError(
+        err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+            ? err
+            : 'Failed to apply blocks',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clear = async () => {
+    setBusy(true);
+    setOpError(null);
+    try {
+      await invoke('blocking_clear');
+      setActive(false);
+    } catch (err) {
+      setOpError(
+        err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+            ? err
+            : 'Failed to clear blocks',
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading && distractions.length === 0) {
+    return (
+      <div className="rounded-lg border border-surface-3 bg-surface-1 p-4">
+        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+          Deep work mode
+        </div>
+        <div className="text-sm text-gray-500 dark:text-gray-400">Loading distractions…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-500/10 dark:border-red-500/20 p-4">
+        <div className="text-xs uppercase tracking-wide text-red-700 dark:text-red-300 mb-1">
+          Deep work mode
+        </div>
+        <div className="text-sm text-red-700 dark:text-red-300">{error}</div>
+      </div>
+    );
+  }
+
+  if (distractions.length === 0) {
+    return (
+      <div className="rounded-lg border border-surface-3 bg-surface-1 p-4">
+        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+          Deep work mode
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          No distraction sites configured. Add some at{' '}
+          <span className="font-mono">flowshield.app/settings</span>.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-surface-3 bg-surface-1 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          Deep work mode
+        </div>
+        {active && (
+          <span className="text-xs text-emerald-600 dark:text-emerald-400">● blocking</span>
+        )}
+      </div>
+      <p className="text-sm text-gray-700 dark:text-gray-300">
+        Block {distractions.length} site{distractions.length === 1 ? '' : 's'} via the OS hosts
+        file. Toggling will prompt for your password.
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {distractions.slice(0, 6).map((d) => (
+          <span
+            key={d}
+            className="text-xs font-mono px-2 py-0.5 rounded bg-surface-2 text-gray-700 dark:text-gray-300"
+          >
+            {d}
+          </span>
+        ))}
+        {distractions.length > 6 && (
+          <span className="text-xs text-gray-500 dark:text-gray-400 self-center">
+            +{distractions.length - 6} more
+          </span>
+        )}
+      </div>
+      {opError && (
+        <div className="text-xs text-red-600 dark:text-red-400">{opError}</div>
+      )}
+      {active ? (
+        <Button variant="secondary" size="md" loading={busy} onClick={() => void clear()}>
+          Stop blocking
+        </Button>
+      ) : (
+        <Button variant="primary" size="md" loading={busy} onClick={() => void apply()}>
+          Block now
+        </Button>
+      )}
     </div>
   );
 }
