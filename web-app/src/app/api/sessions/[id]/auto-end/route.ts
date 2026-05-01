@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
-import { redis } from '@/lib/redis';
+import { bustCoachCacheIfPaid } from '@/lib/coach-quota';
 import { sendSessionEndPush } from '@/lib/pushNotify';
 import { classifySessionProject } from '@/lib/project-classifier';
 
@@ -100,13 +100,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     triggerUserEvent(userId, 'session-update');
 
-    // Bust coach cache so next /coach visit reflects the new completion
-    try {
-      const dateKey = new Date().toISOString().slice(0, 10);
-      await redis.del(`coach:${userId}:${dateKey}`);
-    } catch (err) {
-      logger.warn('Coach cache bust failed after auto-end', err);
-    }
+    // Bust coach cache for paid tiers; FREE quota is durable via DB column.
+    await bustCoachCacheIfPaid(userId);
 
     // Fire a push notification so a closed tab still gets notified
     sendSessionEndPush(userId, id, session.plannedDuration).catch((err) => {

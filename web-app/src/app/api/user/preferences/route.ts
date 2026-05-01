@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { UpdatePreferencesSchema } from '@/lib/schemas';
+import { bustCoachCacheIfPaid } from '@/lib/coach-quota';
 
 export async function GET(request: NextRequest) {
   try {
@@ -61,6 +62,10 @@ export async function PATCH(request: NextRequest) {
       update: updates,
       create: { userId, ...updates },
     });
+
+    // Preference changes (e.g. preferredDuration) feed into coach prompts;
+    // bust paid-tier cache so next visit reflects the new preferences.
+    await bustCoachCacheIfPaid(userId);
 
     return NextResponse.json({
       message: 'Preferences updated successfully',

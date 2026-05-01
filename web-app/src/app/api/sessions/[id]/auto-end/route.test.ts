@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   sessionFindUnique: vi.fn(),
   sessionUpdate: vi.fn(),
   dailyStatsUpsert: vi.fn(async () => ({})),
-  redisDel: vi.fn(async () => 1),
+  bustCoachCacheIfPaid: vi.fn(async () => undefined),
   triggerUserEvent: vi.fn(),
   sendSessionEndPush: vi.fn(async () => 1),
 }));
@@ -31,15 +31,15 @@ vi.mock('@/lib/pusher', () => ({
   triggerUserEvent: mocks.triggerUserEvent,
 }));
 
-vi.mock('@/lib/redis', () => ({
-  redis: { del: mocks.redisDel },
+vi.mock('@/lib/coach-quota', () => ({
+  bustCoachCacheIfPaid: mocks.bustCoachCacheIfPaid,
 }));
 
 vi.mock('@/lib/pushNotify', () => ({
   sendSessionEndPush: mocks.sendSessionEndPush,
 }));
 
-const { sessionFindUnique, sessionUpdate, triggerUserEvent, redisDel, sendSessionEndPush } = mocks;
+const { sessionFindUnique, sessionUpdate, triggerUserEvent, bustCoachCacheIfPaid, sendSessionEndPush } = mocks;
 
 import { POST } from './route';
 
@@ -113,7 +113,7 @@ describe('POST /api/sessions/[id]/auto-end', () => {
       })
     );
     expect(triggerUserEvent).toHaveBeenCalledWith('user-1', 'session-update');
-    expect(redisDel).toHaveBeenCalled();
+    expect(bustCoachCacheIfPaid).toHaveBeenCalledWith('user-1');
     expect(sendSessionEndPush).toHaveBeenCalledWith('user-1', 's-3', 25);
   });
 
