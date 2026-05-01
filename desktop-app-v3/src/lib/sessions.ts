@@ -24,7 +24,11 @@ interface SessionState {
   /** Refresh active session from the server (idempotent). */
   refresh: () => Promise<void>;
   /** Start a new session. Throws on failure (e.g. SESSION_ALREADY_ACTIVE). */
-  start: (plannedDuration: number, sessionType?: Session['sessionType']) => Promise<void>;
+  start: (
+    plannedDuration: number,
+    sessionType?: Session['sessionType'],
+    projectId?: string | null,
+  ) => Promise<void>;
   /** Mark current session completed. */
   end: (productivityScore?: number) => Promise<void>;
   /** Pause or resume the current session. */
@@ -55,12 +59,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  start: async (plannedDuration, sessionType = 'WORK') => {
+  start: async (plannedDuration, sessionType = 'WORK', projectId = null) => {
     set({ loading: true, error: null });
     try {
       const session = await invoke<Session>('session_start', {
         plannedDuration,
         sessionType,
+        projectId: projectId || null,
       });
       set({ current: session, loading: false });
     } catch (err) {

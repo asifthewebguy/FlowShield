@@ -59,15 +59,17 @@ pub async fn start_session(
     token: &str,
     planned_duration: i32,
     session_type: &str,
+    project_id: Option<&str>,
 ) -> AppResult<Session> {
     let url = format!("{}/api/sessions", super::api_base_url());
-    let res = auth(http.post(&url), token)
-        .json(&serde_json::json!({
-            "plannedDuration": planned_duration,
-            "sessionType": session_type,
-        }))
-        .send()
-        .await?;
+    let mut body = serde_json::json!({
+        "plannedDuration": planned_duration,
+        "sessionType": session_type,
+    });
+    if let Some(pid) = project_id {
+        body["projectId"] = serde_json::Value::String(pid.to_string());
+    }
+    let res = auth(http.post(&url), token).json(&body).send().await?;
 
     let status = res.status();
     if status.is_success() {
@@ -190,7 +192,7 @@ pub async fn toggle_pause(
 /// Current UTC time as RFC 3339 (`YYYY-MM-DDTHH:MM:SS.mmmZ`). Inlined so we
 /// avoid pulling chrono just for this. Algorithm: Howard Hinnant's
 /// civil_from_days inverse — battle-tested and obvious enough to verify.
-fn now_iso() -> String {
+pub fn now_iso() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let dur = SystemTime::now()
         .duration_since(UNIX_EPOCH)

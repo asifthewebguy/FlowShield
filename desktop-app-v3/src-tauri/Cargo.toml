@@ -17,12 +17,18 @@ tauri-build = { version = "2", features = [] }
 tauri              = { version = "2", features = [] }
 tauri-plugin-store = "2"
 tauri-plugin-shell = "2"
+tauri-plugin-notification = "2"
 
 # HTTP client. rustls so we don't pull in OpenSSL/native-tls quirks.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
-# Async runtime — tauri::command async fns need one.
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+# Async runtime — tauri::command async fns need one. `time` is for the
+# tracker's tokio::time::interval (one-second poll loop).
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+
+# Cross-platform foreground-window query for the activity tracker.
+# Wraps Win32 / Cocoa / X11 / Wayland under one Result-returning surface.
+active-win-pos-rs = "0.8"
 
 serde       = { version = "1", features = ["derive"] }
 serde_json  = "1"
