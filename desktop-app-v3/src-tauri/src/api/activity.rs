@@ -27,8 +27,6 @@ struct ApiErrorBody {
 #[derive(Debug, Deserialize)]
 pub struct SyncResult {
     #[serde(default)]
-    pub message: Option<String>,
-    #[serde(default)]
     pub synced: Option<i32>,
 }
 
@@ -45,10 +43,7 @@ pub async fn sync_activity(
     samples: &[ActivitySample],
 ) -> AppResult<SyncResult> {
     if samples.is_empty() {
-        return Ok(SyncResult {
-            message: Some("nothing to sync".into()),
-            synced: Some(0),
-        });
+        return Ok(SyncResult { synced: Some(0) });
     }
 
     let activities: Vec<ActivityPayload> = samples
@@ -81,7 +76,6 @@ pub async fn sync_activity(
     let status = res.status();
     if status.is_success() {
         return Ok(res.json::<SyncResult>().await.unwrap_or(SyncResult {
-            message: None,
             synced: Some(activities_len as i32),
         }));
     }
