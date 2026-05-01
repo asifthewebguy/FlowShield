@@ -96,29 +96,26 @@ npm run tauri icon path/to/source.png
 
 Real icons are needed before any signed release.
 
-## Hosts-file blocking (Phase 6)
+## Hosts-file blocking (Phase 6 + 6.5)
 
 Deep-work mode maps blocked domains to `127.0.0.1` in the OS hosts
-file. Writing the hosts file requires admin/root, so the desktop app
-needs to be launched with elevated privileges for the
-`blocking_apply` / `blocking_clear` commands to succeed:
+file. The GUI itself runs unprivileged; when it needs to edit hosts,
+it re-invokes its own binary as a privileged subprocess via the OS's
+standard prompt:
 
-```bash
-# Linux / macOS — dev:
-sudo -E WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri:dev
+| Platform | Elevation mechanism | UX |
+|---|---|---|
+| Linux | `pkexec /proc/self/exe --blocking-apply ...` | polkit graphical password prompt |
+| macOS | `osascript ... 'do shell script ... with administrator privileges'` | Keychain / Touch ID prompt |
+| Windows | not yet wired up — returns a clear error | run the app as administrator manually for now |
 
-# Windows — right-click → "Run as administrator", or via an elevated
-# terminal:  powershell -Command "Start-Process npm 'run tauri:dev' -Verb RunAs"
-```
-
-If launched without elevation the commands return a `Permission
-denied` AppError that the frontend surfaces as a toast — the rest of
-the app keeps working. Phase 6.5 will add a `pkexec`/UAC-based
-helper so users don't have to re-launch with sudo.
+You **don't need** to launch the app with `sudo`. The polkit/Keychain
+prompt fires only when you actually toggle deep-work mode. Cancelling
+the prompt surfaces a friendly `AppError::Storage` to the frontend.
 
 A one-time backup of the user's pristine hosts file is saved to
 `<hosts>.flowshield-backup` before the very first edit and never
-overwritten — you can restore it manually at any time:
+overwritten — manual rollback is always one command away:
 
 ```bash
 sudo cp /etc/hosts.flowshield-backup /etc/hosts

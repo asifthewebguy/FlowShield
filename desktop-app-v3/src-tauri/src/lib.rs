@@ -16,6 +16,47 @@ use tokio::sync::RwLock;
 
 pub use error::AppError;
 
+/// Privileged-child entrypoint. When the binary is re-invoked via
+/// `pkexec` / `osascript` with one of our blocking subcommands, this
+/// function runs the requested operation and returns an exit code. If
+/// the args don't match a subcommand, returns None and the caller falls
+/// through to the normal GUI launch path.
+///
+/// Args layout:
+///   `flowshield-desktop --blocking-apply <comma,separated,domains>`
+///   `flowshield-desktop --blocking-clear`
+pub fn run_blocker_subcommand(args: &[String]) -> Option<i32> {
+    let sub = args.get(1)?.as_str();
+    match sub {
+        "--blocking-apply" => {
+            let domains: Vec<String> = args
+                .get(2)
+                .map(|s| {
+                    s.split(',')
+                        .filter(|d| !d.is_empty())
+                        .map(String::from)
+                        .collect()
+                })
+                .unwrap_or_default();
+            Some(match blocking::apply_blocks(&domains) {
+                Ok(()) => 0,
+                Err(e) => {
+                    eprintln!("flowshield-blocker apply: {e}");
+                    1
+                }
+            })
+        }
+        "--blocking-clear" => Some(match blocking::clear_blocks() {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("flowshield-blocker clear: {e}");
+                1
+            }
+        }),
+        _ => None,
+    }
+}
+
 /// Shared application state. The HTTP client is reused across requests so
 /// connections are pooled. Token + user are mirrored from the persistent
 /// store on first read so commands don't pay the IPC round-trip every call.

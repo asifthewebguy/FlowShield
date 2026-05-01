@@ -1,29 +1,37 @@
 //! Hosts-file blocking commands. The frontend invokes these to enter
 //! deep-work mode and to release the block on session end.
 //!
-//! Both commands require the app to be running with admin/root privileges
-//! since the OS hosts file is owned by root. If not, the underlying write
-//! fails with `PermissionDenied` and the error propagates as an
-//! `AppError::Storage` to JS. Phase 6.5 will add a `pkexec`/UAC elevation
-//! path so users don't have to launch the app with sudo.
+//! These commands re-invoke the binary itself with an elevation prompt
+//! (Linux: pkexec; macOS: osascript) so the GUI never holds root. The
+//! privileged child runs `flowshield_desktop_lib::run_blocker_subcommand`
+//! which dispatches `--blocking-apply <domains>` / `--blocking-clear`
+//! and exits.
 //!
-//! Wrapped in `spawn_blocking` because hosts-file I/O is synchronous and
-//! we don't want to stall the runtime — the actual reads/writes are tiny
-//! but `fs::rename` can briefly block on slow disks.
+//! Wrapped in `spawn_blocking` because the elevation subprocess is
+//! synchronous and we don't want to stall the async runtime while the
+//! user types their password.
 
-use crate::blocking;
+use super::elevation;
 use crate::error::{AppError, AppResult};
 
 #[tauri::command]
 pub async fn blocking_apply(domains: Vec<String>) -> AppResult<()> {
-    tauri::async_runtime::spawn_blocking(move || blocking::apply_blocks(&domains))
-        .await
-        .map_err(|e| AppError::Storage(format!("blocking task: {e}")))?
+    // Comma-join because we pass through pkexec/osascript argv, where
+    // each token is a separate shell argument; one packed string keeps
+    // the wire format simple. The privileged child splits on commas.
+    let arg = domains.join(",");
+    tauri::async_runtime::spawn_blocking(move || {
+        elevation::run_self_elevated("--blocking-apply", vec![arg])
+    })
+    .await
+    .map_err(|e| AppError::Storage(format!("blocking task: {e}")))?
 }
 
 #[tauri::command]
 pub async fn blocking_clear() -> AppResult<()> {
-    tauri::async_runtime::spawn_blocking(blocking::clear_blocks)
-        .await
-        .map_err(|e| AppError::Storage(format!("blocking task: {e}")))?
+    tauri::async_runtime::spawn_blocking(|| {
+        elevation::run_self_elevated("--blocking-clear", vec![])
+    })
+    .await
+    .map_err(|e| AppError::Storage(format!("blocking task: {e}")))?
 }
