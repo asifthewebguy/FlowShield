@@ -4,7 +4,7 @@
 
 mod auth;
 
-pub use auth::{login, AuthUser, LoginResponse};
+pub use auth::{login, AuthUser};
 
 /// Default API base URL. Overrideable at runtime via the `FLOWSHIELD_API_URL`
 /// env var so dev / staging / preview environments don't need recompiles.

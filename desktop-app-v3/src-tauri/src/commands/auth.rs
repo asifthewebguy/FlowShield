@@ -8,7 +8,7 @@ use crate::api::{self, AuthUser};
 use crate::error::{AppError, AppResult};
 use crate::AppState;
 use serde::Serialize;
-use tauri::{AppHandle, Manager, Runtime, State};
+use tauri::{AppHandle, Runtime, State};
 use tauri_plugin_store::StoreExt;
 
 const STORE_FILE: &str = "auth.bin";

@@ -7,7 +7,6 @@
     "core:default",
     "core:window:allow-close",
     "core:window:allow-minimize",
-    "log:default",
     "store:default",
     "shell:allow-open"
   ]
