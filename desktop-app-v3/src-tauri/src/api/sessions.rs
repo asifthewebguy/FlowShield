@@ -190,7 +190,7 @@ pub async fn toggle_pause(
 /// Current UTC time as RFC 3339 (`YYYY-MM-DDTHH:MM:SS.mmmZ`). Inlined so we
 /// avoid pulling chrono just for this. Algorithm: Howard Hinnant's
 /// civil_from_days inverse — battle-tested and obvious enough to verify.
-fn now_iso() -> String {
+pub fn now_iso() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let dur = SystemTime::now()
         .duration_since(UNIX_EPOCH)

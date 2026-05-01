@@ -3,6 +3,7 @@
 //! command layer.
 
 mod auth;
+pub mod activity;
 pub mod sessions;
 
 pub use auth::{login, AuthUser};

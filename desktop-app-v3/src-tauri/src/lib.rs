@@ -4,6 +4,7 @@
 mod api;
 mod commands;
 mod error;
+mod tracker;
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -13,11 +14,14 @@ pub use error::AppError;
 /// Shared application state. The HTTP client is reused across requests so
 /// connections are pooled. Token + user are mirrored from the persistent
 /// store on first read so commands don't pay the IPC round-trip every call.
+/// `tracker` holds the activity-monitoring task while a session is running;
+/// session_start populates it, session_end takes() it and drains the buffer.
 #[derive(Default)]
 pub struct AppState {
     pub token: Arc<RwLock<Option<String>>>,
     pub user: Arc<RwLock<Option<api::AuthUser>>>,
     pub http: reqwest::Client,
+    pub tracker: Arc<RwLock<Option<tracker::TrackerHandle>>>,
 }
 
 impl AppState {
@@ -35,6 +39,7 @@ impl AppState {
             token: Arc::new(RwLock::new(None)),
             user: Arc::new(RwLock::new(None)),
             http,
+            tracker: Arc::new(RwLock::new(None)),
         }
     }
 }
