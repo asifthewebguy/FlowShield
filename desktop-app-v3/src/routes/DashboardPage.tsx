@@ -74,6 +74,10 @@ export function DashboardPage() {
   const [type, setType] = useState<typeof SESSION_TYPES[number]>('WORK');
   const cooldown = useCooldown();
   const previousSessionIdRef = useRef<string | null>(null);
+  // Set when we auto-end a session that was already past its planned time at
+  // load time (stale cleanup). The next active→null transition skips the
+  // cooldown so users aren't punished for the app force-quitting on them.
+  const skipNextCooldownRef = useRef(false);
 
   // Pull active session from server on mount so we pick up sessions started elsewhere.
   useEffect(() => {
@@ -87,8 +91,12 @@ export function DashboardPage() {
     const prev = previousSessionIdRef.current;
     const cur = current?.id ?? null;
     if (prev && !cur) {
-      void notifySessionDone();
-      cooldown.start();
+      if (skipNextCooldownRef.current) {
+        skipNextCooldownRef.current = false;
+      } else {
+        void notifySessionDone();
+        cooldown.start();
+      }
     }
     previousSessionIdRef.current = cur;
   }, [current, cooldown]);
@@ -103,6 +111,9 @@ export function DashboardPage() {
       new Date(current.startTime).getTime() + current.plannedDuration * 60 * 1000;
     const remainingMs = plannedEndMs - Date.now();
     if (remainingMs <= 0) {
+      // Stale session that was already past its end when we loaded it —
+      // clean up silently without firing notification or cooldown.
+      skipNextCooldownRef.current = true;
       void end();
       return;
     }
