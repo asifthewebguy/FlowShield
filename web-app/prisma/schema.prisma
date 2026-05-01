@@ -26,6 +26,8 @@ model User {
   emailVerified     DateTime?
   verificationToken String?          @unique
   verificationTokenExpires DateTime?
+  passwordResetToken   String?       @unique
+  passwordResetExpires DateTime?
   role              UserRole         @default(USER)
   subscriptionTier  SubscriptionTier @default(FREE)
   lastCoachCallAt   DateTime?

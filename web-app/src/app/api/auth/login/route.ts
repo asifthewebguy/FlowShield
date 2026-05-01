@@ -54,6 +54,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Email-verified gate (off by default until mobile + desktop clients
+    // ship error-code handling). Set REQUIRE_EMAIL_VERIFICATION=true to enable.
+    if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true' && !user.emailVerified) {
+      return NextResponse.json(
+        {
+          error: 'Please verify your email before signing in.',
+          code: 'EMAIL_NOT_VERIFIED',
+        },
+        { status: 403 }
+      );
+    }
+
     // Create JWT token
     const token = sign(
       { userId: user.id, email: user.email, role: user.role },

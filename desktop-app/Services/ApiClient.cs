@@ -20,6 +20,16 @@ namespace FlowShield.Desktop.Services
         public event EventHandler? SessionExpired;
         private string? _authToken;
 
+        /// <summary>
+        /// Reason the most recent <see cref="LoginAsync"/> call failed, when
+        /// the API returned a structured error. Null on success or transport
+        /// failures. Useful values: "EMAIL_NOT_VERIFIED", "INVALID_CREDENTIALS".
+        /// </summary>
+        public string? LastLoginErrorCode { get; private set; }
+
+        /// <summary>Human-readable message from the most recent failed login.</summary>
+        public string? LastLoginErrorMessage { get; private set; }
+
         public ApiClient(IDatabaseService dbService, string? baseUrl = null)
         {
             _dbService = dbService;
@@ -54,6 +64,9 @@ namespace FlowShield.Desktop.Services
 
         public async Task<bool> LoginAsync(string email, string password, bool rememberMe)
         {
+            LastLoginErrorCode = null;
+            LastLoginErrorMessage = null;
+
             try
             {
                 var loginData = new { email, password, rememberMe };
@@ -75,12 +88,26 @@ namespace FlowShield.Desktop.Services
                         // Save credentials
                         _dbService.SaveSetting("AuthToken", _authToken);
                         _dbService.SaveSetting("UserId", result.UserId ?? string.Empty);
-                        
+
                         // Save email for pre-filling next time
                         _dbService.SaveSetting("UserEmail", email);
 
                         return true;
                     }
+                }
+
+                // Parse structured error so callers can show specific copy
+                // (e.g. "Please verify your email") instead of generic "Login failed".
+                try
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync();
+                    var err = JsonConvert.DeserializeObject<LoginErrorResponse>(errorBody);
+                    LastLoginErrorCode = err?.Code;
+                    LastLoginErrorMessage = err?.Error;
+                }
+                catch
+                {
+                    // ignore parse failures — caller falls back to generic error
                 }
 
                 return false;
@@ -89,6 +116,12 @@ namespace FlowShield.Desktop.Services
             {
                 return false;
             }
+        }
+
+        private class LoginErrorResponse
+        {
+            [JsonProperty("error")] public string? Error { get; set; }
+            [JsonProperty("code")] public string? Code { get; set; }
         }
 
         public async Task<bool> SyncActivitiesAsync()

@@ -96,3 +96,12 @@ export const UpdateProfileSchema = z.object({
     .strict()
     .optional(),
 });
+
+export const ForgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email address'),
+});
+
+export const ResetPasswordSchema = z.object({
+  token: z.string().min(32, 'Invalid reset token'),
+  newPassword: PasswordStrength,
+});

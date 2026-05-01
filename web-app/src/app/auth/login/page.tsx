@@ -46,7 +46,11 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Login failed');
+        if (data.code === 'EMAIL_NOT_VERIFIED') {
+          setError('Please verify your email before signing in. Check your inbox for the verification link.');
+        } else {
+          setError(data.error || 'Login failed');
+        }
         return;
       }
 
@@ -117,15 +121,23 @@ export default function LoginPage() {
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 dark:border-white/20 text-primary-500 focus:ring-primary-500"
-            />
-            Remember me
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 dark:border-white/20 text-primary-500 focus:ring-primary-500"
+              />
+              Remember me
+            </label>
+            <Link
+              href="/auth/forgot-password"
+              className="text-sm font-medium text-primary-500 hover:text-primary-400"
+            >
+              Forgot password?
+            </Link>
+          </div>
 
           <Button type="submit" variant="primary" size="lg" loading={loading} className="w-full">
             Sign in
