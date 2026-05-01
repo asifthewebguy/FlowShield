@@ -1,4 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from '@tauri-apps/plugin-notification';
 import { useAuthStore } from '../lib/auth';
 import { useSessionStore } from '../lib/sessions';
 import { Button } from '../components/Button';
@@ -7,16 +12,86 @@ import { Timer } from '../components/Timer';
 const DURATION_OPTIONS = [15, 25, 45, 60, 90];
 const SESSION_TYPES = ['WORK', 'STUDY', 'CREATIVE'] as const;
 
+const COOLDOWN_KEY = 'flowshield_cooldown_until';
+const COOLDOWN_MS = 5 * 60 * 1000;
+
+/**
+ * Persistent 5-minute cool-down between sessions. Mirrors the web app's
+ * `flowshield_cooldown_until` localStorage convention so users on both
+ * clients get consistent UX and the cool-down isn't bypassable by
+ * relaunching the desktop.
+ */
+function useCooldown() {
+  const [until, setUntil] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0;
+    return parseInt(localStorage.getItem(COOLDOWN_KEY) || '0', 10);
+  });
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (until <= now) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [until, now]);
+
+  const remainingMs = Math.max(0, until - now);
+
+  const start = () => {
+    const u = Date.now() + COOLDOWN_MS;
+    localStorage.setItem(COOLDOWN_KEY, String(u));
+    setUntil(u);
+  };
+
+  return { remainingMs, start };
+}
+
+/**
+ * Fires a desktop notification, requesting permission lazily on first use.
+ * Best-effort — silently no-ops if the user denies.
+ */
+async function notifySessionDone() {
+  try {
+    let granted = await isPermissionGranted();
+    if (!granted) {
+      const perm = await requestPermission();
+      granted = perm === 'granted';
+    }
+    if (granted) {
+      await sendNotification({
+        title: 'Focus session complete',
+        body: 'Take a 5-minute break before starting the next one.',
+      });
+    }
+  } catch {
+    // Notification not critical — never block on it.
+  }
+}
+
 export function DashboardPage() {
   const { user, logout } = useAuthStore();
   const { current, loading, error, refresh, start, end, togglePause } = useSessionStore();
   const [duration, setDuration] = useState(25);
   const [type, setType] = useState<typeof SESSION_TYPES[number]>('WORK');
+  const cooldown = useCooldown();
+  const previousSessionIdRef = useRef<string | null>(null);
 
   // Pull active session from server on mount so we pick up sessions started elsewhere.
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Detect the active → null transition (auto-end OR manual End) and fire
+  // notification + start cooldown. Tracks previous session id via ref so we
+  // only fire once per ended session, not on every re-render.
+  useEffect(() => {
+    const prev = previousSessionIdRef.current;
+    const cur = current?.id ?? null;
+    if (prev && !cur) {
+      void notifySessionDone();
+      cooldown.start();
+    }
+    previousSessionIdRef.current = cur;
+  }, [current, cooldown]);
 
   // Auto-end when the planned duration is up (matches web FocusTimer's
   // auto-end behavior). Single setTimeout that fires once at the planned
@@ -75,6 +150,7 @@ export function DashboardPage() {
               type={type}
               setType={setType}
               loading={loading}
+              cooldownRemainingMs={cooldown.remainingMs}
               onStart={() => void start(duration, type)}
             />
           )}
@@ -90,6 +166,7 @@ function SessionPicker({
   type,
   setType,
   loading,
+  cooldownRemainingMs,
   onStart,
 }: {
   duration: number;
@@ -97,14 +174,24 @@ function SessionPicker({
   type: typeof SESSION_TYPES[number];
   setType: (t: typeof SESSION_TYPES[number]) => void;
   loading: boolean;
+  cooldownRemainingMs: number;
   onStart: () => void;
 }) {
+  const inCooldown = cooldownRemainingMs > 0;
+  const cdMin = Math.floor(cooldownRemainingMs / 60_000);
+  const cdSec = Math.floor((cooldownRemainingMs % 60_000) / 1000);
+  const cdLabel = `${cdMin}:${String(cdSec).padStart(2, '0')}`;
+
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h1 className="text-2xl font-bold">Start a focus session</h1>
+        <h1 className="text-2xl font-bold">
+          {inCooldown ? 'Take a break' : 'Start a focus session'}
+        </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Pick a duration and a session type.
+          {inCooldown
+            ? `Next session unlocks in ${cdLabel}.`
+            : 'Pick a duration and a session type.'}
         </p>
       </div>
 
@@ -158,9 +245,10 @@ function SessionPicker({
         size="lg"
         className="w-full"
         loading={loading}
+        disabled={inCooldown}
         onClick={onStart}
       >
-        Start {duration}-minute session
+        {inCooldown ? `Cool-down · ${cdLabel}` : `Start ${duration}-minute session`}
       </Button>
     </div>
   );
