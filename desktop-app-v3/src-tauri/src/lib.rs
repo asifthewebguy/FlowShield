@@ -4,9 +4,12 @@
 mod api;
 mod commands;
 mod error;
+mod store;
+mod sync_worker;
 mod tracker;
 
 use std::sync::Arc;
+use tauri::Manager;
 use tokio::sync::RwLock;
 
 pub use error::AppError;
@@ -16,12 +19,16 @@ pub use error::AppError;
 /// store on first read so commands don't pay the IPC round-trip every call.
 /// `tracker` holds the activity-monitoring task while a session is running;
 /// session_start populates it, session_end takes() it and drains the buffer.
+/// `db` is opened lazily in `setup()` once we can resolve the OS app-data
+/// directory; it stays `None` in test/headless contexts and the offline
+/// queue is treated as a best-effort feature when absent.
 #[derive(Default)]
 pub struct AppState {
     pub token: Arc<RwLock<Option<String>>>,
     pub user: Arc<RwLock<Option<api::AuthUser>>>,
     pub http: reqwest::Client,
     pub tracker: Arc<RwLock<Option<tracker::TrackerHandle>>>,
+    pub db: Arc<std::sync::OnceLock<store::Db>>,
 }
 
 impl AppState {
@@ -40,6 +47,7 @@ impl AppState {
             user: Arc::new(RwLock::new(None)),
             http,
             tracker: Arc::new(RwLock::new(None)),
+            db: Arc::new(std::sync::OnceLock::new()),
         }
     }
 }
@@ -59,6 +67,28 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .manage(AppState::new())
+        .setup(|app| {
+            // Open the local SQLite store under the OS app-data directory.
+            // If this fails (read-only FS, weird sandbox, …) we log + skip:
+            // the app still works, the offline-sync queue is just unavailable.
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|e| format!("resolve app_data_dir: {e}"))?;
+            let db_path = app_data_dir.join("local.sqlite");
+            match store::open(&db_path) {
+                Ok(db) => {
+                    let state: tauri::State<'_, AppState> = app.state();
+                    let _ = state.db.set(db.clone());
+                    sync_worker::spawn(state.http.clone(), state.token.clone(), db);
+                    tracing::info!(path = %db_path.display(), "local store opened");
+                }
+                Err(err) => {
+                    tracing::warn!(?err, path = %db_path.display(), "local store unavailable; offline queue disabled");
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::auth::auth_login,
             commands::auth::auth_load,

@@ -20,14 +20,14 @@
 //!   integration or kernel-level tracing).
 
 use crate::api::sessions::now_iso;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{oneshot, Mutex};
 use tokio::task::JoinHandle;
 
 /// One bucketed observation of "user was looking at <window> for <N>s".
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivitySample {
     pub application_name: String,

@@ -9,6 +9,7 @@
 
 use crate::api::{self, Session};
 use crate::error::{AppError, AppResult};
+use crate::store;
 use crate::tracker::TrackerHandle;
 use crate::AppState;
 use tauri::State;
@@ -96,6 +97,8 @@ pub async fn session_end(
     };
 
     // Best-effort sync — failure here does NOT fail the end.
+    // On failure, we persist the payload to the local SQLite queue so the
+    // background drainer can retry later (network blip, server hiccup).
     if !samples.is_empty() {
         let count = samples.len();
         match api::activity::sync_activity(&state.http, &token, &session_id, &samples).await {
@@ -103,11 +106,16 @@ pub async fn session_end(
                 synced = result.synced.unwrap_or(count as i32),
                 "activity samples synced"
             ),
-            Err(err) => tracing::warn!(
-                count,
-                ?err,
-                "activity sync failed; samples lost (phase 4 adds offline retry)"
-            ),
+            Err(err) => {
+                tracing::warn!(count, ?err, "activity sync failed; enqueueing for retry");
+                if let Some(db) = state.db.get() {
+                    if let Err(e) = store::pending_sync::enqueue(db, &session_id, &samples) {
+                        tracing::error!(?e, count, "failed to enqueue pending sync; samples lost");
+                    }
+                } else {
+                    tracing::warn!(count, "local store unavailable; samples lost");
+                }
+            }
         }
     }
 
