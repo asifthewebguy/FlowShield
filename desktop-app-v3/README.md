@@ -107,7 +107,7 @@ standard prompt:
 |---|---|---|
 | Linux | `pkexec /proc/self/exe --blocking-apply ...` | polkit graphical password prompt |
 | macOS | `osascript ... 'do shell script ... with administrator privileges'` | Keychain / Touch ID prompt |
-| Windows | not yet wired up — returns a clear error | run the app as administrator manually for now |
+| Windows | `powershell Start-Process -Verb RunAs -Wait` | UAC consent dialog |
 
 You **don't need** to launch the app with `sudo`. The polkit/Keychain
 prompt fires only when you actually toggle deep-work mode. Cancelling

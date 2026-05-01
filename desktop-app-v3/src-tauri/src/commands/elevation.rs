@@ -10,9 +10,10 @@
 //!   admin-group members elevate without extra `.policy` files.
 //! - **macOS**: `osascript -e 'do shell script "..." with administrator
 //!   privileges'` — Keychain / TouchID prompt.
-//! - **Windows**: not yet wired up. Returns a clear error so the frontend
-//!   can show a "launch as administrator" toast. Real fix is `ShellExecuteW`
-//!   with the `runas` verb — phase 6.6.
+//! - **Windows**: `powershell Start-Process -Verb RunAs -Wait` — UAC
+//!   prompt. Using PowerShell instead of FFI'ing `ShellExecuteExW` keeps
+//!   the dep tree small and the elevation logic readable. PowerShell ships
+//!   with every Windows ≥ 7.
 //!
 //! Cancelled prompts (user dismisses the password dialog) surface as a
 //! non-zero exit status, which we map to an `AppError::Storage` with a
@@ -51,15 +52,45 @@ pub fn run_self_elevated(subcommand: &str, args: Vec<String>) -> AppResult<()> {
 
     #[cfg(target_os = "windows")]
     {
-        let _ = (exe, subcommand, args);
-        Err(AppError::Storage(
-            "Windows UAC elevation isn't wired up yet — for now, launch the app as administrator manually."
-                .into(),
-        ))
+        // PowerShell's Start-Process -Verb RunAs triggers UAC. -Wait blocks
+        // until the elevated child exits; -PassThru gives us the process
+        // object so we can read $proc.ExitCode and forward it. We exit the
+        // PowerShell host with the same code so our `run()` helper sees a
+        // non-zero status when the child failed (or the user cancelled UAC,
+        // which throws and falls into PowerShell's $? = false → exit 1).
+        let exe_str = exe
+            .to_str()
+            .ok_or_else(|| AppError::Storage("exe path not valid UTF-8".into()))?
+            .to_string();
+        let argument_list = std::iter::once(subcommand.to_string())
+            .chain(args.into_iter())
+            .map(|s| ps_single_quote(&s))
+            .collect::<Vec<_>>()
+            .join(",");
+        let script = format!(
+            "$ErrorActionPreference='Stop'; \
+             try {{ \
+               $proc = Start-Process -FilePath {} -ArgumentList {} -Verb RunAs -Wait -PassThru -WindowStyle Hidden; \
+               exit $proc.ExitCode \
+             }} catch {{ \
+               Write-Error $_; \
+               exit 1 \
+             }}",
+            ps_single_quote(&exe_str),
+            argument_list
+        );
+        let mut cmd = Command::new("powershell");
+        cmd.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
+        return run(cmd, "powershell");
     }
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(target_os = "windows")]
+fn ps_single_quote(s: &str) -> String {
+    // PowerShell single-quoted strings: '' is a literal '. No other escapes.
+    format!("'{}'", s.replace('\'', "''"))
+}
+
 fn run(mut cmd: Command, name: &str) -> AppResult<()> {
     let status = cmd
         .status()
