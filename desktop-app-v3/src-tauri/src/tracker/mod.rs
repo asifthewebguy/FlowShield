@@ -26,6 +26,11 @@ use std::time::Duration;
 use tokio::sync::{oneshot, Mutex};
 use tokio::task::JoinHandle;
 
+/// Treat the user as away-from-keyboard after this many seconds of OS-level
+/// idle. Five minutes is a common-sense threshold — short enough to catch
+/// real breaks, long enough to ignore reading/thinking pauses.
+const IDLE_THRESHOLD_SECS: u64 = 5 * 60;
+
 /// One bucketed observation of "user was looking at <window> for <N>s".
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,6 +68,25 @@ impl TrackerHandle {
                 tokio::select! {
                     _ = &mut stop_rx => break,
                     _ = interval.tick() => {
+                        // AFK gate: if the user hasn't touched the keyboard or
+                        // mouse for a while, flush whatever bucket we're on
+                        // and skip this tick — otherwise we'd attribute the
+                        // entire idle window to whatever app happened to be
+                        // foregrounded when they stepped away. user-idle
+                        // returns Err on pure Wayland; we silently degrade to
+                        // "always active" and rely on XWayland fallback.
+                        let idle_secs = user_idle::UserIdle::get_time()
+                            .map(|t| t.as_seconds())
+                            .unwrap_or(0);
+                        if idle_secs >= IDLE_THRESHOLD_SECS {
+                            if let Some(prev) = current.take() {
+                                if prev.duration_seconds >= 1 {
+                                    buffer_clone.lock().await.push(prev);
+                                }
+                            }
+                            continue;
+                        }
+
                         let win = match active_win_pos_rs::get_active_window() {
                             Ok(w) => w,
                             Err(_) => continue, // Wayland or transient failure
