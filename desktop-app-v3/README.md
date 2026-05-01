@@ -96,6 +96,31 @@ npm run tauri icon path/to/source.png
 
 Real icons are needed before any signed release.
 
+## Hosts-file blocking (Phase 6 + 6.5)
+
+Deep-work mode maps blocked domains to `127.0.0.1` in the OS hosts
+file. The GUI itself runs unprivileged; when it needs to edit hosts,
+it re-invokes its own binary as a privileged subprocess via the OS's
+standard prompt:
+
+| Platform | Elevation mechanism | UX |
+|---|---|---|
+| Linux | `pkexec /proc/self/exe --blocking-apply ...` | polkit graphical password prompt |
+| macOS | `osascript ... 'do shell script ... with administrator privileges'` | Keychain / Touch ID prompt |
+| Windows | `powershell Start-Process -Verb RunAs -Wait` | UAC consent dialog |
+
+You **don't need** to launch the app with `sudo`. The polkit/Keychain
+prompt fires only when you actually toggle deep-work mode. Cancelling
+the prompt surfaces a friendly `AppError::Storage` to the frontend.
+
+A one-time backup of the user's pristine hosts file is saved to
+`<hosts>.flowshield-backup` before the very first edit and never
+overwritten — manual rollback is always one command away:
+
+```bash
+sudo cp /etc/hosts.flowshield-backup /etc/hosts
+```
+
 ## Build
 
 ```bash
