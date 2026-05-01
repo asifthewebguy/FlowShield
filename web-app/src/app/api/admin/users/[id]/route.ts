@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAdminFromToken } from '@/lib/jwt';
+import { invalidateUserTierCache } from '@/lib/subscription';
 
 export async function GET(
   request: NextRequest,
@@ -98,8 +99,13 @@ export async function PATCH(
     select: { id: true, email: true, role: true, subscriptionTier: true, name: true },
   });
 
-  // Record subscription change
+  // Record subscription change. Cancel any prior ACTIVE subscription so
+  // `User.subscriptionTier` and the active Subscription row stay in sync.
   if (subscriptionTier && subscriptionTier !== current.subscriptionTier) {
+    await prisma.subscription.updateMany({
+      where: { userId: id, status: 'ACTIVE' },
+      data: { status: 'CANCELLED', cancelledAt: new Date() },
+    });
     await prisma.subscription.create({
       data: {
         userId: id,
@@ -108,6 +114,7 @@ export async function PATCH(
         provider: 'manual',
       },
     });
+    await invalidateUserTierCache(id);
   }
 
   return NextResponse.json(updated);
