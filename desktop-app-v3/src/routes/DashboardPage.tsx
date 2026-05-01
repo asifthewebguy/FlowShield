@@ -18,6 +18,25 @@ export function DashboardPage() {
     void refresh();
   }, [refresh]);
 
+  // Auto-end when the planned duration is up (matches web FocusTimer's
+  // auto-end behavior). Single setTimeout that fires once at the planned
+  // end; cancelled if the user pauses, ends manually, or the session
+  // changes for any other reason.
+  useEffect(() => {
+    if (!current || current.isPaused || current.completed) return;
+    const plannedEndMs =
+      new Date(current.startTime).getTime() + current.plannedDuration * 60 * 1000;
+    const remainingMs = plannedEndMs - Date.now();
+    if (remainingMs <= 0) {
+      void end();
+      return;
+    }
+    const t = setTimeout(() => {
+      void end();
+    }, remainingMs);
+    return () => clearTimeout(t);
+  }, [current, end]);
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="flex items-center justify-between px-6 py-4 border-b border-surface-3">
