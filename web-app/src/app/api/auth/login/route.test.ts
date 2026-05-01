@@ -3,8 +3,21 @@ import { decode } from 'jsonwebtoken';
 
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long-xyz';
 
+// Explicit return type so emailVerified is `Date | null` (allowing tests to
+// override with `null` for the unverified-user gate); without this, TS infers
+// the narrow `Date` from the initial value and `mockResolvedValueOnce({...,
+// emailVerified: null})` fails strict typecheck.
+type MockUser = {
+  id: string;
+  email: string;
+  role: string;
+  hashedPassword: string;
+  emailVerified: Date | null;
+  preferences: { workStyle?: string } | null;
+};
+
 const mocks = vi.hoisted(() => ({
-  findUnique: vi.fn(async () => ({
+  findUnique: vi.fn<() => Promise<MockUser>>(async () => ({
     id: 'user-1',
     email: 'user@example.com',
     role: 'USER',
