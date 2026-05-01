@@ -1,0 +1,35 @@
+# --- Node / Vite ---
+node_modules
+dist
+dist-ssr
+*.local
+.vite
+
+# --- Rust / Tauri ---
+src-tauri/target/
+src-tauri/gen/
+src-tauri/Cargo.lock
+src-tauri/icons/
+*.dSYM/
+
+# --- Editor / OS ---
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.swp
+*.swo
+
+# --- Build artifacts ---
+*.dmg
+*.app
+*.exe
+*.msi
+*.AppImage
+*.deb
+*.rpm
+
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
