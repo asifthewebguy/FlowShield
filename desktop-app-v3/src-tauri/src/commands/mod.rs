@@ -6,5 +6,6 @@ pub mod auth;
 pub mod blocking;
 mod elevation;
 pub mod ping;
+pub mod preferences;
 pub mod projects;
 pub mod sessions;

@@ -4,10 +4,12 @@
 
 mod auth;
 pub mod activity;
+pub mod preferences;
 pub mod projects;
 pub mod sessions;
 
 pub use auth::{login, AuthUser};
+pub use preferences::Preferences;
 pub use sessions::Session;
 
 /// Default API base URL. Overrideable at runtime via the `FLOWSHIELD_API_URL`
