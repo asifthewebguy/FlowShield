@@ -112,17 +112,17 @@ pub async fn get_active_session(
         });
     }
 
-    // Endpoint returns either { session: Session | null } or null.
-    #[derive(Deserialize)]
-    struct ActiveEnvelope {
-        session: Option<Session>,
-    }
+    // Inconsistent web-API shape: this endpoint returns the bare Session at
+    // the JSON root (web-app/src/app/api/sessions/active/route.ts:46), unlike
+    // the other session endpoints which wrap in `{ session: ... }`. Treat
+    // top-level null as "no active session" defensively (404 already handled
+    // above; some Next.js routes serialize undefined as null).
     let body: serde_json::Value = res.json().await?;
     if body.is_null() {
         return Ok(None);
     }
-    let parsed: ActiveEnvelope = serde_json::from_value(body)?;
-    Ok(parsed.session)
+    let session: Session = serde_json::from_value(body)?;
+    Ok(Some(session))
 }
 
 /// PATCH /api/sessions/[id] — completes / updates a session.
