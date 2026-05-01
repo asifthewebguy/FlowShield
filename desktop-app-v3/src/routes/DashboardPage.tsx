@@ -1,11 +1,22 @@
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '../lib/auth';
+import { useSessionStore } from '../lib/sessions';
 import { Button } from '../components/Button';
+import { Timer } from '../components/Timer';
 
-/**
- * Placeholder dashboard. Phase 2 swaps this for the real session timer.
- */
+const DURATION_OPTIONS = [15, 25, 45, 60, 90];
+const SESSION_TYPES = ['WORK', 'STUDY', 'CREATIVE'] as const;
+
 export function DashboardPage() {
   const { user, logout } = useAuthStore();
+  const { current, loading, error, refresh, start, end, togglePause } = useSessionStore();
+  const [duration, setDuration] = useState(25);
+  const [type, setType] = useState<typeof SESSION_TYPES[number]>('WORK');
+
+  // Pull active session from server on mount so we pick up sessions started elsewhere.
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -23,30 +34,151 @@ export function DashboardPage() {
         </div>
       </header>
 
-      <main className="flex-1 p-8">
-        <div className="max-w-2xl mx-auto space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold mb-1">Welcome back</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              The timer + activity tracker arrive in the next slice (phase 2). For now,
-              auth round-trips through the Rust backend and your token is persisted to the
-              OS keychain.
-            </p>
-          </div>
+      <main className="flex-1 p-8 flex flex-col items-center justify-center">
+        <div className="w-full max-w-md space-y-6">
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-500/10 dark:border-red-500/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          )}
 
-          <div className="rounded-xl border border-surface-3 bg-surface-1 p-6 text-sm space-y-2">
-            <div className="font-medium">Foundation status</div>
-            <ul className="space-y-1 text-gray-600 dark:text-gray-400">
-              <li>✓ Tauri 2 + React 19 + Tailwind</li>
-              <li>✓ Login round-trips through Rust → /api/auth/login</li>
-              <li>✓ Token persisted via tauri-plugin-store (keychain in phase 2)</li>
-              <li>○ Phase 2 — session timer + active-session polling</li>
-              <li>○ Phase 3 — activity tracking (active-win-pos-rs)</li>
-              <li>○ Phase 4 — sync queue + tray + autostart + updater</li>
-            </ul>
-          </div>
+          {current ? (
+            <ActiveSessionView
+              loading={loading}
+              onPause={() => void togglePause('pause')}
+              onResume={() => void togglePause('resume')}
+              onEnd={() => void end()}
+            />
+          ) : (
+            <SessionPicker
+              duration={duration}
+              setDuration={setDuration}
+              type={type}
+              setType={setType}
+              loading={loading}
+              onStart={() => void start(duration, type)}
+            />
+          )}
         </div>
       </main>
+    </div>
+  );
+}
+
+function SessionPicker({
+  duration,
+  setDuration,
+  type,
+  setType,
+  loading,
+  onStart,
+}: {
+  duration: number;
+  setDuration: (n: number) => void;
+  type: typeof SESSION_TYPES[number];
+  setType: (t: typeof SESSION_TYPES[number]) => void;
+  loading: boolean;
+  onStart: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Start a focus session</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Pick a duration and a session type.
+        </p>
+      </div>
+
+      <div>
+        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+          Duration
+        </div>
+        <div className="grid grid-cols-5 gap-2">
+          {DURATION_OPTIONS.map((min) => (
+            <button
+              key={min}
+              type="button"
+              onClick={() => setDuration(min)}
+              className={`h-10 rounded-lg border text-sm font-medium transition-colors ${
+                duration === min
+                  ? 'bg-primary-500 text-white border-primary-500'
+                  : 'bg-surface-1 text-gray-700 dark:text-gray-300 border-surface-3 hover:bg-surface-2'
+              }`}
+            >
+              {min}m
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+          Type
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {SESSION_TYPES.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setType(t)}
+              className={`h-10 rounded-lg border text-sm font-medium transition-colors ${
+                type === t
+                  ? 'bg-primary-500 text-white border-primary-500'
+                  : 'bg-surface-1 text-gray-700 dark:text-gray-300 border-surface-3 hover:bg-surface-2'
+              }`}
+            >
+              {t.charAt(0) + t.slice(1).toLowerCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Button
+        type="button"
+        variant="primary"
+        size="lg"
+        className="w-full"
+        loading={loading}
+        onClick={onStart}
+      >
+        Start {duration}-minute session
+      </Button>
+    </div>
+  );
+}
+
+function ActiveSessionView({
+  loading,
+  onPause,
+  onResume,
+  onEnd,
+}: {
+  loading: boolean;
+  onPause: () => void;
+  onResume: () => void;
+  onEnd: () => void;
+}) {
+  const current = useSessionStore((s) => s.current);
+  if (!current) return null;
+
+  return (
+    <div className="space-y-8">
+      <Timer session={current} />
+
+      <div className="flex justify-center gap-3">
+        {current.isPaused ? (
+          <Button variant="secondary" size="md" onClick={onResume} disabled={loading}>
+            Resume
+          </Button>
+        ) : (
+          <Button variant="secondary" size="md" onClick={onPause} disabled={loading}>
+            Pause
+          </Button>
+        )}
+        <Button variant="danger" size="md" onClick={onEnd} disabled={loading}>
+          End session
+        </Button>
+      </div>
     </div>
   );
 }

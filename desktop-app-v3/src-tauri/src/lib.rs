@@ -58,6 +58,10 @@ pub fn run() {
             commands::auth::auth_load,
             commands::auth::auth_logout,
             commands::ping::ping,
+            commands::sessions::session_start,
+            commands::sessions::session_active,
+            commands::sessions::session_end,
+            commands::sessions::session_toggle_pause,
         ])
         .run(tauri::generate_context!())
         .expect("error while running FlowShield desktop");

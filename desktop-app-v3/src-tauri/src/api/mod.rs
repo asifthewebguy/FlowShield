@@ -3,8 +3,10 @@
 //! command layer.
 
 mod auth;
+pub mod sessions;
 
 pub use auth::{login, AuthUser};
+pub use sessions::Session;
 
 /// Default API base URL. Overrideable at runtime via the `FLOWSHIELD_API_URL`
 /// env var so dev / staging / preview environments don't need recompiles.
