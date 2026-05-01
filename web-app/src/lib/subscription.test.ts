@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Explicit return type so `get` resolves to `string | null` (matches the real
+// Redis surface). Without this, vi.fn infers Promise<null> from the initial
+// value and `mockResolvedValueOnce('PRO')` fails strict typecheck.
 const redisMocks = vi.hoisted(() => ({
-  get: vi.fn(async () => null),
+  get: vi.fn<() => Promise<string | null>>(async () => null),
   setex: vi.fn(async () => 'OK'),
   del: vi.fn(async () => 1),
 }));
