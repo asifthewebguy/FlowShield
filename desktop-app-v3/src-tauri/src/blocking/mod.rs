@@ -53,6 +53,16 @@ pub fn clear_blocks() -> AppResult<()> {
     apply_blocks_at(&os_hosts_path(), &[])
 }
 
+/// Non-elevated check: is the FlowShield-managed region currently in the
+/// hosts file? Anyone can read `/etc/hosts`, so this works without a
+/// password prompt — useful for crash-recovery sync on app launch and
+/// keeping the dashboard's "blocking" indicator honest after restarts.
+pub fn is_active() -> AppResult<bool> {
+    let contents = fs::read_to_string(os_hosts_path())
+        .map_err(|e| AppError::Storage(format!("read hosts: {e}")))?;
+    Ok(contents.contains(BEGIN_MARKER))
+}
+
 fn apply_blocks_at(path: &Path, domains: &[String]) -> AppResult<()> {
     let current =
         fs::read_to_string(path).map_err(|e| AppError::Storage(format!("read hosts: {e}")))?;

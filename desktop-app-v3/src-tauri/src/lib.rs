@@ -188,6 +188,7 @@ pub fn run() {
             commands::projects::projects_create,
             commands::blocking::blocking_apply,
             commands::blocking::blocking_clear,
+            commands::blocking::blocking_status,
             commands::preferences::prefs_load,
         ])
         .run(tauri::generate_context!())

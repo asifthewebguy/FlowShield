@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import {
   isPermissionGranted,
   requestPermission,
@@ -9,6 +8,7 @@ import { useAuthStore } from '../lib/auth';
 import { useSessionStore } from '../lib/sessions';
 import { useProjectsStore, type Project } from '../lib/projects';
 import { usePrefsStore } from '../lib/preferences';
+import { useBlockingStore } from '../lib/blocking';
 import { Button } from '../components/Button';
 import { Timer } from '../components/Timer';
 
@@ -17,6 +17,13 @@ const SESSION_TYPES = ['WORK', 'STUDY', 'CREATIVE'] as const;
 
 const COOLDOWN_KEY = 'flowshield_cooldown_until';
 const COOLDOWN_MS = 5 * 60 * 1000;
+
+/**
+ * localStorage key for the "Block distractions during this session"
+ * checkbox. Persists across launches so the user's preferred default
+ * sticks — they don't have to re-tick it every session.
+ */
+const DEEP_WORK_KEY = 'flowshield_deep_work_armed';
 
 /**
  * Persistent 5-minute cool-down between sessions. Mirrors the web app's
@@ -98,6 +105,24 @@ export function DashboardPage() {
     void prefs.refresh();
   }, [prefs.refresh]);
 
+  const blocking = useBlockingStore();
+  // Read current OS state on launch so the dashboard's "blocking" indicator
+  // reflects reality if a previous run ended uncleanly. No prompt — read-only.
+  useEffect(() => {
+    void blocking.refresh();
+  }, [blocking.refresh]);
+
+  // Persistent "Block distractions during this session" checkbox. Mirrors
+  // the cooldown localStorage pattern. Defaults to off.
+  const [deepWorkArmed, setDeepWorkArmedState] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(DEEP_WORK_KEY) === 'true';
+  });
+  const setDeepWorkArmed = (v: boolean) => {
+    localStorage.setItem(DEEP_WORK_KEY, v ? 'true' : 'false');
+    setDeepWorkArmedState(v);
+  };
+
   // Detect the active → null transition (auto-end OR manual End) and fire
   // notification + start cooldown. Tracks previous session id via ref so we
   // only fire once per ended session, not on every re-render.
@@ -115,6 +140,23 @@ export function DashboardPage() {
     previousSessionIdRef.current = cur;
   }, [current, cooldown]);
 
+  // End wrapper — also clears the hosts-file block region if it's
+  // currently active. Surfaces the elevation prompt to the user.
+  // Errors during clear don't prevent session end (the user has already
+  // committed to ending — we just leave the block region in place; the
+  // DeepWorkCard's "Stop blocking" button can clean up later).
+  const endWithCleanup = async () => {
+    const wasBlocking = useBlockingStore.getState().active;
+    await end();
+    if (wasBlocking) {
+      try {
+        await useBlockingStore.getState().clear();
+      } catch {
+        // already surfaced as blocking.error
+      }
+    }
+  };
+
   // Auto-end when the planned duration is up (matches web FocusTimer's
   // auto-end behavior). Single setTimeout that fires once at the planned
   // end; cancelled if the user pauses, ends manually, or the session
@@ -128,14 +170,31 @@ export function DashboardPage() {
       // Stale session that was already past its end when we loaded it —
       // clean up silently without firing notification or cooldown.
       skipNextCooldownRef.current = true;
-      void end();
+      void endWithCleanup();
       return;
     }
     const t = setTimeout(() => {
-      void end();
+      void endWithCleanup();
     }, remainingMs);
     return () => clearTimeout(t);
   }, [current, end]);
+
+  // Start wrapper — kicks off blocking_apply right after the session is
+  // created on the server, if the user armed deep-work mode and has any
+  // distractions configured. The elevation prompt fires at this point.
+  // Failure to apply blocks does NOT roll back the session — the user
+  // can retry via the DeepWorkCard "Block now" button.
+  const handleStart = async () => {
+    await start(duration, type, selectedProjectId);
+    const distractions = prefs.current?.primaryDistractions ?? [];
+    if (deepWorkArmed && distractions.length > 0) {
+      try {
+        await useBlockingStore.getState().apply(distractions);
+      } catch {
+        // surfaced via blocking.error in DeepWorkCard
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -166,7 +225,7 @@ export function DashboardPage() {
               loading={loading}
               onPause={() => void togglePause('pause')}
               onResume={() => void togglePause('resume')}
-              onEnd={() => void end()}
+              onEnd={() => void endWithCleanup()}
             />
           ) : (
             <SessionPicker
@@ -183,14 +242,17 @@ export function DashboardPage() {
                 const created = await projects.create(name);
                 setSelectedProjectId(created.id);
               }}
-              onStart={() => void start(duration, type, selectedProjectId)}
+              deepWorkArmed={deepWorkArmed}
+              onSetDeepWorkArmed={setDeepWorkArmed}
+              deepWorkAvailable={(prefs.current?.primaryDistractions?.length ?? 0) > 0}
+              onStart={() => void handleStart()}
             />
           )}
 
           <DeepWorkCard
             distractions={prefs.current?.primaryDistractions ?? []}
-            loading={prefs.loading}
-            error={prefs.error}
+            prefsLoading={prefs.loading}
+            prefsError={prefs.error}
           />
         </div>
       </main>
@@ -209,6 +271,9 @@ function SessionPicker({
   selectedProjectId,
   onSelectProject,
   onCreateProject,
+  deepWorkArmed,
+  onSetDeepWorkArmed,
+  deepWorkAvailable,
   onStart,
 }: {
   duration: number;
@@ -221,6 +286,9 @@ function SessionPicker({
   selectedProjectId: string | null;
   onSelectProject: (id: string | null) => void;
   onCreateProject: (name: string) => Promise<void>;
+  deepWorkArmed: boolean;
+  onSetDeepWorkArmed: (v: boolean) => void;
+  deepWorkAvailable: boolean;
   onStart: () => void;
 }) {
   const inCooldown = cooldownRemainingMs > 0;
@@ -387,6 +455,30 @@ function SessionPicker({
         )}
       </div>
 
+      <label
+        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer ${
+          deepWorkAvailable
+            ? 'border-surface-3 bg-surface-1 hover:bg-surface-2'
+            : 'border-surface-3 bg-surface-1 opacity-60 cursor-not-allowed'
+        }`}
+        title={
+          deepWorkAvailable
+            ? 'Hosts-file blocks fire when the session starts. Password prompt required.'
+            : 'No distractions configured — set them at flowshield.app/settings'
+        }
+      >
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-primary-500"
+          checked={deepWorkAvailable && deepWorkArmed}
+          disabled={!deepWorkAvailable}
+          onChange={(e) => onSetDeepWorkArmed(e.target.checked)}
+        />
+        <span className="text-gray-700 dark:text-gray-300">
+          Block distractions during this session
+        </span>
+      </label>
+
       <Button
         type="button"
         variant="primary"
@@ -405,66 +497,27 @@ function SessionPicker({
 /**
  * Deep-work toggle card. Shows the user's primaryDistractions (configured
  * on the web at flowshield.app/settings) and exposes Apply / Stop buttons
- * that invoke the blocking_apply / blocking_clear Tauri commands. Each
- * action triggers an OS-native elevation prompt (polkit / Keychain / UAC).
+ * that invoke the blocking_apply / blocking_clear Tauri commands via
+ * `useBlockingStore`. Each action triggers an OS-native elevation prompt
+ * (polkit / Keychain / UAC).
  *
- * Phase 6.7 keeps `blocking` UI-only: there's no auto-apply on session
- * start or auto-clear on session end yet. That lifecycle wiring lands in
- * 6.8 once we settle on whether Apply should fire silently or always
- * prompt for elevation.
+ * The card stays in sync with the OS hosts file via `blocking.refresh()`
+ * called once on launch — so if a previous session ended uncleanly and
+ * left the region in /etc/hosts, the user sees the green "● blocking"
+ * indicator and a "Stop blocking" button waiting for them.
  */
 function DeepWorkCard({
   distractions,
-  loading,
-  error,
+  prefsLoading,
+  prefsError,
 }: {
   distractions: string[];
-  loading: boolean;
-  error: string | null;
+  prefsLoading: boolean;
+  prefsError: string | null;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [active, setActive] = useState(false);
-  const [opError, setOpError] = useState<string | null>(null);
+  const blocking = useBlockingStore();
 
-  const apply = async () => {
-    setBusy(true);
-    setOpError(null);
-    try {
-      await invoke('blocking_apply', { domains: distractions });
-      setActive(true);
-    } catch (err) {
-      setOpError(
-        err instanceof Error
-          ? err.message
-          : typeof err === 'string'
-            ? err
-            : 'Failed to apply blocks',
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const clear = async () => {
-    setBusy(true);
-    setOpError(null);
-    try {
-      await invoke('blocking_clear');
-      setActive(false);
-    } catch (err) {
-      setOpError(
-        err instanceof Error
-          ? err.message
-          : typeof err === 'string'
-            ? err
-            : 'Failed to clear blocks',
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (loading && distractions.length === 0) {
+  if (prefsLoading && distractions.length === 0) {
     return (
       <div className="rounded-lg border border-surface-3 bg-surface-1 p-4">
         <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
@@ -475,18 +528,22 @@ function DeepWorkCard({
     );
   }
 
-  if (error) {
+  if (prefsError) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-500/10 dark:border-red-500/20 p-4">
         <div className="text-xs uppercase tracking-wide text-red-700 dark:text-red-300 mb-1">
           Deep work mode
         </div>
-        <div className="text-sm text-red-700 dark:text-red-300">{error}</div>
+        <div className="text-sm text-red-700 dark:text-red-300">{prefsError}</div>
       </div>
     );
   }
 
-  if (distractions.length === 0) {
+  // Special case: no distractions configured but the OS hosts file already
+  // has a stale FlowShield region (orphaned from a previous run). Surface
+  // a Stop button so the user can clean up without round-tripping through
+  // the web settings.
+  if (distractions.length === 0 && !blocking.active) {
     return (
       <div className="rounded-lg border border-surface-3 bg-surface-1 p-4">
         <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
@@ -506,38 +563,61 @@ function DeepWorkCard({
         <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
           Deep work mode
         </div>
-        {active && (
+        {blocking.active && (
           <span className="text-xs text-emerald-600 dark:text-emerald-400">● blocking</span>
         )}
       </div>
-      <p className="text-sm text-gray-700 dark:text-gray-300">
-        Block {distractions.length} site{distractions.length === 1 ? '' : 's'} via the OS hosts
-        file. Toggling will prompt for your password.
-      </p>
-      <div className="flex flex-wrap gap-1">
-        {distractions.slice(0, 6).map((d) => (
-          <span
-            key={d}
-            className="text-xs font-mono px-2 py-0.5 rounded bg-surface-2 text-gray-700 dark:text-gray-300"
-          >
-            {d}
-          </span>
-        ))}
-        {distractions.length > 6 && (
-          <span className="text-xs text-gray-500 dark:text-gray-400 self-center">
-            +{distractions.length - 6} more
-          </span>
-        )}
-      </div>
-      {opError && (
-        <div className="text-xs text-red-600 dark:text-red-400">{opError}</div>
+      {distractions.length > 0 ? (
+        <>
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            Block {distractions.length} site{distractions.length === 1 ? '' : 's'} via the OS
+            hosts file. Toggling will prompt for your password.
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {distractions.slice(0, 6).map((d) => (
+              <span
+                key={d}
+                className="text-xs font-mono px-2 py-0.5 rounded bg-surface-2 text-gray-700 dark:text-gray-300"
+              >
+                {d}
+              </span>
+            ))}
+            {distractions.length > 6 && (
+              <span className="text-xs text-gray-500 dark:text-gray-400 self-center">
+                +{distractions.length - 6} more
+              </span>
+            )}
+          </div>
+        </>
+      ) : (
+        <p className="text-sm text-gray-700 dark:text-gray-300">
+          A FlowShield block region is currently active in your hosts file (likely from a
+          previous session). Click below to remove it.
+        </p>
       )}
-      {active ? (
-        <Button variant="secondary" size="md" loading={busy} onClick={() => void clear()}>
+      {blocking.error && (
+        <div className="text-xs text-red-600 dark:text-red-400">{blocking.error}</div>
+      )}
+      {blocking.active ? (
+        <Button
+          variant="secondary"
+          size="md"
+          loading={blocking.busy}
+          onClick={() => {
+            void blocking.clear();
+          }}
+        >
           Stop blocking
         </Button>
       ) : (
-        <Button variant="primary" size="md" loading={busy} onClick={() => void apply()}>
+        <Button
+          variant="primary"
+          size="md"
+          loading={blocking.busy}
+          onClick={() => {
+            void blocking.apply(distractions);
+          }}
+        >
           Block now
         </Button>
       )}
