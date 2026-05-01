@@ -42,11 +42,61 @@ describe('resolveCategory', () => {
     expect(resolveCategory('obscure-site.com', 'Browsing', noRules)).toBe('Browsing');
   });
 
-  it('ignores rules with matchField other than applicationName', () => {
+  it('honors windowTitle rules when activity object provides windowTitle', () => {
+    const rules: RuleStub[] = [
+      { keyword: 'spotify', matchField: 'windowTitle', category: 'Entertainment' },
+    ];
+    expect(
+      resolveCategory(
+        { applicationName: 'unknown.exe', windowTitle: 'Spotify - Daily Mix' },
+        'Browsing',
+        rules
+      )
+    ).toBe('Entertainment');
+  });
+
+  it('honors processName rules', () => {
+    const rules: RuleStub[] = [
+      { keyword: 'code', matchField: 'processName', category: 'Development' },
+    ];
+    expect(
+      resolveCategory(
+        { applicationName: 'editor', processName: 'code.exe' },
+        'Browsing',
+        rules
+      )
+    ).toBe('Development');
+  });
+
+  it('honors url rules', () => {
+    const rules: RuleStub[] = [
+      { keyword: 'youtube', matchField: 'url', category: 'Entertainment' },
+    ];
+    expect(
+      resolveCategory(
+        { applicationName: 'chrome.exe', url: 'https://www.youtube.com/watch?v=foo' },
+        'Browsing',
+        rules
+      )
+    ).toBe('Entertainment');
+  });
+
+  it('skips rules whose target field is missing', () => {
     const rules: RuleStub[] = [
       { keyword: 'messenger', matchField: 'windowTitle', category: 'Communication' },
     ];
-    expect(resolveCategory('messenger.com', 'Browsing', rules)).toBe('Browsing');
+    // No windowTitle present → rule does not match → fall through to applicationName? No,
+    // there's no applicationName rule; fall back to client category.
+    expect(
+      resolveCategory({ applicationName: 'messenger.com' }, 'Browsing', rules)
+    ).toBe('Browsing');
+  });
+
+  it('preserves backwards compatibility when called with a bare applicationName string', () => {
+    const rules: RuleStub[] = [
+      { keyword: 'messenger', matchField: 'applicationName', category: 'Communication' },
+    ];
+    expect(resolveCategory('messenger.com', 'Browsing', rules)).toBe('Communication');
   });
 
   it('uses first matching rule (rules pre-sorted by priority desc)', () => {

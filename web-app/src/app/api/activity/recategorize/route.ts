@@ -110,34 +110,35 @@ export async function POST(request: NextRequest) {
         orderBy: [{ priority: 'desc' }, { isGlobal: 'asc' }],
       });
 
-      // Fetch all user activities
       const activities = await prisma.activityLog.findMany({
         where: { userId },
         select: { id: true, processName: true, windowTitle: true, applicationName: true, url: true },
       });
 
-      let updatedCount = 0;
-
-      // Process in batches to avoid overwhelming the DB
-      const batchSize = 100;
-      for (let i = 0; i < activities.length; i += batchSize) {
-        const batch = activities.slice(i, i + batchSize);
-        const updates: { id: string; category: string }[] = [];
-
-        for (const act of batch) {
-          const newCat = matchCategory(act, rules);
-          if (newCat) {
-            updates.push({ id: act.id, category: newCat });
-          }
+      // Group activity ids by their resolved new category, then issue one
+      // updateMany per bucket. For thousands of rows this is dramatically
+      // faster than the previous one-at-a-time loop.
+      const buckets = new Map<string, string[]>();
+      for (const act of activities) {
+        const newCat = matchCategory(act, rules);
+        if (newCat) {
+          const ids = buckets.get(newCat);
+          if (ids) ids.push(act.id);
+          else buckets.set(newCat, [act.id]);
         }
+      }
 
-        // Execute updates
-        for (const update of updates) {
-          await prisma.activityLog.update({
-            where: { id: update.id },
-            data: { category: update.category },
+      let updatedCount = 0;
+      for (const [category, ids] of buckets) {
+        // Chunk to avoid Postgres parameter limits (~32k); 1000 is plenty.
+        const CHUNK = 1000;
+        for (let i = 0; i < ids.length; i += CHUNK) {
+          const slice = ids.slice(i, i + CHUNK);
+          const result = await prisma.activityLog.updateMany({
+            where: { id: { in: slice } },
+            data: { category },
           });
-          updatedCount++;
+          updatedCount += result.count;
         }
       }
 

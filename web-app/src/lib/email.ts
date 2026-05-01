@@ -2,13 +2,41 @@ import { Resend } from 'resend';
 import { logger } from './logger';
 
 const resendApiKey = process.env.RESEND_API_KEY;
-const isMockMode = !resendApiKey || process.env.EMAIL_MODE === 'mock';
-
-if (!isMockMode && !resendApiKey) {
-    logger.warn('RESEND_API_KEY is not set. Email sending will be disabled or fallback to mock mode if EMAIL_MODE=mock is set explicitly.');
-}
+const explicitMockMode = process.env.EMAIL_MODE === 'mock';
+const isMockMode = explicitMockMode || !resendApiKey;
 
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
+
+let prodConfigChecked = false;
+
+/**
+ * Verify the email config at first send-time rather than module load. We
+ * deliberately don't throw at import time because Next.js evaluates server
+ * modules during `next build` to collect route metadata, and a missing key
+ * during build would tank deploys for unrelated reasons. Catching the
+ * misconfiguration here means the first email attempt fails loudly, which
+ * is what we want.
+ */
+function assertProductionEmailConfig() {
+    if (prodConfigChecked) return;
+    prodConfigChecked = true;
+    if (process.env.NODE_ENV !== 'production') return;
+    if (!resendApiKey && !explicitMockMode) {
+        throw new Error(
+            'RESEND_API_KEY is required in production. Set EMAIL_MODE=mock if you really want to bypass email sending.'
+        );
+    }
+    if (explicitMockMode) {
+        logger.warn('EMAIL_MODE=mock is set in production — no emails will actually be sent.');
+    }
+}
+
+if (isMockMode && !explicitMockMode && process.env.NODE_ENV !== 'production') {
+    logger.warn(
+        'RESEND_API_KEY is not set — falling back to mock mode (emails will not be sent). ' +
+        'Set RESEND_API_KEY for real sending or EMAIL_MODE=mock to silence this warning.'
+    );
+}
 
 interface SendEmailParams {
     to: string;
@@ -18,6 +46,7 @@ interface SendEmailParams {
 
 export async function sendEmail({ to, subject, html }: SendEmailParams): Promise<boolean> {
     try {
+        assertProductionEmailConfig();
         if (isMockMode) {
             logger.info('================================================================');
             logger.info(`[MOCK EMAIL SERVICE]`);
