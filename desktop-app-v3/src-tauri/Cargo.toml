@@ -30,6 +30,11 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"
 # Wraps Win32 / Cocoa / X11 / Wayland under one Result-returning surface.
 active-win-pos-rs = "0.8"
 
+# OS-level idle-time query for AFK detection. Backed by IOKit (macOS),
+# GetLastInputInfo (Windows), and XScreenSaver (Linux X11). Pure Wayland
+# isn't supported — XWayland fallback works on most GNOME/KDE setups.
+user-idle = "0.6"
+
 # Local persistent store for the offline activity-sync queue. `bundled`
 # pulls a vendored sqlite3 so the desktop installer doesn't depend on
 # the user having libsqlite3 (matters on Windows + minimal macOS images).

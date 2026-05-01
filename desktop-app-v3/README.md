@@ -35,8 +35,10 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 Linux (Fedora):
 ```bash
-sudo dnf install -y webkit2gtk4.1-devel openssl-devel libappindicator-gtk3-devel librsvg2-devel
+sudo dnf install -y webkit2gtk4.1-devel openssl-devel libappindicator-gtk3-devel librsvg2-devel libXScrnSaver-devel
 ```
+
+(`libXScrnSaver-devel` is required by the `user-idle` crate for AFK detection.)
 
 macOS: `xcode-select --install`. Windows: Microsoft C++ Build Tools + WebView2.
 
