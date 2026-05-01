@@ -16,9 +16,12 @@ const TICK_SECS: u64 = 60;
 const BATCH_SIZE: i64 = 16;
 
 pub fn spawn(http: reqwest::Client, token: Arc<RwLock<Option<String>>>, db: Db) {
-    tokio::spawn(async move {
-        // `tokio::time::interval` ticks immediately on the first call,
-        // so we drain on launch without a 60s wait.
+    // `tauri::async_runtime::spawn` (vs `tokio::spawn`) so this works when
+    // called from Tauri's `setup` callback — that runs synchronously before
+    // any task is on a runtime. Tauri's async_runtime IS tokio under the
+    // hood, so `tokio::time::interval` / `tokio::sync::RwLock` inside the
+    // future continue to work.
+    tauri::async_runtime::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(TICK_SECS));
         loop {
             tick.tick().await;
