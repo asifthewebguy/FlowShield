@@ -53,6 +53,19 @@ Point at a local FlowShield API:
 FLOWSHIELD_API_URL=http://localhost:3000 npm run tauri:dev
 ```
 
+### Linux + Wayland: WebKitGTK protocol error
+
+If `tauri:dev` exits immediately on Linux with
+`Gdk-Message: Error 71 (Protocol error) dispatching to Wayland display`,
+WebKitGTK 2.44+ has a known DMA-BUF renderer incompatibility with some
+Wayland compositors (Fedora 43 + GNOME hits this). Workaround:
+
+```bash
+WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri:dev
+```
+
+Or fall back to XWayland: `GDK_BACKEND=x11 npm run tauri:dev`.
+
 ## Icons (before first build)
 
 `tauri.conf.json` references `src-tauri/icons/*` which aren't checked in.
