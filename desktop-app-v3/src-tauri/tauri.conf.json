@@ -22,6 +22,12 @@
         "center": true
       }
     ],
+    "trayIcon": {
+      "id": "main",
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true,
+      "tooltip": "FlowShield"
+    },
     "security": {
       "csp": "default-src 'self' 'unsafe-inline' data: blob:; connect-src 'self' https://flowshield.app https://*.flowshield.app ipc: http://ipc.localhost; img-src 'self' data: https:"
     }

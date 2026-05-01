@@ -7,6 +7,7 @@ mod error;
 mod store;
 mod sync_worker;
 mod tracker;
+mod tray;
 
 use std::sync::Arc;
 use tauri::Manager;
@@ -66,8 +67,51 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            // No CLI args on autostart: the desktop launches itself; the
+            // user can quit via the tray menu if they don't want it
+            // running on this boot.
+            None,
+        ))
+        .on_window_event(|window, event| {
+            // Close-to-tray: intercept the close button on the main window
+            // so the app keeps running (auto-syncing, draining the offline
+            // queue). The Quit menu item is the only path to exit.
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+            }
+        })
         .manage(AppState::new())
         .setup(|app| {
+            // Tray icon (declared in tauri.conf.json) gets its menu attached.
+            if let Err(err) = tray::install(app) {
+                tracing::warn!(?err, "tray install failed; tray menu unavailable");
+            }
+
+            // Enable autostart on first launch only — never overwrite a
+            // user's choice on subsequent runs. The plugin reads OS-level
+            // state (LaunchAgent / registry / .desktop file).
+            #[cfg(not(any(test, debug_assertions)))]
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let manager = app.autolaunch();
+                match manager.is_enabled() {
+                    Ok(false) => {
+                        if let Err(err) = manager.enable() {
+                            tracing::warn!(?err, "could not enable autostart");
+                        } else {
+                            tracing::info!("autostart enabled (first launch)");
+                        }
+                    }
+                    Ok(true) => tracing::debug!("autostart already enabled"),
+                    Err(err) => tracing::warn!(?err, "autostart status check failed"),
+                }
+            }
+
             // Open the local SQLite store under the OS app-data directory.
             // If this fails (read-only FS, weird sandbox, …) we log + skip:
             // the app still works, the offline-sync queue is just unavailable.
