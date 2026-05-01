@@ -4,7 +4,7 @@ import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
 import { bustCoachCacheIfPaid } from '@/lib/coach-quota';
-import { classifySessionProject } from '@/lib/project-classifier';
+import { autoClassifyIfNeeded, nextWeightedAverage } from '@/lib/auto-classify-helper';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -71,47 +71,44 @@ export async function PATCH(
 
     // Auto-classify only when completing a session the user didn't link to a project.
     // Skip if the user explicitly set projectId in this request (respects user intent).
-    if (completed && !projectIdProvided && !updatedSession.projectId) {
-      try {
-        const guessed = await classifySessionProject(id, userId);
-        if (guessed) {
-          updatedSession = await prisma.session.update({
-            where: { id },
-            data: { projectId: guessed },
-          });
-          logger.info(`Session ${id} auto-classified to project ${guessed}`);
-        }
-      } catch (err) {
-        logger.warn('Project auto-classify failed', err);
-      }
+    if (completed && !projectIdProvided) {
+      updatedSession = await autoClassifyIfNeeded(id, userId, updatedSession);
     }
 
-    // Update DailyStats if session is completed
+    // Update DailyStats if session is completed. Use a weighted average so
+    // every completed session contributes — was previously overwriting with
+    // just the latest score.
     if (completed && actualDuration) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
+      const existingStats = await prisma.dailyStats.findUnique({
+        where: { userId_date: { userId, date: today } },
+        select: { avgProductivityScore: true, sessionsCompleted: true },
+      });
+
+      const newAvg =
+        productivityScore !== undefined
+          ? nextWeightedAverage(
+              existingStats?.avgProductivityScore ?? null,
+              existingStats?.sessionsCompleted ?? 0,
+              productivityScore
+            )
+          : existingStats?.avgProductivityScore ?? 0;
+
       await prisma.dailyStats.upsert({
-        where: {
-          userId_date: {
-            userId,
-            date: today,
-          },
-        },
+        where: { userId_date: { userId, date: today } },
         update: {
           totalFocusMinutes: { increment: actualDuration },
           sessionsCompleted: { increment: 1 },
-          // Simple average update logic (weighted average would be better but keeping it simple)
-          ...(productivityScore && {
-            avgProductivityScore: productivityScore // Simplified: just taking latest or would need complex math
-          }),
+          ...(productivityScore !== undefined && { avgProductivityScore: newAvg }),
         },
         create: {
           userId,
           date: today,
           totalFocusMinutes: actualDuration,
           sessionsCompleted: 1,
-          avgProductivityScore: productivityScore || 0,
+          avgProductivityScore: productivityScore ?? 0,
         },
       });
     }
