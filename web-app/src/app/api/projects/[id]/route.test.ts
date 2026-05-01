@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   projectFindFirst: vi.fn(),
   projectDelete: vi.fn(),
   projectUpdate: vi.fn(),
+  triggerUserEvent: vi.fn(),
 }));
 
 vi.mock('@/lib/jwt', () => ({
@@ -21,6 +22,10 @@ vi.mock('@/lib/prisma', () => ({
       update: mocks.projectUpdate,
     },
   },
+}));
+
+vi.mock('@/lib/pusher', () => ({
+  triggerUserEvent: mocks.triggerUserEvent,
 }));
 
 vi.mock('@/lib/schemas', () => ({

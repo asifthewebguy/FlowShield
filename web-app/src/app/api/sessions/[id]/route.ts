@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
 import { bustCoachCacheIfPaid } from '@/lib/coach-quota';
 import { autoClassifyIfNeeded, nextWeightedAverage } from '@/lib/auto-classify-helper';
+import { invalidateAnalyticsCache } from '@/lib/analytics-cache';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -114,6 +115,7 @@ export async function PATCH(
     }
 
     triggerUserEvent(userId, 'session-update');
+    await invalidateAnalyticsCache(userId);
 
     // Bust the AI Coach cache for paid tiers so their next visit gets fresh
     // advice that reflects this session. FREE users are intentionally NOT

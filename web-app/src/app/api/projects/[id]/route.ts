@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
+import { triggerUserEvent } from '@/lib/pusher';
 import { UpdateProjectCostSchema } from '@/lib/schemas';
 
 export async function PATCH(
@@ -33,6 +34,7 @@ export async function PATCH(
       data: parsed.data,
     });
 
+    triggerUserEvent(userId, 'project-update', { id });
     return NextResponse.json(updated);
   } catch (error) {
     logger.error('Error updating project:', error);
@@ -63,6 +65,7 @@ export async function DELETE(
     await prisma.project.delete({ where: { id } });
     logger.info(`Project deleted: ${id} by user ${userId}`);
 
+    triggerUserEvent(userId, 'project-update', { id, deleted: true });
     return NextResponse.json({ ok: true });
   } catch (error) {
     logger.error('Error deleting project:', error);

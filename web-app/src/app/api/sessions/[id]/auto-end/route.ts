@@ -6,6 +6,7 @@ import { triggerUserEvent } from '@/lib/pusher';
 import { bustCoachCacheIfPaid } from '@/lib/coach-quota';
 import { sendSessionEndPush } from '@/lib/pushNotify';
 import { autoClassifyIfNeeded } from '@/lib/auto-classify-helper';
+import { invalidateAnalyticsCache } from '@/lib/analytics-cache';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
 
     triggerUserEvent(userId, 'session-update');
+    await invalidateAnalyticsCache(userId);
 
     // Bust coach cache for paid tiers; FREE quota is durable via DB column.
     await bustCoachCacheIfPaid(userId);

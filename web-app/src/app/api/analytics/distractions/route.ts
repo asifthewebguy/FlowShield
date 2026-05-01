@@ -74,12 +74,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Per-app share is meaningful as "% of distracting time spent on this app"
+    // (sums to 100% across the top distractions). The previous denominator
+    // (totalMinutes = all activity) understated each app's distraction share
+    // because productive time inflated the denominator.
     const topDistractions = Object.entries(appTimes)
       .map(([name, data]) => ({
         name,
         category: data.category,
         minutes: Math.round(data.minutes),
-        percentage: totalMinutes > 0 ? Math.round((data.minutes / totalMinutes) * 100) : 0,
+        percentage:
+          totalDistractionMinutes > 0
+            ? Math.round((data.minutes / totalDistractionMinutes) * 100)
+            : 0,
       }))
       .sort((a, b) => b.minutes - a.minutes)
       .slice(0, 5);

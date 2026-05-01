@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
+import { invalidateAnalyticsCache } from '@/lib/analytics-cache';
 
 // Create a new session
 export async function POST(request: NextRequest) {
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
     });
 
     triggerUserEvent(userId, 'session-update');
+    await invalidateAnalyticsCache(userId);
     return NextResponse.json({ session }, { status: 201 });
   } catch (error) {
     logger.error('Session creation error:', error);

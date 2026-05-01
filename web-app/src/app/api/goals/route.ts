@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
+import { triggerUserEvent } from '@/lib/pusher';
 import { CreateGoalSchema } from '@/lib/schemas';
 
 export async function GET(req: NextRequest) {
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
           updatedAt: new Date(),
         },
       });
+      triggerUserEvent(userId, 'goal-update', { id: updatedGoal.id });
       return NextResponse.json({ goal: updatedGoal });
     }
 
@@ -85,6 +87,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    triggerUserEvent(userId, 'goal-update', { id: newGoal.id });
     return NextResponse.json({ goal: newGoal });
   } catch (error) {
     logger.error('Error creating/updating goal', error);
