@@ -32,11 +32,19 @@ pub async fn session_start(
     state: State<'_, AppState>,
     planned_duration: i32,
     session_type: Option<String>,
+    project_id: Option<String>,
 ) -> AppResult<Session> {
     let token = token_or_err(&state).await?;
     let session_type = session_type.as_deref().unwrap_or("WORK");
-    let session =
-        api::sessions::start_session(&state.http, &token, planned_duration, session_type).await?;
+    let project_id = project_id.as_deref().filter(|s| !s.is_empty());
+    let session = api::sessions::start_session(
+        &state.http,
+        &token,
+        planned_duration,
+        session_type,
+        project_id,
+    )
+    .await?;
 
     // Replace any leftover tracker (e.g. a previous session that wasn't ended
     // cleanly) — drop the old one, spawn a fresh one for this session.

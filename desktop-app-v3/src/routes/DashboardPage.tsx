@@ -6,6 +6,7 @@ import {
 } from '@tauri-apps/plugin-notification';
 import { useAuthStore } from '../lib/auth';
 import { useSessionStore } from '../lib/sessions';
+import { useProjectsStore, type Project } from '../lib/projects';
 import { Button } from '../components/Button';
 import { Timer } from '../components/Timer';
 
@@ -70,8 +71,10 @@ async function notifySessionDone() {
 export function DashboardPage() {
   const { user, logout } = useAuthStore();
   const { current, loading, error, refresh, start, end, togglePause } = useSessionStore();
+  const projects = useProjectsStore();
   const [duration, setDuration] = useState(25);
   const [type, setType] = useState<typeof SESSION_TYPES[number]>('WORK');
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const cooldown = useCooldown();
   const previousSessionIdRef = useRef<string | null>(null);
   // Set when we auto-end a session that was already past its planned time at
@@ -83,6 +86,10 @@ export function DashboardPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void projects.refresh();
+  }, [projects.refresh]);
 
   // Detect the active → null transition (auto-end OR manual End) and fire
   // notification + start cooldown. Tracks previous session id via ref so we
@@ -162,7 +169,14 @@ export function DashboardPage() {
               setType={setType}
               loading={loading}
               cooldownRemainingMs={cooldown.remainingMs}
-              onStart={() => void start(duration, type)}
+              projects={projects.items}
+              selectedProjectId={selectedProjectId}
+              onSelectProject={setSelectedProjectId}
+              onCreateProject={async (name) => {
+                const created = await projects.create(name);
+                setSelectedProjectId(created.id);
+              }}
+              onStart={() => void start(duration, type, selectedProjectId)}
             />
           )}
         </div>
@@ -178,6 +192,10 @@ function SessionPicker({
   setType,
   loading,
   cooldownRemainingMs,
+  projects,
+  selectedProjectId,
+  onSelectProject,
+  onCreateProject,
   onStart,
 }: {
   duration: number;
@@ -186,12 +204,36 @@ function SessionPicker({
   setType: (t: typeof SESSION_TYPES[number]) => void;
   loading: boolean;
   cooldownRemainingMs: number;
+  projects: Project[];
+  selectedProjectId: string | null;
+  onSelectProject: (id: string | null) => void;
+  onCreateProject: (name: string) => Promise<void>;
   onStart: () => void;
 }) {
   const inCooldown = cooldownRemainingMs > 0;
   const cdMin = Math.floor(cooldownRemainingMs / 60_000);
   const cdSec = Math.floor((cooldownRemainingMs % 60_000) / 1000);
   const cdLabel = `${cdMin}:${String(cdSec).padStart(2, '0')}`;
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      await onCreateProject(name);
+      setNewName('');
+      setAdding(false);
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Failed to create project');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -248,6 +290,88 @@ function SessionPicker({
             </button>
           ))}
         </div>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            Project
+          </div>
+          {!adding && (
+            <button
+              type="button"
+              onClick={() => {
+                setAdding(true);
+                setCreateError(null);
+              }}
+              className="text-xs text-primary-500 hover:underline"
+            >
+              + New project
+            </button>
+          )}
+        </div>
+        {adding ? (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleCreate();
+                  if (e.key === 'Escape') {
+                    setAdding(false);
+                    setNewName('');
+                    setCreateError(null);
+                  }
+                }}
+                placeholder="Project name"
+                className="flex-1 h-10 rounded-lg border border-surface-3 bg-surface-1 px-3 text-sm focus:outline-none focus:border-primary-500"
+                disabled={creating}
+              />
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                loading={creating}
+                disabled={!newName.trim()}
+                onClick={() => void handleCreate()}
+              >
+                Save
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                disabled={creating}
+                onClick={() => {
+                  setAdding(false);
+                  setNewName('');
+                  setCreateError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+            {createError && (
+              <div className="text-xs text-red-600 dark:text-red-400">{createError}</div>
+            )}
+          </div>
+        ) : (
+          <select
+            value={selectedProjectId ?? ''}
+            onChange={(e) => onSelectProject(e.target.value || null)}
+            className="w-full h-10 rounded-lg border border-surface-3 bg-surface-1 px-3 text-sm focus:outline-none focus:border-primary-500"
+          >
+            <option value="">No project</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       <Button
