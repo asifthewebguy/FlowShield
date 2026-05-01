@@ -14,10 +14,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri              = { version = "2", features = [] }
+tauri              = { version = "2", features = ["tray-icon"] }
 tauri-plugin-store = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-autostart = "2"
 
 # HTTP client. rustls so we don't pull in OpenSSL/native-tls quirks.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

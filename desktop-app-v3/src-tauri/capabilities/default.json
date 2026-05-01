@@ -9,6 +9,7 @@
     "core:window:allow-minimize",
     "store:default",
     "shell:allow-open",
-    "notification:default"
+    "notification:default",
+    "autostart:default"
   ]
 }

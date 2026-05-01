@@ -66,6 +66,23 @@ WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run tauri:dev
 
 Or fall back to XWayland: `GDK_BACKEND=x11 npm run tauri:dev`.
 
+### Linux + GNOME Wayland: tray icon doesn't appear
+
+GNOME Shell on Wayland dropped native system-tray support — the tray
+code in the Rust backend runs without errors, but no icon shows up
+in the panel. Without an icon there's no way to bring the window back
+after close-to-tray. Install the AppIndicator extension:
+
+```bash
+sudo dnf install gnome-shell-extension-appindicator
+gnome-extensions enable appindicatorsupport@rgcjonas.gmail.com
+# Log out + back in (or run `r` in Alt+F2 on X11) to load the extension.
+```
+
+This is a runtime UX requirement on GNOME Wayland, not a build
+dependency. KDE / XFCE / GNOME-on-X11 ship native tray support and
+need no extension.
+
 ## Icons (before first build)
 
 `tauri.conf.json` references `src-tauri/icons/*` which aren't checked in.
