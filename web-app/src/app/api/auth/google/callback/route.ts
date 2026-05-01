@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { sign } from 'jsonwebtoken';
 import { getJwtSecret } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
+import { redis } from '@/lib/redis';
+
+const CALLBACK_SESSION_TTL_SECONDS = 120; // 2-minute window for the page to exchange
 
 export async function GET(request: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -97,16 +101,42 @@ export async function GET(request: NextRequest) {
     const jwtToken = sign(
       { userId: user.id, email: user.email, role: user.role },
       getJwtSecret(),
-      { expiresIn: '1h' }
+      { expiresIn: '7d' }
     );
 
     const isNewUser = !user.preferences?.workStyle;
     const dest = isNewUser ? '/onboarding' : '/dashboard';
 
-    // Pass token to client via URL fragment (picked up by the login page)
-    return NextResponse.redirect(
-      `${appUrl}/auth/callback?token=${encodeURIComponent(jwtToken)}&user=${encodeURIComponent(JSON.stringify({ id: user.id, email: user.email, name: user.name, preferences: user.preferences }))}&redirect=${encodeURIComponent(dest)}`
-    );
+    // Don't put the JWT or user payload in the URL — it ends up in browser
+    // history, referrer headers, and proxy/CDN access logs. Instead, stash
+    // it in Redis under a single-use UUID and redirect the browser with
+    // only that ID. The /auth/callback page POSTs the ID to
+    // /api/auth/callback-exchange to retrieve the token, then drops the
+    // entry. TTL is short so a leaked URL is useless after 2 minutes.
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    const payload = {
+      token: jwtToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        preferences: user.preferences,
+      },
+      redirect: dest,
+    };
+
+    try {
+      await redis.setex(
+        `auth-callback:${sessionId}`,
+        CALLBACK_SESSION_TTL_SECONDS,
+        JSON.stringify(payload)
+      );
+    } catch (err) {
+      logger.error('Failed to write auth callback session to Redis', err);
+      return NextResponse.redirect(`${appUrl}/auth/login?error=oauth_failed`);
+    }
+
+    return NextResponse.redirect(`${appUrl}/auth/callback?session=${sessionId}`);
   } catch (err) {
     logger.error('Google OAuth callback error', err);
     return NextResponse.redirect(`${appUrl}/auth/login?error=oauth_failed`);

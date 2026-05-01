@@ -1,24 +1,58 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { setToken, setUserData } from '@/lib/auth-token';
 
-export default function AuthCallbackPage() {
+function AuthCallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    const userParam = searchParams.get('user');
-    const redirect = searchParams.get('redirect') || '/dashboard';
+    const session = searchParams.get('session');
 
-    if (token && userParam) {
+    // Legacy compatibility: if a token is still in the URL (e.g. an old
+    // OAuth redirect from before the exchange flow), accept it once. New
+    // redirects use the session-exchange path above.
+    const legacyToken = searchParams.get('token');
+    const legacyUser = searchParams.get('user');
+    const legacyRedirect = searchParams.get('redirect') || '/dashboard';
+
+    if (session) {
+      let cancelled = false;
+      (async () => {
+        try {
+          const res = await fetch('/api/auth/callback-exchange', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session }),
+          });
+          if (!res.ok) {
+            router.replace('/auth/login?error=oauth_failed');
+            return;
+          }
+          const data = await res.json();
+          if (cancelled) return;
+          if (!data?.token || !data?.user) {
+            router.replace('/auth/login?error=oauth_failed');
+            return;
+          }
+          setToken(data.token, true);
+          setUserData(data.user, true);
+          router.replace(data.redirect || '/dashboard');
+        } catch {
+          if (!cancelled) router.replace('/auth/login?error=oauth_failed');
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    } else if (legacyToken && legacyUser) {
       try {
-        const user = JSON.parse(userParam);
-        setToken(token, true);
+        const user = JSON.parse(legacyUser);
+        setToken(legacyToken, true);
         setUserData(user, true);
-        router.replace(redirect);
+        router.replace(legacyRedirect);
       } catch {
         router.replace('/auth/login?error=oauth_failed');
       }
@@ -34,5 +68,13 @@ export default function AuthCallbackPage() {
         <p className="text-gray-600 dark:text-gray-400">Completing sign in...</p>
       </div>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={null}>
+      <AuthCallbackInner />
+    </Suspense>
   );
 }
