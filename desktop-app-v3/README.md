@@ -11,6 +11,49 @@ top of a Rust backend.
 > out of scope for this PR — see the legacy `desktop-app/` for the
 > Windows-only feature set we're working back toward.
 
+## Install (end-user)
+
+Latest builds are on the [Releases page](https://github.com/asifthewebguy/FlowShield/releases?q=v3&expanded=true).
+
+### AppImage (any distro — easiest)
+
+```bash
+chmod +x flowshield_X.Y.Z_amd64.AppImage
+./flowshield_X.Y.Z_amd64.AppImage
+```
+
+### Debian / Ubuntu / Pop!_OS / Mint
+
+```bash
+sudo apt install ./flowshield_X.Y.Z_amd64.deb
+```
+
+### Fedora / RHEL / openSUSE
+
+```bash
+sudo dnf install ./flowshield-X.Y.Z-1.x86_64.rpm
+```
+
+### Arch Linux / Manjaro (AUR)
+
+```bash
+yay -S flowshield-bin
+# or:
+paru -S flowshield-bin
+```
+
+### Verifying signatures
+
+Each release ships with `SHA256SUMS` + `SHA256SUMS.asc` and a `.asc`
+detached signature alongside every binary. Verify with:
+
+```bash
+gpg --verify SHA256SUMS.asc SHA256SUMS
+sha256sum --check SHA256SUMS --ignore-missing
+```
+
+The signing key fingerprint is published in the GitHub Release notes.
+
 ## Why Tauri 2 + Rust?
 
 - **~8 MB installers** vs Electron's ~200 MB. Auto-start on every login

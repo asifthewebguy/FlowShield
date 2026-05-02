@@ -34,7 +34,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["deb", "rpm", "appimage", "nsis", "dmg"],
+    "publisher": "FlowShield",
+    "copyright": "Copyright © 2026 FlowShield. MIT License.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -44,6 +46,17 @@
     ],
     "category": "Productivity",
     "shortDescription": "Track your focus across desktop and web.",
-    "longDescription": "FlowShield is a cross-platform productivity tracker that pairs with the FlowShield web dashboard."
+    "longDescription": "FlowShield is a cross-platform productivity tracker that pairs with the FlowShield web dashboard.",
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libayatana-appindicator3-1", "libssl3"]
+      },
+      "rpm": {
+        "depends": ["webkit2gtk4.1", "libappindicator-gtk3", "openssl-libs"]
+      },
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    }
   }
 }

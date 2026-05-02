@@ -1,9 +1,13 @@
 name: Desktop App Release
 
+# v1.* and v2.* tags fire this workflow (the .NET v2 Windows release).
+# v3.* tags fire .github/workflows/desktop-v3-release.yml instead — the
+# Tauri Linux/macOS/Windows pipeline. Don't broaden this glob without
+# disambiguating, or both workflows will fire on the same tag.
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-2].*'
   workflow_dispatch:
 
 env:
