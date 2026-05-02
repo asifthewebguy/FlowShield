@@ -8,4 +8,5 @@ mod elevation;
 pub mod ping;
 pub mod preferences;
 pub mod projects;
+pub mod realtime;
 pub mod sessions;

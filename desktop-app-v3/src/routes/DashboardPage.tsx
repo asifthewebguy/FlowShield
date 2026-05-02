@@ -9,6 +9,7 @@ import { useSessionStore } from '../lib/sessions';
 import { useProjectsStore, type Project } from '../lib/projects';
 import { usePrefsStore } from '../lib/preferences';
 import { useBlockingStore } from '../lib/blocking';
+import { useRealtimeStore } from '../lib/realtime';
 import { Button } from '../components/Button';
 import { Timer } from '../components/Timer';
 
@@ -96,11 +97,24 @@ export function DashboardPage() {
     void refresh();
   }, [refresh]);
 
-  // Cross-device session sync — pause / resume / end fired on the web
-  // app or mobile lands here within 30s. Without this poll, a user who
-  // pauses on one surface and resumes on another sees the desktop frozen
-  // in the stale state. Mirrors v2 desktop's `_reSyncTimer` convention
-  // (see CLAUDE.md gotchas).
+  // Real-time cross-device session sync via Pusher Channels. Subscribes
+  // to `user-${user.id}` and refreshes on every session-update event the
+  // web emits (start / end / pause / resume). Subsecond instead of the
+  // 30s poll's worst case. If Pusher isn't configured (placeholder env)
+  // or the connection fails, the poll below picks up the slack.
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId) return;
+    void useRealtimeStore.getState().connect(userId);
+    return () => {
+      useRealtimeStore.getState().disconnect();
+    };
+  }, [user?.id]);
+
+  // Polling fallback for cross-device session sync — kept as a backstop
+  // for transient Pusher disconnects, dev environments without Pusher
+  // configured, and the brief window before the WebSocket connects.
+  // Mirrors v2 desktop's `_reSyncTimer` convention (CLAUDE.md gotchas).
   //
   // Skips if a local mutation is in flight (`loading`) to avoid an
   // overwrite race where the poll's stale response lands after a fresh
