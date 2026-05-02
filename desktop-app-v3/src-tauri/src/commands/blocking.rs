@@ -35,3 +35,14 @@ pub async fn blocking_clear() -> AppResult<()> {
     .await
     .map_err(|e| AppError::Storage(format!("blocking task: {e}")))?
 }
+
+/// Read-only check (no elevation): is the FlowShield block region
+/// currently in the hosts file? The frontend uses this to sync the
+/// dashboard's "blocking" indicator on launch — picks up state left
+/// over from a previous run that ended uncleanly.
+#[tauri::command]
+pub async fn blocking_status() -> AppResult<bool> {
+    tauri::async_runtime::spawn_blocking(crate::blocking::is_active)
+        .await
+        .map_err(|e| AppError::Storage(format!("blocking task: {e}")))?
+}
