@@ -41,6 +41,13 @@ user-idle = "0.6"
 # the user having libsqlite3 (matters on Windows + minimal macOS images).
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+# Hostname / username lookup for device registration. Cross-platform —
+# wraps gethostname / GetUserName / SCDynamicStoreCopyComputerName.
+whoami = "1"
+# SHA-256 + base64-url for the v2-compatible deviceId derivation.
+sha2 = "0.10"
+base64 = "0.22"
+
 serde       = { version = "1", features = ["derive"] }
 serde_json  = "1"
 thiserror   = "1"

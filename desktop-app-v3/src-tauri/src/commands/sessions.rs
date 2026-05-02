@@ -8,6 +8,7 @@
 //!     fail the end since the user already clicked "End")
 
 use crate::api::{self, Session};
+use crate::device;
 use crate::error::{AppError, AppResult};
 use crate::store;
 use crate::tracker::TrackerHandle;
@@ -117,6 +118,28 @@ pub async fn session_end(
                 }
             }
         }
+    }
+
+    // Refresh the device row's lastSyncAt — mirrors v2's SyncService which
+    // re-registers after every activity-sync round. Fire-and-forget so a
+    // network blip on the registration POST doesn't fail the session end.
+    if let Some(device_id) = state.device_id.get().cloned() {
+        let http = state.http.clone();
+        let token = token.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(err) = api::devices::register_device(
+                &http,
+                &token,
+                &device_id,
+                &device::device_name(),
+                device::platform(),
+                device::app_version(),
+            )
+            .await
+            {
+                tracing::debug!(?err, "device re-register on session end failed");
+            }
+        });
     }
 
     Ok(session)
