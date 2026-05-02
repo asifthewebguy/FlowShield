@@ -1,0 +1,32 @@
+name: Release Please (desktop-v3)
+
+# Maintains a "release: <next-version>" PR on every push to main, with
+# the version + changelog auto-derived from Conventional Commit messages
+# (feat / fix / chore / etc.) that touched desktop-app-v3/. Merging that
+# PR creates the git tag v3.x.y, which independently fires
+# .github/workflows/desktop-v3-release.yml to build + sign + publish
+# Linux bundles to a fresh GitHub Release.
+#
+# Authoring conventions (already in use):
+#   feat(desktop-v3): … → minor bump
+#   fix(desktop-v3): …  → patch bump
+#   feat(desktop-v3)!:  → major bump (note the !)
+# Commits without a desktop-v3 scope are ignored for this package.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
