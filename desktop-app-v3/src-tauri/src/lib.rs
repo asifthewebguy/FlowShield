@@ -212,6 +212,7 @@ pub fn run() {
             commands::blocking::blocking_clear,
             commands::blocking::blocking_status,
             commands::preferences::prefs_load,
+            commands::realtime::realtime_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running FlowShield desktop");

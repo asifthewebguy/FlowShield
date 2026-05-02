@@ -29,7 +29,7 @@
       "tooltip": "FlowShield"
     },
     "security": {
-      "csp": "default-src 'self' 'unsafe-inline' data: blob:; connect-src 'self' https://flowshield.app https://*.flowshield.app ipc: http://ipc.localhost; img-src 'self' data: https:"
+      "csp": "default-src 'self' 'unsafe-inline' data: blob:; connect-src 'self' https://flowshield.app https://*.flowshield.app wss://*.pusher.com https://*.pusher.com wss://*.pusherapp.com https://*.pusherapp.com ipc: http://ipc.localhost; img-src 'self' data: https:"
     }
   },
   "bundle": {
