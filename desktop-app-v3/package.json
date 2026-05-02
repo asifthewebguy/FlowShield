@@ -11,7 +11,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev:install-desktop-entry": "node scripts/install-desktop-entry.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.1",

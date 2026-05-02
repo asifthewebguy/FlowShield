@@ -85,6 +85,26 @@ This is a runtime UX requirement on GNOME Wayland, not a build
 dependency. KDE / XFCE / GNOME-on-X11 ship native tray support and
 need no extension.
 
+### Linux: dev-build taskbar / dock icon shows generic art
+
+GNOME (and most Wayland compositors) match taskbar / dock icons by
+`app_id` against an **installed `.desktop` file**. `npm run tauri:dev`
+just runs the binary out of `target/debug/` — nothing's installed —
+so the OS falls back to a generic icon even though the FlowShield
+logo is bundled into the binary.
+
+Run this **once** per machine to install a dev `.desktop` entry that
+points at the dev binary + the FlowShield icon:
+
+```bash
+npm run dev:install-desktop-entry
+```
+
+Then quit any running FlowShield window (right-click tray → Quit) and
+relaunch `npm run tauri:dev` — the FlowShield logo now appears in the
+taskbar / dock. Released `.deb` / `.rpm` / `.AppImage` installers
+drop their own `.desktop` file and don't need this step.
+
 ## Icons
 
 The FlowShield-branded app icons live in `src-tauri/icons/` and are
