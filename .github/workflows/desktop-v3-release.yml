@@ -1,0 +1,163 @@
+name: Desktop v3 Release
+
+# v3.* tags fire this workflow (the Tauri 2 desktop pipeline).
+# v1.* / v2.* tags fire .github/workflows/desktop-release.yml instead
+# (the legacy .NET v2 Windows pipeline). Don't broaden either glob
+# without disambiguating, or both workflows will fire on the same tag.
+on:
+  push:
+    tags:
+      - 'v3.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (manual runs only — must already exist on origin)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  build-linux:
+    name: Build Linux bundles
+    # Pinned to 22.04 because Tauri's webkit2gtk-4.1 dep doesn't ship on
+    # newer Ubuntu yet; bump when 24.04 catches up.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libxss-dev \
+            patchelf \
+            file
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop-app-v3/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-app-v3/src-tauri
+
+      - name: Install JS deps
+        working-directory: desktop-app-v3
+        # `npm ci` requires package-lock.json. The repo currently doesn't
+        # commit it (Cargo.lock convention), so fall back to npm install
+        # if ci fails.
+        run: npm ci || npm install
+
+      - name: Build Tauri bundles
+        working-directory: desktop-app-v3
+        run: npm run tauri:build
+
+      - name: Stage release artifacts
+        run: |
+          mkdir -p release-artifacts
+          cp desktop-app-v3/src-tauri/target/release/bundle/deb/*.deb release-artifacts/ 2>/dev/null || true
+          cp desktop-app-v3/src-tauri/target/release/bundle/rpm/*.rpm release-artifacts/ 2>/dev/null || true
+          cp desktop-app-v3/src-tauri/target/release/bundle/appimage/*.AppImage release-artifacts/ 2>/dev/null || true
+          echo "--- staged artifacts ---"
+          ls -la release-artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-bundles
+          path: release-artifacts/
+          if-no-files-found: error
+          retention-days: 7
+
+  sign-and-release:
+    name: Sign + publish to GitHub Releases
+    needs: build-linux
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-bundles
+          path: release-artifacts
+
+      - name: Generate SHA256SUMS
+        working-directory: release-artifacts
+        run: |
+          sha256sum * > SHA256SUMS
+          echo "--- SHA256SUMS ---"
+          cat SHA256SUMS
+
+      - name: Import GPG signing key
+        id: gpg
+        # Skip silently if the secret isn't provisioned yet — the release
+        # still ships, just without GPG signatures. Provision the secret
+        # (Settings → Secrets → Actions → GPG_PRIVATE_KEY, ASCII-armored)
+        # when ready.
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "::warning::GPG_PRIVATE_KEY secret not set — skipping signing. Bundles will publish unsigned."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
+          echo "use-agent" > ~/.gnupg/gpg.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          echo "allow-loopback-pinentry" > ~/.gnupg/gpg-agent.conf
+          gpgconf --kill gpg-agent
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ { print $5; exit }')
+          echo "key_id=$KEY_ID" >> "$GITHUB_OUTPUT"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::Imported GPG key $KEY_ID"
+
+      - name: Sign artifacts
+        if: steps.gpg.outputs.signed == 'true'
+        working-directory: release-artifacts
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          KEY_ID: ${{ steps.gpg.outputs.key_id }}
+        run: |
+          # Detached signatures for each bundle artifact. Users verify with:
+          #   gpg --verify flowshield_X.Y.Z_amd64.deb.asc flowshield_X.Y.Z_amd64.deb
+          for f in *.deb *.rpm *.AppImage; do
+            [ -f "$f" ] || continue
+            gpg --batch --yes --pinentry-mode loopback \
+              --passphrase "$GPG_PASSPHRASE" \
+              --local-user "$KEY_ID" \
+              --detach-sign --armor --output "$f.asc" "$f"
+          done
+          # Clearsigned SHA256SUMS — single source of truth that ties all
+          # artifacts together; what most distros expect for verification.
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$GPG_PASSPHRASE" \
+            --local-user "$KEY_ID" \
+            --clearsign --output SHA256SUMS.asc SHA256SUMS
+          echo "--- signed artifacts ---"
+          ls -la
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: FlowShield Desktop ${{ env.TAG }}
+          generate_release_notes: true
+          files: |
+            release-artifacts/*
