@@ -21,6 +21,7 @@
 //! integration, no `pkexec`/UAC elevation. Those land in 6.5.
 
 use crate::error::{AppError, AppResult};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -61,6 +62,125 @@ pub fn is_active() -> AppResult<bool> {
     let contents = fs::read_to_string(os_hosts_path())
         .map_err(|e| AppError::Storage(format!("read hosts: {e}")))?;
     Ok(contents.contains(BEGIN_MARKER))
+}
+
+/// Expand the user's `primaryDistractions` list (which the web stores as
+/// category names like "Social Media", not real domains) into the actual
+/// domains to feed into the hosts file.
+///
+/// Accepts both forms:
+///   - **New title-case** ("Social Media", "Video Streaming", …) — the
+///     current onboarding + profile UI shape.
+///   - **Legacy lowercase** ("social-media", "youtube", "noise", …) —
+///     written by an older onboarding flow; matches the mapping in
+///     web-app/src/app/api/migrate-distractions/route.ts.
+///   - **Already a domain** (anything containing a `.`) — passed through
+///     so a future "add custom domain" UI works without a code change.
+///   - **Anything else** — silently dropped (e.g. legacy 'games' has no
+///     v2 mapping; better than writing `127.0.0.1 games` to hosts).
+///
+/// Output is sorted + deduped via BTreeSet so the hosts region is stable
+/// across runs (no spurious diffs when the input order shifts).
+pub fn expand_categories(input: &[String]) -> Vec<String> {
+    let mut out: BTreeSet<String> = BTreeSet::new();
+    for raw in input {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some(canonical) = normalize_category(trimmed) {
+            for d in category_domains(canonical) {
+                out.insert((*d).to_string());
+            }
+        } else if trimmed.contains('.') {
+            // Looks like a domain (has a dot) — pass through. apply_blocks
+            // will further normalize (strip scheme, auto-add www variant).
+            out.insert(trimmed.to_string());
+        }
+    }
+    out.into_iter().collect()
+}
+
+/// Map a `primaryDistractions` value to its canonical category name so we
+/// can look up domains. Mirrors the mapping in
+/// `web-app/src/app/api/migrate-distractions/route.ts` so old + new values
+/// resolve identically.
+fn normalize_category(input: &str) -> Option<&'static str> {
+    match input {
+        "Social Media" | "social-media" | "social_media" | "noise" | "multitasking" => {
+            Some("Social Media")
+        }
+        "Video Streaming" | "video-streaming" | "video_streaming" | "youtube" => {
+            Some("Video Streaming")
+        }
+        "Email" | "email" => Some("Email"),
+        "Messaging" | "messaging" | "notifications" | "meetings" => Some("Messaging"),
+        "News Sites" | "news" | "news-sites" | "news_sites" => Some("News Sites"),
+        "Shopping" | "shopping" => Some("Shopping"),
+        _ => None,
+    }
+}
+
+/// Domains for each canonical category. Mirrors the v2 .NET client's
+/// `WebsiteBlocker._distractionDomains` (desktop-app/Services/WebsiteBlocker.cs:21).
+/// We omit `www.` variants because `apply_blocks` already auto-adds them;
+/// non-`www.` subdomains (m.facebook.com, web.whatsapp.com, …) stay as-is.
+fn category_domains(category: &str) -> &'static [&'static str] {
+    match category {
+        "Social Media" => &[
+            "facebook.com",
+            "m.facebook.com",
+            "twitter.com",
+            "x.com",
+            "instagram.com",
+            "linkedin.com",
+            "reddit.com",
+            "tiktok.com",
+            "snapchat.com",
+            "pinterest.com",
+        ],
+        "Video Streaming" => &[
+            "youtube.com",
+            "m.youtube.com",
+            "netflix.com",
+            "hulu.com",
+            "twitch.tv",
+            "vimeo.com",
+        ],
+        "Email" => &[
+            "gmail.com",
+            "mail.google.com",
+            "outlook.com",
+            "outlook.live.com",
+            "yahoo.com",
+            "mail.yahoo.com",
+            "protonmail.com",
+            "mail.protonmail.com",
+        ],
+        "Messaging" => &[
+            "messenger.com",
+            "web.whatsapp.com",
+            "web.telegram.org",
+            "discord.com",
+            "slack.com",
+            "app.slack.com",
+        ],
+        "News Sites" => &[
+            "news.google.com",
+            "cnn.com",
+            "bbc.com",
+            "reddit.com",
+            "buzzfeed.com",
+        ],
+        "Shopping" => &[
+            "amazon.com",
+            "ebay.com",
+            "aliexpress.com",
+            "walmart.com",
+            "target.com",
+        ],
+        _ => &[],
+    }
 }
 
 fn apply_blocks_at(path: &Path, domains: &[String]) -> AppResult<()> {
@@ -206,6 +326,68 @@ mod tests {
         let out = rewrite("", &["www.youtube.com".into()]);
         assert!(out.contains("127.0.0.1 www.youtube.com\n"));
         assert!(!out.contains("www.www."));
+    }
+
+    #[test]
+    fn expand_categories_handles_new_titlecase() {
+        let out = expand_categories(&["Social Media".into()]);
+        assert!(out.contains(&"facebook.com".to_string()));
+        assert!(out.contains(&"reddit.com".to_string()));
+        assert!(out.contains(&"x.com".to_string()));
+        // Video Streaming is a different category — must not appear.
+        assert!(!out.contains(&"youtube.com".to_string()));
+    }
+
+    #[test]
+    fn expand_categories_handles_legacy_lowercase() {
+        let out = expand_categories(&["social-media".into(), "youtube".into()]);
+        // "social-media" → Social Media domains
+        assert!(out.contains(&"facebook.com".to_string()));
+        // "youtube" (legacy) → Video Streaming domains
+        assert!(out.contains(&"youtube.com".to_string()));
+        assert!(out.contains(&"netflix.com".to_string()));
+    }
+
+    #[test]
+    fn expand_categories_passes_through_real_domains() {
+        let out = expand_categories(&["custom.example.com".into(), "Social Media".into()]);
+        assert!(out.contains(&"custom.example.com".to_string()));
+        assert!(out.contains(&"facebook.com".to_string()));
+    }
+
+    #[test]
+    fn expand_categories_drops_unknown_non_domain() {
+        // 'games' has no v2 mapping and isn't a domain → silently dropped.
+        let out = expand_categories(&["games".into(), "Social Media".into()]);
+        assert!(!out.iter().any(|d| d == "games"));
+        assert!(out.contains(&"facebook.com".to_string()));
+    }
+
+    #[test]
+    fn expand_categories_dedupes_overlapping_categories() {
+        // Both "Social Media" and "News Sites" include reddit.com — should
+        // appear exactly once in the output.
+        let out = expand_categories(&["Social Media".into(), "News Sites".into()]);
+        let reddit_count = out.iter().filter(|d| *d == "reddit.com").count();
+        assert_eq!(reddit_count, 1);
+    }
+
+    #[test]
+    fn expand_categories_skips_empty_and_whitespace() {
+        let out = expand_categories(&["".into(), "   ".into(), "Social Media".into()]);
+        assert!(!out.is_empty());
+        assert!(out.contains(&"facebook.com".to_string()));
+    }
+
+    #[test]
+    fn expand_categories_handles_legacy_aliases_from_migrate_route() {
+        // From web-app/src/app/api/migrate-distractions/route.ts:
+        // 'noise' and 'multitasking' map to Social Media.
+        // 'notifications' and 'meetings' map to Messaging.
+        let social = expand_categories(&["noise".into()]);
+        assert!(social.contains(&"facebook.com".to_string()));
+        let msg = expand_categories(&["meetings".into()]);
+        assert!(msg.contains(&"discord.com".to_string()));
     }
 
     #[test]

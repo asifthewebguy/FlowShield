@@ -16,6 +16,18 @@ use crate::error::{AppError, AppResult};
 
 #[tauri::command]
 pub async fn blocking_apply(domains: Vec<String>) -> AppResult<()> {
+    // The frontend hands us the user's `primaryDistractions` list verbatim,
+    // which is a list of CATEGORIES (e.g. "Social Media") — not real
+    // domains. Expand here to the actual domains before paying the
+    // elevation prompt; the privileged child stays dumb (just writes
+    // whatever we tell it). Already-real domains pass through unchanged
+    // so a future custom-domains UI works without further plumbing.
+    let domains = crate::blocking::expand_categories(&domains);
+    if domains.is_empty() {
+        // Nothing to block (categories all unmapped + no raw domains) —
+        // short-circuit so we don't pop the elevation dialog for a no-op.
+        return Ok(());
+    }
     // Comma-join because we pass through pkexec/osascript argv, where
     // each token is a separate shell argument; one packed string keeps
     // the wire format simple. The privileged child splits on commas.
