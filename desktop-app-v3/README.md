@@ -85,16 +85,27 @@ This is a runtime UX requirement on GNOME Wayland, not a build
 dependency. KDE / XFCE / GNOME-on-X11 ship native tray support and
 need no extension.
 
-## Icons (before first build)
+## Icons
 
-`tauri.conf.json` references `src-tauri/icons/*` which aren't checked in.
-Generate placeholders from any 1024×1024 PNG:
+The FlowShield-branded app icons live in `src-tauri/icons/` and are
+checked in. They drive the taskbar/dock icon, window title bar, system
+tray, installer, and the platform-specific bundles (Linux .desktop,
+macOS .icns, Windows .ico, Android mipmap, iOS AppIcon).
+
+To regenerate from a new logo, drop a 1024×1024 square PNG and run:
 
 ```bash
 npm run tauri icon path/to/source.png
 ```
 
-Real icons are needed before any signed release.
+The repo's master is `src-tauri/icons/source.png` — derived from
+`image-resources/logo.svg` via:
+
+```bash
+magick -density 1200 -background none image-resources/logo.svg \
+  -resize 1024x1024 -gravity center -extent 1024x1024 \
+  desktop-app-v3/src-tauri/icons/source.png
+```
 
 ## Hosts-file blocking (Phase 6 + 6.5)
 
