@@ -4,6 +4,7 @@
 
 mod auth;
 pub mod activity;
+pub mod devices;
 pub mod preferences;
 pub mod projects;
 pub mod sessions;

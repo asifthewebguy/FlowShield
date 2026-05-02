@@ -4,6 +4,7 @@
 mod api;
 mod blocking;
 mod commands;
+mod device;
 mod error;
 mod store;
 mod sync_worker;
@@ -72,6 +73,11 @@ pub struct AppState {
     pub http: reqwest::Client,
     pub tracker: Arc<RwLock<Option<tracker::TrackerHandle>>>,
     pub db: Arc<std::sync::OnceLock<store::Db>>,
+    /// 32-char URL-safe base64 id derived once from hostname+username
+    /// and cached at `<app_data_dir>/device_id.txt`. Set in `setup`.
+    /// Empty until then — callers should `.get()` and skip registration
+    /// if the cache hasn't populated yet (very brief window during launch).
+    pub device_id: Arc<std::sync::OnceLock<String>>,
 }
 
 impl AppState {
@@ -91,6 +97,7 @@ impl AppState {
             http,
             tracker: Arc::new(RwLock::new(None)),
             db: Arc::new(std::sync::OnceLock::new()),
+            device_id: Arc::new(std::sync::OnceLock::new()),
         }
     }
 }
@@ -161,6 +168,21 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .map_err(|e| format!("resolve app_data_dir: {e}"))?;
+
+            // Compute (or load) the cached device id. Best-effort: a failure
+            // here means the "Connected Devices" card on the web won't list
+            // this desktop, but everything else still works.
+            match device::ensure_device_id(&app_data_dir) {
+                Ok(id) => {
+                    let state: tauri::State<'_, AppState> = app.state();
+                    let _ = state.device_id.set(id);
+                    tracing::info!("device id cached");
+                }
+                Err(err) => {
+                    tracing::warn!(?err, "device id unavailable; /api/devices won't be called");
+                }
+            }
+
             let db_path = app_data_dir.join("local.sqlite");
             match store::open(&db_path) {
                 Ok(db) => {

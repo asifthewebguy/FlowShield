@@ -5,11 +5,39 @@
 //! login round-trip working.
 
 use crate::api::{self, AuthUser};
+use crate::device;
 use crate::error::{AppError, AppResult};
 use crate::AppState;
 use serde::Serialize;
 use tauri::{AppHandle, Runtime, State};
 use tauri_plugin_store::StoreExt;
+
+/// Fire-and-forget POST /api/devices so the web app's "Connected Devices"
+/// card lists this desktop. No-op if the device id cache hasn't populated
+/// yet (very brief launch window). Errors are logged + ignored — device
+/// registration must never block authentication.
+fn fire_register(state: &State<'_, AppState>, token: String) {
+    let Some(device_id) = state.device_id.get().cloned() else {
+        tracing::debug!("device id not cached yet; skipping registration");
+        return;
+    };
+    let http = state.http.clone();
+    tauri::async_runtime::spawn(async move {
+        match api::devices::register_device(
+            &http,
+            &token,
+            &device_id,
+            &device::device_name(),
+            device::platform(),
+            device::app_version(),
+        )
+        .await
+        {
+            Ok(()) => tracing::info!("device registered"),
+            Err(err) => tracing::warn!(?err, "device registration failed"),
+        }
+    });
+}
 
 const STORE_FILE: &str = "auth.bin";
 const KEY_TOKEN: &str = "token";
@@ -34,6 +62,8 @@ pub async fn auth_login<R: Runtime>(
     *state.token.write().await = Some(response.token.clone());
     *state.user.write().await = Some(response.user.clone());
 
+    fire_register(&state, response.token.clone());
+
     Ok(PersistedAuth {
         token: response.token,
         user: response.user,
@@ -50,6 +80,7 @@ pub async fn auth_load<R: Runtime>(
         let token = state.token.read().await.clone();
         let user = state.user.read().await.clone();
         if let (Some(token), Some(user)) = (token, user) {
+            fire_register(&state, token.clone());
             return Ok(Some(PersistedAuth { token, user }));
         }
     }
@@ -66,6 +97,7 @@ pub async fn auth_load<R: Runtime>(
         (Some(token), Some(user)) => {
             *state.token.write().await = Some(token.clone());
             *state.user.write().await = Some(user.clone());
+            fire_register(&state, token.clone());
             Ok(Some(PersistedAuth { token, user }))
         }
         _ => Ok(None),
