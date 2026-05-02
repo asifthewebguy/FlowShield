@@ -28,5 +28,12 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v5
         with:
+          # Use a fine-grained PAT (not the default GITHUB_TOKEN) so the tag
+          # release-please pushes triggers downstream workflows. GitHub
+          # silently suppresses workflow events for tags/commits authored by
+          # GITHUB_TOKEN to prevent infinite-loop scenarios; using a PAT
+          # bypasses that guard so desktop-v3-release.yml fires automatically
+          # on the v3.x.y tag this action creates.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
