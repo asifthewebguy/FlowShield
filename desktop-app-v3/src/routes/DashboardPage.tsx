@@ -96,6 +96,24 @@ export function DashboardPage() {
     void refresh();
   }, [refresh]);
 
+  // Cross-device session sync — pause / resume / end fired on the web
+  // app or mobile lands here within 30s. Without this poll, a user who
+  // pauses on one surface and resumes on another sees the desktop frozen
+  // in the stale state. Mirrors v2 desktop's `_reSyncTimer` convention
+  // (see CLAUDE.md gotchas).
+  //
+  // Skips if a local mutation is in flight (`loading`) to avoid an
+  // overwrite race where the poll's stale response lands after a fresh
+  // togglePause / start / end response.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!useSessionStore.getState().loading) {
+        void refresh();
+      }
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
   useEffect(() => {
     void projects.refresh();
   }, [projects.refresh]);
