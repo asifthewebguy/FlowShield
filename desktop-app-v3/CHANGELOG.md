@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.1.1-alpha.0...v3.2.0-alpha.0) (2026-05-03)
+
+
+### Features
+
+* **desktop-v3:** show focus-session countdown + progress ring on tray ([#57](https://github.com/asifthewebguy/FlowShield/issues/57)) ([5364e9b](https://github.com/asifthewebguy/FlowShield/commit/5364e9b839217e76e7c949539cc23bcc077f03d3))
+
 ## [3.1.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.1.0-alpha.0...v3.1.1-alpha.0) (2026-05-03)
 
 
