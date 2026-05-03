@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import {
   isPermissionGranted,
   requestPermission,
@@ -127,6 +128,43 @@ export function DashboardPage() {
     }, 30_000);
     return () => clearInterval(id);
   }, [refresh]);
+
+  // Tray-icon session indicator: while a session is active, tick once per
+  // second to update the tray icon (progress ring) and label (MM:SS
+  // countdown) so the user sees focus-session state at a glance from the
+  // top bar / dock — even with the FlowShield window hidden via close-to-
+  // tray. Cleanup resets the icon to the static FlowShield logo.
+  useEffect(() => {
+    if (!current) {
+      void invoke('tray_reset_session_indicator');
+      return;
+    }
+    const totalMs = current.plannedDuration * 60 * 1000;
+    const startMs = new Date(current.startTime).getTime();
+    const plannedEndMs = startMs + totalMs;
+    const tick = () => {
+      // When paused, freeze on pausedAt so the countdown doesn't tick
+      // forward; the web bumps startTime on resume so the active-state
+      // math (Date.now()) keeps working.
+      const refMs =
+        current.isPaused && current.pausedAt
+          ? new Date(current.pausedAt).getTime()
+          : Date.now();
+      const remainingMs = Math.max(0, plannedEndMs - refMs);
+      const progress = Math.min(1, 1 - remainingMs / totalMs);
+      const min = Math.floor(remainingMs / 60_000);
+      const sec = Math.floor((remainingMs % 60_000) / 1000);
+      const time = `${min}:${String(sec).padStart(2, '0')}`;
+      const label = current.isPaused ? `⏸ ${time}` : time;
+      void invoke('tray_set_session_indicator', { label, progress });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => {
+      clearInterval(id);
+      void invoke('tray_reset_session_indicator');
+    };
+  }, [current]);
 
   useEffect(() => {
     void projects.refresh();
