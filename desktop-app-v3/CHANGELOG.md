@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.1.0-alpha.0...v3.1.1-alpha.0) (2026-05-03)
+
+
+### Bug Fixes
+
+* **desktop-v3:** disable WebKitGTK DMA-BUF renderer on Linux ([#55](https://github.com/asifthewebguy/FlowShield/issues/55)) ([324d879](https://github.com/asifthewebguy/FlowShield/commit/324d879f14122ec22eff88876c9b05d635983572))
+
 ## [3.1.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.0.0-alpha.0...v3.1.0-alpha.0) (2026-05-02)
 
 
