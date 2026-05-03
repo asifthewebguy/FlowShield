@@ -10,6 +10,7 @@ mod store;
 mod sync_worker;
 mod tracker;
 mod tray;
+mod tray_indicator;
 
 use std::sync::Arc;
 use tauri::Manager;
@@ -213,6 +214,8 @@ pub fn run() {
             commands::blocking::blocking_status,
             commands::preferences::prefs_load,
             commands::realtime::realtime_config,
+            commands::tray::tray_set_session_indicator,
+            commands::tray::tray_reset_session_indicator,
         ])
         .run(tauri::generate_context!())
         .expect("error while running FlowShield desktop");
