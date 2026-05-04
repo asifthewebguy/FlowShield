@@ -16,14 +16,18 @@
 //! set the text label to a `MM:SS` countdown.
 
 use crate::tray_indicator;
+use crate::update::UpdateInfo;
+use crate::AppState;
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconEvent;
 use tauri::{App, AppHandle, Manager};
+use tauri_plugin_shell::ShellExt;
 
 const TRAY_ID: &str = "main";
 const SHOW_ID: &str = "show";
 const QUIT_ID: &str = "quit";
+const UPDATE_ID: &str = "update";
 
 /// Embedded base FlowShield logo, used to reset the tray icon when no
 /// session is active. Same source as the bundle icons (PR #48).
@@ -55,7 +59,30 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
             tracing::info!("quit requested via tray menu");
             app.exit(0);
         }
+        UPDATE_ID => open_update_url(app),
         _ => {}
+    }
+}
+
+/// Click handler for the dynamic "Updates available" menu item. Pulls the
+/// most recent UpdateInfo out of AppState (set by `announce_update`) and
+/// opens the channel-appropriate URL — GitHub Release page for direct
+/// downloads, AUR/Flathub/etc. package page for PM channels.
+fn open_update_url(app: &AppHandle) {
+    let latest_update_arc = app.state::<AppState>().latest_update.clone();
+    let url = match latest_update_arc.lock() {
+        Ok(guard) => guard.as_ref().map(|info| info.release_url.clone()),
+        Err(poisoned) => {
+            tracing::warn!("latest_update mutex poisoned; recovering");
+            poisoned.into_inner().as_ref().map(|info| info.release_url.clone())
+        }
+    };
+    let Some(url) = url else {
+        tracing::warn!("update menu clicked but no UpdateInfo cached — ignoring");
+        return;
+    };
+    if let Err(e) = app.shell().open(&url, None) {
+        tracing::warn!(error = %e, %url, "failed to open update URL");
     }
 }
 
@@ -101,6 +128,36 @@ pub fn update_session_indicator(
     let icon = Image::new_owned(img.into_raw(), w, h);
     tray.set_icon(Some(icon))?;
     tray.set_title(Some(label))?;
+    Ok(())
+}
+
+/// Cache the new UpdateInfo and rebuild the tray menu with an "Updates
+/// available" item prepended. Idempotent — calling this twice with the
+/// same info is a no-op user-visible (the menu just gets rebuilt with the
+/// same label). Called both from the periodic background check and from
+/// the manual `update_check_now` command.
+pub fn announce_update(handle: &AppHandle, info: &UpdateInfo) -> tauri::Result<()> {
+    // Stash the URL where `open_update_url` can fetch it on click. Lock
+    // contention isn't a concern — at most one writer (the check task) and
+    // one reader (the menu click handler). We clone the Arc to detach the
+    // guard's lifetime from `tauri::State`'s reference wrapper (which would
+    // otherwise borrow a temporary).
+    let latest_update_arc = handle.state::<AppState>().latest_update.clone();
+    match latest_update_arc.lock() {
+        Ok(mut guard) => *guard = Some(info.clone()),
+        Err(poisoned) => *poisoned.into_inner() = Some(info.clone()),
+    }
+
+    let Some(tray) = handle.tray_by_id(TRAY_ID) else {
+        return Ok(()); // tray install failed earlier — log already emitted
+    };
+
+    let label = format!("▲ Updates: {} available", info.latest_version);
+    let update_item = MenuItem::with_id(handle, UPDATE_ID, &label, true, None::<&str>)?;
+    let show = MenuItem::with_id(handle, SHOW_ID, "Show FlowShield", true, None::<&str>)?;
+    let quit = MenuItem::with_id(handle, QUIT_ID, "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(handle, &[&update_item, &show, &quit])?;
+    tray.set_menu(Some(menu))?;
     Ok(())
 }
 
