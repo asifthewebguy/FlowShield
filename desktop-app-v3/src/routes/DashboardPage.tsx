@@ -13,6 +13,7 @@ import { useBlockingStore } from '../lib/blocking';
 import { useRealtimeStore } from '../lib/realtime';
 import { Button } from '../components/Button';
 import { Timer } from '../components/Timer';
+import { UpdateBanner } from '../components/UpdateBanner';
 
 const DURATION_OPTIONS = [15, 25, 45, 60, 90];
 const SESSION_TYPES = ['WORK', 'STUDY', 'CREATIVE'] as const;
@@ -281,6 +282,8 @@ export function DashboardPage() {
           </Button>
         </div>
       </header>
+
+      <UpdateBanner />
 
       <main className="flex-1 p-8 flex flex-col items-center justify-center">
         <div className="w-full max-w-md space-y-6">

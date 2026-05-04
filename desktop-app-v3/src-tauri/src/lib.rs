@@ -11,6 +11,7 @@ mod sync_worker;
 mod tracker;
 mod tray;
 mod tray_indicator;
+mod update;
 
 use std::sync::Arc;
 use tauri::Manager;
@@ -79,6 +80,13 @@ pub struct AppState {
     /// Empty until then — callers should `.get()` and skip registration
     /// if the cache hasn't populated yet (very brief window during launch).
     pub device_id: Arc<std::sync::OnceLock<String>>,
+    /// Most recent UpdateInfo from the periodic background check (if any).
+    /// Read by the tray "Updates available" menu click handler to know
+    /// which URL to open. `None` until the first check finds something
+    /// newer; reset to `None` on app restart (no persistence needed).
+    /// std::sync::Mutex (not tokio's) because the menu click handler is
+    /// synchronous and lock contention is effectively zero.
+    pub latest_update: Arc<std::sync::Mutex<Option<update::UpdateInfo>>>,
 }
 
 impl AppState {
@@ -99,6 +107,7 @@ impl AppState {
             tracker: Arc::new(RwLock::new(None)),
             db: Arc::new(std::sync::OnceLock::new()),
             device_id: Arc::new(std::sync::OnceLock::new()),
+            latest_update: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 }
@@ -212,6 +221,26 @@ pub fn run() {
                     tracing::warn!(?err, path = %db_path.display(), "local store unavailable; offline queue disabled");
                 }
             }
+
+            // Periodic update check. 60s warmup so the network has settled
+            // (DHCP, captive portals) and the user isn't bothered with
+            // banners during the launch flow. Then every 12h. The check
+            // is a no-op for dev builds and PM-channel sources that don't
+            // get a loud prompt — see update::detect_install_source.
+            {
+                let state: tauri::State<'_, AppState> = app.state();
+                let http = state.http.clone();
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                    loop {
+                        let _ = update::check_and_publish(&app_handle, &http).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(12 * 60 * 60))
+                            .await;
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -232,6 +261,7 @@ pub fn run() {
             commands::realtime::realtime_config,
             commands::tray::tray_set_session_indicator,
             commands::tray::tray_reset_session_indicator,
+            commands::update::update_check_now,
         ])
         .run(tauri::generate_context!())
         .expect("error while running FlowShield desktop");

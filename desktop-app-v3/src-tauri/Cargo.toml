@@ -58,6 +58,11 @@ thiserror   = "1"
 tracing     = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# Version comparison for the in-app update check (update.rs). Handles our
+# `3.x.y-alpha.N` prerelease format correctly, which a hand-rolled string
+# compare wouldn't.
+semver = "1"
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

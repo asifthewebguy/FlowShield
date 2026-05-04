@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { LoginPage } from './routes/LoginPage';
 import { DashboardPage } from './routes/DashboardPage';
 import { useAuthStore } from './lib/auth';
+import { useUpdateStore } from './lib/update';
 
 export default function App() {
   const { token, hydrated, hydrate } = useAuthStore();
@@ -13,6 +14,17 @@ export default function App() {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  // Subscribe to backend update-available events for the in-app banner +
+  // tray indicator. The backend's periodic check fires the events; this is
+  // just the listener side. App is mounted for the whole session, so the
+  // unlisten cleanup only runs in dev hot-reload.
+  useEffect(() => {
+    const unlistenPromise = useUpdateStore.getState().bootstrap();
+    return () => {
+      void unlistenPromise.then((fn) => fn());
+    };
+  }, []);
 
   // Once hydration finishes, redirect unauthenticated users to /login and
   // authenticated users away from /login.
