@@ -128,10 +128,26 @@ pub fn run() {
             // Close-to-tray: intercept the close button on the main window
             // so the app keeps running (auto-syncing, draining the offline
             // queue). The Quit menu item is the only path to exit.
+            //
+            // Linux gotcha: window.hide() destroys the GTK surface and
+            // window.show() (called from the tray "Show" menu) creates a
+            // new one. After this round-trip libdecor's client-side
+            // decorations get reattached but the close-button hit area
+            // stops registering single clicks reliably — the user sees
+            // the close button "stop working" the second time, and
+            // double-clicking it lands on the title bar (GNOME default
+            // = double-click maximize). Minimizing instead keeps the
+            // surface alive so CSD bindings stay valid.
+            //
+            // macOS / Windows tolerate hide/show fine + the full-hide
+            // UX matches platform convention there, so they keep hide().
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    let _ = window.hide();
                     api.prevent_close();
+                    #[cfg(target_os = "linux")]
+                    let _ = window.minimize();
+                    #[cfg(not(target_os = "linux"))]
+                    let _ = window.hide();
                 }
             }
         })
