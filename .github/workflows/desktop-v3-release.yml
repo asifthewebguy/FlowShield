@@ -289,7 +289,10 @@ jobs:
         # container, then commits + pushes via SSH. We only feed it the
         # rendered PKGBUILD; everything else (SRCINFO, git plumbing, ssh
         # known_hosts) is handled internally.
-        uses: KSXGitHub/github-actions-deploy-aur@v2.7.2
+        # v2.7.2 had a bug — its entrypoint called `bash --command` (invalid
+        # long option) and exited 2 before pushing. v4.1.3 has the same
+        # input shape, just bumped to the latest stable.
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.3
         with:
           pkgname: flowshield-bin
           pkgbuild: ./aur-pkg/PKGBUILD
