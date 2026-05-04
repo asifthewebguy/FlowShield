@@ -51,12 +51,19 @@ export async function PATCH(
       }
     }
 
-    // Calculate actual duration if endTime is provided
+    // Calculate actual duration if endTime is provided. Clamp to
+    // plannedDuration + 5min grace (same contract as the auto-end route)
+    // so a stale client PATCHing endTime: now() against a session started
+    // weeks ago can't write months of "focus" — that's the bug behind the
+    // 24,552h weekly report. Negative values (clock-skew) clamp to 0.
     let actualDuration;
     if (endTime) {
       const start = new Date(existingSession.startTime);
       const end = new Date(endTime);
-      actualDuration = Math.round((end.getTime() - start.getTime()) / 60000); // minutes
+      const SESSION_GRACE_MINUTES = 5;
+      const computed = Math.round((end.getTime() - start.getTime()) / 60000);
+      const cap = existingSession.plannedDuration + SESSION_GRACE_MINUTES;
+      actualDuration = Math.max(0, Math.min(computed, cap));
     }
 
     let updatedSession = await prisma.session.update({
