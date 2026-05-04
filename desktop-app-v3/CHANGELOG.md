@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.2.0-alpha.0...v3.2.1-alpha.0) (2026-05-04)
+
+
+### Bug Fixes
+
+* **desktop-v3:** minimize-to-tray on Linux to preserve close button ([#59](https://github.com/asifthewebguy/FlowShield/issues/59)) ([ea48cb3](https://github.com/asifthewebguy/FlowShield/commit/ea48cb3c92511678b54f862ac86c0d235a591d85))
+
 ## [3.2.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.1.1-alpha.0...v3.2.0-alpha.0) (2026-05-03)
 
 
