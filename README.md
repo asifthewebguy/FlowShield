@@ -116,10 +116,10 @@ The polished, signed Windows release. Use this on Windows.
 ### Desktop App — v3 cross-platform alpha (`desktop-app-v3/`)
 Tauri 2 · Rust · React 19 · TypeScript · SQLite · **Current: v3.3.0-alpha.0** · macOS · Linux
 
-The cross-platform rewrite. Native client for Linux and macOS users; Windows users should stay on v2 until v3 reaches parity.
+The cross-platform rewrite. Native client for Linux and macOS users; Windows users should stay on v2 until v3 reaches parity. Full install walkthroughs: [macOS](desktop-app-v3/INSTALL_MACOS.md) · [Linux](desktop-app-v3/INSTALL_LINUX.md).
 
-- **macOS:** universal `.dmg` (Intel + Apple Silicon) on each [GitHub Release](https://github.com/asifthewebguy/FlowShield/releases/latest). Unsigned/unnotarized for now — first launch needs right-click → Open → "Open Anyway" in System Settings → Privacy & Security.
-- **Linux:** `.AppImage`, `.deb`, and `.rpm` on each [GitHub Release](https://github.com/asifthewebguy/FlowShield/releases/latest), GPG-signed. Verify with `gpg --verify SHA256SUMS.asc`.
+- **macOS:** universal `.dmg` (Intel + Apple Silicon) on each [GitHub Release](https://github.com/asifthewebguy/FlowShield/releases/latest). Unsigned/unnotarized for now — first launch needs right-click → Open → "Open Anyway" in System Settings → Privacy & Security. See [`INSTALL_MACOS.md`](desktop-app-v3/INSTALL_MACOS.md) for the Gatekeeper bypass + permissions walkthrough.
+- **Linux:** `.AppImage`, `.deb`, and `.rpm` on each [GitHub Release](https://github.com/asifthewebguy/FlowShield/releases/latest), GPG-signed. Verify with `gpg --verify SHA256SUMS.asc`. See [`INSTALL_LINUX.md`](desktop-app-v3/INSTALL_LINUX.md) for per-distro install + Wayland/tray troubleshooting.
 - **Arch Linux:** [`flowshield-bin`](https://aur.archlinux.org/packages/flowshield-bin) on AUR — `yay -S flowshield-bin` (auto-published from each tag).
 - Native system tray with focus-session progress ring overlay
 - Activity tracker via cross-platform foreground-window query
@@ -173,7 +173,9 @@ The app will prompt you to log in with your FlowShield account on first run.
 
 ### Desktop App — v3 (Tauri, cross-platform)
 
-End-user install (Linux / macOS):
+End-user install (Linux / macOS) — quick reference. **Full walkthroughs (verification, permissions, troubleshooting, uninstall):**
+- macOS: [`desktop-app-v3/INSTALL_MACOS.md`](desktop-app-v3/INSTALL_MACOS.md)
+- Linux: [`desktop-app-v3/INSTALL_LINUX.md`](desktop-app-v3/INSTALL_LINUX.md)
 
 ```bash
 # Linux (Debian/Ubuntu)
