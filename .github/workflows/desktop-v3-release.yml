@@ -164,3 +164,73 @@ jobs:
           generate_release_notes: true
           files: |
             release-artifacts/*
+
+  publish-to-aur:
+    # Pushes flowshield-bin to AUR after every v3.* tag. Bootstrap (account,
+    # SSH key, initial PKGBUILD) is documented in scripts/release/aur/README.md.
+    # The whole job no-ops cleanly if AUR_SSH_PRIVATE_KEY isn't provisioned —
+    # so this can ship before AUR setup is finished without breaking releases.
+    name: Publish to AUR
+    needs: sign-and-release
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check AUR secret presence
+        id: gate
+        env:
+          AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$AUR_KEY" ]; then
+            echo "::warning::AUR_SSH_PRIVATE_KEY not set — skipping AUR publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.publish == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Download bundles
+        if: steps.gate.outputs.publish == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-bundles
+          path: release-artifacts
+
+      - name: Render PKGBUILD from template
+        if: steps.gate.outputs.publish == 'true'
+        run: |
+          # SHA against the locally built artifact, not the GitHub Release —
+          # avoids a re-download and a race against asset-upload propagation.
+          APPIMAGE=$(ls release-artifacts/FlowShield_*_amd64.AppImage)
+          SHA=$(sha256sum "$APPIMAGE" | awk '{print $1}')
+          # AUR rejects hyphens in pkgver. Keep _tagver with the original
+          # form for the GitHub URL.
+          TAGVER="${TAG#v}"
+          PKGVER="${TAGVER//-/.}"
+          mkdir -p aur-pkg
+          sed \
+            -e "s/__PKGVER__/${PKGVER}/g" \
+            -e "s/__TAGVER__/${TAGVER}/g" \
+            -e "s/__SHA256__/${SHA}/g" \
+            scripts/release/aur/PKGBUILD.template > aur-pkg/PKGBUILD
+          echo "--- rendered PKGBUILD ---"
+          cat aur-pkg/PKGBUILD
+
+      - name: Push to AUR
+        if: steps.gate.outputs.publish == 'true'
+        # The action regenerates .SRCINFO from the PKGBUILD inside an Arch
+        # container, then commits + pushes via SSH. We only feed it the
+        # rendered PKGBUILD; everything else (SRCINFO, git plumbing, ssh
+        # known_hosts) is handled internally.
+        uses: KSXGitHub/github-actions-deploy-aur@v2.7.2
+        with:
+          pkgname: flowshield-bin
+          pkgbuild: ./aur-pkg/PKGBUILD
+          commit_username: FlowShield Release Bot
+          commit_email: noreply@flowshield.app
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: 'flowshield-bin ${{ env.TAG }}'
+          ssh_keyscan_types: ed25519

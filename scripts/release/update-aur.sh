@@ -27,11 +27,14 @@ if [ $# -ne 1 ]; then
 fi
 
 TAG="$1"
-# Strip the leading 'v' for pkgver. AUR convention: pkgver is just the
-# semver without prefix. The 'v' stays in the GitHub URL though.
-PKGVER="${TAG#v}"
+# Strip leading 'v'. TAGVER is the GitHub form (3.2.1-alpha.0); PKGVER is
+# the AUR-legal form (3.2.1.alpha.0) since AUR forbids hyphens in pkgver.
+TAGVER="${TAG#v}"
+PKGVER="${TAGVER//-/.}"
 REPO="asifthewebguy/FlowShield"
-APPIMAGE="flowshield_${PKGVER}_amd64.AppImage"
+# Tauri names the AppImage after `productName` (FlowShield, capitalised),
+# not the Cargo package name. Match the actual artifact filename or curl 404s.
+APPIMAGE="FlowShield_${TAGVER}_amd64.AppImage"
 URL="https://github.com/${REPO}/releases/download/${TAG}/${APPIMAGE}"
 
 if [ ! -f PKGBUILD ]; then
@@ -53,10 +56,11 @@ SHA=$(sha256sum "$TMP/$APPIMAGE" | awk '{print $1}')
 echo "  sha256 = ${SHA}"
 
 echo "→ Patching PKGBUILD …"
-# Update pkgver + sha256sums in-place. PKGBUILD is just bash, so
+# Update pkgver + _tagver + sha256sums in-place. PKGBUILD is just bash, so
 # straightforward sed on the well-known field names works.
 sed -i \
   -e "s/^pkgver=.*/pkgver=${PKGVER}/" \
+  -e "s/^_tagver=.*/_tagver=${TAGVER}/" \
   -e "s/^pkgrel=.*/pkgrel=1/" \
   -e "s/^sha256sums=(.*)/sha256sums=('${SHA}')/" \
   PKGBUILD
