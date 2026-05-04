@@ -88,14 +88,75 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  build-macos:
+    name: Build macOS bundle (universal)
+    # macos-latest is arm64 in 2026; rust toolchain installs both targets so
+    # `--target universal-apple-darwin` produces one .dmg that runs on Intel
+    # AND Apple Silicon. Slower build (~15 min) but one artifact, one link.
+    # Bundle is unsigned + unnotarized — first launch needs right-click → Open
+    # to bypass Gatekeeper. Code signing is a follow-up once we have an
+    # Apple Developer Program account.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-app-v3/src-tauri
+          # Keyed separately from Linux so the two runners don't trample
+          # each other's caches in the shared GHA cache backend.
+          key: macos
+
+      - name: Install JS deps
+        working-directory: desktop-app-v3
+        run: npm ci || npm install
+
+      - name: Build universal macOS bundle
+        working-directory: desktop-app-v3
+        run: npm run tauri:build -- --target universal-apple-darwin
+
+      - name: Stage release artifacts
+        run: |
+          mkdir -p release-artifacts
+          # Tauri puts the .dmg under the universal target dir.
+          cp desktop-app-v3/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg release-artifacts/ 2>/dev/null || true
+          echo "--- staged artifacts ---"
+          ls -la release-artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-bundles
+          path: release-artifacts/
+          if-no-files-found: error
+          retention-days: 7
+
   sign-and-release:
     name: Sign + publish to GitHub Releases
-    needs: build-linux
+    needs: [build-linux, build-macos]
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download Linux bundles
+        uses: actions/download-artifact@v4
         with:
           name: linux-bundles
+          path: release-artifacts
+
+      - name: Download macOS bundles
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-bundles
           path: release-artifacts
 
       - name: Generate SHA256SUMS
@@ -140,7 +201,10 @@ jobs:
         run: |
           # Detached signatures for each bundle artifact. Users verify with:
           #   gpg --verify flowshield_X.Y.Z_amd64.deb.asc flowshield_X.Y.Z_amd64.deb
-          for f in *.deb *.rpm *.AppImage; do
+          # .dmg gets a GPG sig too — not a substitute for Apple notarization
+          # (which Gatekeeper actually checks), but lets users who care verify
+          # the binary came from us until notarization is wired up.
+          for f in *.deb *.rpm *.AppImage *.dmg; do
             [ -f "$f" ] || continue
             gpg --batch --yes --pinentry-mode loopback \
               --passphrase "$GPG_PASSPHRASE" \
