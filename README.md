@@ -32,7 +32,7 @@
 
 **FlowShield** is a full-stack productivity ecosystem that helps knowledge workers, developers, and students build deep focus habits. It combines structured Pomodoro-style sessions with automatic activity tracking, AI-powered coaching, team accountability, and detailed billing analytics — across web, desktop, mobile, and browser extension.
 
-**Current versions:** Web v2.0.0 · Desktop v2.3.0
+**Current versions:** Web v2.0.0 · Desktop v2.3.0 (Windows, stable) · Desktop v3.3.0-alpha.0 (cross-platform alpha — Linux & macOS)
 
 ---
 
@@ -99,8 +99,10 @@ The primary product. Deployed on Netlify at [flowshield.app](https://flowshield.
 - Server-side caching via Upstash Redis (5-min TTL)
 - Error tracking via Sentry
 
-### Desktop App (`desktop-app/`)
-.NET 8.0 · C# · WinForms/WPF · SQLite (SQLCipher encrypted) · **Current: v2.3.0**
+### Desktop App — v2 Windows (`desktop-app/`)
+.NET 8.0 · C# · WinForms/WPF · SQLite (SQLCipher encrypted) · **Current: v2.3.0** · **[Install from Microsoft Store](https://apps.microsoft.com/detail/9MX8Q3FQ136L)**
+
+The polished, signed Windows release. Use this on Windows.
 
 - Background activity tracker monitoring active window/process
 - Deep Work Mode: hosts-file-based website and app blocking
@@ -110,6 +112,21 @@ The primary product. Deployed on Netlify at [flowshield.app](https://flowshield.
 - Auto-updater checks GitHub Releases on startup
 - DPAPI-based encrypted key storage · Serilog structured logging · Sentry .NET
 - Inno Setup installer → `FlowShield-Setup-vX.Y.Z.exe`
+
+### Desktop App — v3 cross-platform alpha (`desktop-app-v3/`)
+Tauri 2 · Rust · React 19 · TypeScript · SQLite · **Current: v3.3.0-alpha.0** · macOS · Linux
+
+The cross-platform rewrite. Native client for Linux and macOS users; Windows users should stay on v2 until v3 reaches parity.
+
+- **macOS:** universal `.dmg` (Intel + Apple Silicon) on each [GitHub Release](https://github.com/asifthewebguy/FlowShield/releases/latest). Unsigned/unnotarized for now — first launch needs right-click → Open → "Open Anyway" in System Settings → Privacy & Security.
+- **Linux:** `.AppImage`, `.deb`, and `.rpm` on each [GitHub Release](https://github.com/asifthewebguy/FlowShield/releases/latest), GPG-signed. Verify with `gpg --verify SHA256SUMS.asc`.
+- **Arch Linux:** [`flowshield-bin`](https://aur.archlinux.org/packages/flowshield-bin) on AUR — `yay -S flowshield-bin` (auto-published from each tag).
+- Native system tray with focus-session progress ring overlay
+- Activity tracker via cross-platform foreground-window query
+- Deep Work Mode: hosts-file blocking via `pkexec` (Linux) / `osascript` (macOS) elevation prompt
+- Real-time cross-device session sync via Pusher (`session-update` events)
+- In-app update notifications: GitHub Releases poll every 12h, channel-aware UX (loud banner for direct downloads, quiet tray badge for AUR / future Flatpak)
+- Tag-driven release pipeline: GitHub Actions builds + signs + publishes to GitHub Releases + auto-pushes to AUR on every `v3.*` tag
 
 ### Browser Extension (`browser-extension/`)
 Chrome Manifest V3 · Firefox Manifest V2 · **[Install from Chrome Web Store](https://chromewebstore.google.com/detail/flowshield/pjjmmmefbcmcckgmdoceapgbdnjbffdg)**
@@ -144,7 +161,7 @@ npm run dev                  # http://localhost:3000
 
 See [web-app/SETUP_GUIDE.md](web-app/SETUP_GUIDE.md) for all environment variables.
 
-### Desktop App
+### Desktop App — v2 (Windows, .NET)
 
 ```bash
 cd desktop-app
@@ -153,6 +170,35 @@ dotnet run -c Release
 ```
 
 The app will prompt you to log in with your FlowShield account on first run.
+
+### Desktop App — v3 (Tauri, cross-platform)
+
+End-user install (Linux / macOS):
+
+```bash
+# Linux (Debian/Ubuntu)
+sudo apt install ./FlowShield_3.3.0-alpha.0_amd64.deb
+
+# Linux (Fedora/RHEL)
+sudo dnf install ./FlowShield-3.3.0-alpha.0-1.x86_64.rpm
+
+# Linux (Arch — auto-publishes from each tag)
+yay -S flowshield-bin
+
+# macOS — right-click the .dmg → Open → "Open Anyway" in System Settings (unsigned for now)
+open FlowShield_3.3.0-alpha.0_universal.dmg
+```
+
+Dev build (any OS):
+
+```bash
+cd desktop-app-v3
+npm install
+npm run tauri:dev          # hot-reload dev mode
+npm run tauri:build        # produces installers under src-tauri/target/release/bundle/
+```
+
+System deps for Linux dev: `webkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `libssl-dev`, `libxss-dev`, `patchelf`. Tag-driven CI handles building + signing + publishing for releases — see [`.github/workflows/desktop-v3-release.yml`](.github/workflows/desktop-v3-release.yml).
 
 ### Browser Extension
 
