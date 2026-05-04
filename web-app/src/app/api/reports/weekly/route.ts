@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const since = new Date();
     since.setDate(since.getDate() - weeks * 7);
 
-    const [dailyStats, currentWeekLogs] = await Promise.all([
+    const [dailyStats, currentWeekLogs, sessionsInRange] = await Promise.all([
       prisma.dailyStats.findMany({
         where: { userId, date: { gte: since } },
         orderBy: { date: 'asc' },
@@ -31,9 +31,27 @@ export async function GET(request: NextRequest) {
         },
         select: { category: true, durationSeconds: true },
       }),
+      // Sessions in the same range — fed to getWeeklyStats so productivity
+      // score is derived from completion + duration-match (the same signal
+      // /api/analytics uses) instead of read from DailyStats.avgProductivityScore
+      // (which stays null/0 because the desktop client never collects ratings).
+      prisma.session.findMany({
+        where: { userId, completed: true, endTime: { gte: since } },
+        select: {
+          endTime: true,
+          plannedDuration: true,
+          actualDuration: true,
+          completed: true,
+        },
+      }),
     ]);
 
-    const weeklyStats = getWeeklyStats(dailyStats, weeks);
+    // Filter out the rare row where endTime is null despite completed=true
+    // (older bad data); the SessionInput type requires a real timestamp.
+    const sessionsForReport = sessionsInRange.flatMap((s) =>
+      s.endTime ? [{ ...s, endTime: s.endTime }] : [],
+    );
+    const weeklyStats = getWeeklyStats(dailyStats, weeks, sessionsForReport);
 
     const catMap = new Map<string, number>();
     for (const log of currentWeekLogs) {
