@@ -1,7 +1,7 @@
 // Productivity scoring algorithm
 // Score is 0-100 based on focus time, completion rate, and session quality
 
-interface SessionForScoring {
+export interface SessionForScoring {
   plannedDuration: number;
   actualDuration: number | null;
   completed: boolean;

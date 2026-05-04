@@ -95,28 +95,34 @@ export async function PATCH(
         select: { avgProductivityScore: true, sessionsCompleted: true },
       });
 
-      const newAvg =
-        productivityScore !== undefined
-          ? nextWeightedAverage(
-              existingStats?.avgProductivityScore ?? null,
-              existingStats?.sessionsCompleted ?? 0,
-              productivityScore
-            )
-          : existingStats?.avgProductivityScore ?? 0;
+      // Tighten check from `!== undefined` to `typeof === 'number'` so a
+      // client sending productivityScore: null (the desktop sends None →
+      // null when the user didn't rate) doesn't crash through
+      // nextWeightedAverage(null) → Math.round(null) = 0, which was
+      // poisoning DailyStats.avgProductivityScore with zeros and showing
+      // "Productivity Score 0%" on the weekly report.
+      const hasScore = typeof productivityScore === 'number';
+      const newAvg = hasScore
+        ? nextWeightedAverage(
+            existingStats?.avgProductivityScore ?? null,
+            existingStats?.sessionsCompleted ?? 0,
+            productivityScore
+          )
+        : existingStats?.avgProductivityScore ?? null;
 
       await prisma.dailyStats.upsert({
         where: { userId_date: { userId, date: today } },
         update: {
           totalFocusMinutes: { increment: actualDuration },
           sessionsCompleted: { increment: 1 },
-          ...(productivityScore !== undefined && { avgProductivityScore: newAvg }),
+          ...(hasScore && { avgProductivityScore: newAvg }),
         },
         create: {
           userId,
           date: today,
           totalFocusMinutes: actualDuration,
           sessionsCompleted: 1,
-          avgProductivityScore: productivityScore ?? 0,
+          avgProductivityScore: hasScore ? productivityScore : null,
         },
       });
     }

@@ -1,3 +1,5 @@
+import { calculateProductivityScore, type SessionForScoring } from './productivity';
+
 export interface WeekStat {
   weekLabel: string;
   weekStart: string;
@@ -20,6 +22,17 @@ interface DailyStatInput {
   totalFocusMinutes: number;
   avgProductivityScore: number | null;
   sessionsCompleted: number;
+}
+
+/**
+ * Subset of Session fields needed to derive a per-week productivity score.
+ * Loose shape so callers don't have to import the full Prisma type.
+ */
+interface SessionInput {
+  endTime: Date | string;
+  plannedDuration: number;
+  actualDuration: number | null;
+  completed: boolean;
 }
 
 function toLocalDateOnly(date: Date): Date {
@@ -57,7 +70,19 @@ function toYMD(date: Date): string {
  * This ensures `dayAgo(0..6)` always maps to the same bucket regardless
  * of the current day of week.
  */
-export function getWeeklyStats(dailyStats: DailyStatInput[], numWeeks = 8): WeeklyStatsResult {
+export function getWeeklyStats(
+  dailyStats: DailyStatInput[],
+  numWeeks = 8,
+  /**
+   * Optional Session rows for the same range. When supplied, per-week
+   * productivity score is derived from completion + duration-match via
+   * `calculateProductivityScore` instead of read from
+   * DailyStats.avgProductivityScore. Pass `[]` (the default) to fall back
+   * to the daily-stats column — used by tests and by callers who don't
+   * have session data on hand.
+   */
+  sessions: SessionInput[] = [],
+): WeeklyStatsResult {
   type Bucket = { focusMinutes: number; scoreSum: number; scoreCount: number; sessions: number; weekStartDay: number };
 
   const todayDay = daysSinceEpochLocal(toLocalDateOnly(new Date()));
@@ -86,6 +111,40 @@ export function getWeeklyStats(dailyStats: DailyStatInput[], numWeeks = 8): Week
     buckets.set(bucketIndex, existing);
   }
 
+  // Bucket sessions per week using the same anchoring as the daily stats.
+  // We feed each bucket's session list to calculateProductivityScore to
+  // derive the week's score from completion + duration-match — the same
+  // signal `/api/analytics` uses, and one that doesn't depend on the user
+  // explicitly rating their sessions (which the desktop never collects).
+  const sessionsByBucket = new Map<number, SessionForScoring[]>();
+  for (const s of sessions) {
+    if (!s.endTime) continue;
+    const d = toLocalDateOnly(new Date(s.endTime));
+    const daysAgo = todayDay - daysSinceEpochLocal(d);
+    if (daysAgo < 0) continue;
+    const bucketIndex = Math.floor(daysAgo / 7);
+    if (bucketIndex >= numWeeks) continue;
+    const arr = sessionsByBucket.get(bucketIndex) ?? [];
+    arr.push({
+      plannedDuration: s.plannedDuration,
+      actualDuration: s.actualDuration,
+      completed: s.completed,
+    });
+    sessionsByBucket.set(bucketIndex, arr);
+  }
+
+  // Per-bucket derived score. Empty buckets stay 0 (consistent with the old
+  // behavior when scoreCount was 0).
+  const derivedScoreByBucket = new Map<number, number>();
+  for (const [idx, ss] of sessionsByBucket) {
+    derivedScoreByBucket.set(idx, ss.length > 0 ? calculateProductivityScore(ss) : 0);
+  }
+
+  // If sessions[] is supplied, ensure every bucket index that has daily
+  // stats but no sessions still resolves to 0 explicitly (so the score
+  // doesn't fall through to the legacy DailyStats path).
+  const useDerivedScores = sessions.length > 0;
+
   // Sort by bucketIndex descending (oldest first for chart order)
   const sortedIndices = [...buckets.keys()].sort((a, b) => b - a); // oldest (highest index) first
 
@@ -95,11 +154,14 @@ export function getWeeklyStats(dailyStats: DailyStatInput[], numWeeks = 8): Week
     const weekStartDayNum = todayDay - idx * 7 - 6;
     const weekStartDate = dayNumToLocalDate(weekStartDayNum, todayDay);
     const weekStart = toYMD(weekStartDate);
+    const score = useDerivedScores
+      ? (derivedScoreByBucket.get(idx) ?? 0)
+      : (agg.scoreCount > 0 ? Math.round(agg.scoreSum / agg.scoreCount) : 0);
     return {
       weekLabel: weekStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       weekStart,
       totalFocusHours: Math.round((agg.focusMinutes / 60) * 10) / 10,
-      avgProductivityScore: agg.scoreCount > 0 ? Math.round(agg.scoreSum / agg.scoreCount) : 0,
+      avgProductivityScore: score,
       sessionsCompleted: agg.sessions,
     };
   });
@@ -112,8 +174,12 @@ export function getWeeklyStats(dailyStats: DailyStatInput[], numWeeks = 8): Week
 
   const currentFocusHours = Math.round((currentAgg.focusMinutes / 60) * 10) / 10;
   const previousFocusHours = Math.round((previousAgg.focusMinutes / 60) * 10) / 10;
-  const currentScore = currentAgg.scoreCount > 0 ? Math.round(currentAgg.scoreSum / currentAgg.scoreCount) : 0;
-  const previousScore = previousAgg.scoreCount > 0 ? Math.round(previousAgg.scoreSum / previousAgg.scoreCount) : 0;
+  const currentScore = useDerivedScores
+    ? (derivedScoreByBucket.get(0) ?? 0)
+    : (currentAgg.scoreCount > 0 ? Math.round(currentAgg.scoreSum / currentAgg.scoreCount) : 0);
+  const previousScore = useDerivedScores
+    ? (derivedScoreByBucket.get(1) ?? 0)
+    : (previousAgg.scoreCount > 0 ? Math.round(previousAgg.scoreSum / previousAgg.scoreCount) : 0);
   const currentSessions = currentAgg.sessions;
   const previousSessions = previousAgg.sessions;
 
