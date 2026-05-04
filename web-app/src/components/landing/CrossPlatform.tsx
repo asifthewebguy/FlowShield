@@ -5,6 +5,15 @@ type Cta =
   | { label: string; href: string; external?: boolean; disabled?: false }
   | { label: string; disabled: true };
 
+type DownloadOption = {
+  /** 1-line label shown inside the pill (e.g. "macOS") */
+  label: string;
+  href: string;
+  external?: boolean;
+  /** Full description for screen readers — pills carry only an OS name visually */
+  ariaLabel?: string;
+};
+
 type Platform = {
   name: string;
   description: string;
@@ -16,6 +25,13 @@ type Platform = {
     external?: boolean;
     note?: string;
   };
+  /** When set, renders a row of compact OS-specific download pills below the
+   *  primary CTA, separated by a small editorial rule. Use this for surfaces
+   *  with multiple parallel distribution channels (Desktop = MS Store +
+   *  GitHub Releases per OS + AUR). */
+  downloadOptions?: DownloadOption[];
+  /** Caveat shown beneath the OS pills (e.g. "Linux & macOS are alpha"). */
+  alphaNote?: string;
 };
 
 const platforms: Platform[] = [
@@ -31,7 +47,7 @@ const platforms: Platform[] = [
   },
   {
     name: 'Desktop App',
-    description: 'Windows activity tracking, deep work mode, distraction blocking, and offline sync.',
+    description: 'Native client for Windows, macOS, and Linux. Activity tracking, deep work mode, hosts-file blocking, and offline sync.',
     icon: (
       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
@@ -42,12 +58,27 @@ const platforms: Platform[] = [
       href: 'https://apps.microsoft.com/detail/9MX8Q3FQ136L',
       external: true,
     },
-    secondary: {
-      label: 'Nightly .exe on GitHub',
-      href: 'https://github.com/asifthewebguy/FlowShield/releases/latest',
-      external: true,
-      note: 'Self-signed — Windows SmartScreen will warn. Click "More info" → "Run anyway" to install.',
-    },
+    downloadOptions: [
+      {
+        label: 'macOS',
+        href: 'https://github.com/asifthewebguy/FlowShield/releases/latest',
+        external: true,
+        ariaLabel: 'Download FlowShield for macOS — universal .dmg from GitHub Releases',
+      },
+      {
+        label: 'Linux',
+        href: 'https://github.com/asifthewebguy/FlowShield/releases/latest',
+        external: true,
+        ariaLabel: 'Download FlowShield for Linux — .deb, .rpm, or .AppImage from GitHub Releases',
+      },
+      {
+        label: 'Arch',
+        href: 'https://aur.archlinux.org/packages/flowshield-bin',
+        external: true,
+        ariaLabel: 'Install FlowShield on Arch Linux from AUR — yay -S flowshield-bin',
+      },
+    ],
+    alphaNote: 'Linux & macOS are 3.x alpha builds — Windows is the polished release.',
   },
   {
     name: 'Browser Extension',
@@ -131,6 +162,40 @@ export default function CrossPlatform() {
               <p className="text-xs text-gray-400 mb-5 flex-grow">{p.description}</p>
 
               <PrimaryButton cta={p.primary} />
+
+              {p.downloadOptions && p.downloadOptions.length > 0 && (
+                <>
+                  {/* Editorial divider — caps-tracked separator between the
+                      hero CTA and the secondary OS-specific downloads. Reads
+                      as "Microsoft Store is the polished path; here are the
+                      others." */}
+                  <div className="mt-4 flex items-center gap-2" aria-hidden="true">
+                    <div className="flex-1 h-px bg-surface-3" />
+                    <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">
+                      or download for
+                    </span>
+                    <div className="flex-1 h-px bg-surface-3" />
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-1.5">
+                    {p.downloadOptions.map((opt) => (
+                      <a
+                        key={opt.label}
+                        href={opt.href}
+                        target={opt.external ? '_blank' : undefined}
+                        rel={opt.external ? 'noopener noreferrer' : undefined}
+                        aria-label={opt.ariaLabel ?? opt.label}
+                        className="text-[11px] font-medium text-gray-300 bg-surface-3/40 hover:bg-primary-900/40 hover:text-primary-300 border border-surface-3 hover:border-primary-700/60 rounded-md px-2 py-1.5 text-center transition-colors"
+                      >
+                        {opt.label}
+                      </a>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {p.alphaNote && (
+                <p className="mt-3 text-[10px] leading-snug text-gray-500 text-center">{p.alphaNote}</p>
+              )}
 
               {p.secondary && (
                 <div className="mt-3 text-center">
