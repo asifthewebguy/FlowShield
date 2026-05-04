@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.2.1-alpha.0...v3.3.0-alpha.0) (2026-05-04)
+
+
+### Features
+
+* **desktop-v3:** in-app update notifications with channel-aware UX ([#63](https://github.com/asifthewebguy/FlowShield/issues/63)) ([1da2e78](https://github.com/asifthewebguy/FlowShield/commit/1da2e781fc7b2b9cbeb6ec33e8b0efb1a8460da5))
+
 ## [3.2.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.2.0-alpha.0...v3.2.1-alpha.0) (2026-05-04)
 
 
