@@ -63,6 +63,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # compare wouldn't.
 semver = "1"
 
+# AI substrate cosine-similarity math (Plan 1.1). The concrete LLM + embedder
+# crates (candle-core, hf-hub, tokenizers) land in Plan 1.2 once the trait
+# surface is settled.
+ndarray = "0.16"
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
