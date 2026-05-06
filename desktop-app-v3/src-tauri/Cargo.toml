@@ -21,7 +21,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-autostart = "2"
 
 # HTTP client. rustls so we don't pull in OpenSSL/native-tls quirks.
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 
 # Async runtime — tauri::command async fns need one. `time` is for the
 # tracker's tokio::time::interval (one-second poll loop).
@@ -71,9 +71,11 @@ semver = "1"
 ndarray = "0.16"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
+futures-util = "0.3"
 
 [dev-dependencies]
 tempfile = "3"
+wiremock = "0.6"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

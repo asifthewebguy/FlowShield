@@ -121,6 +121,107 @@ pub async fn verify_sha256(path: &Path, expected: &str) -> Result<(), AiError> {
     }
 }
 
+use crate::ai::registry::ModelFile;
+use std::time::Instant;
+use tokio::io::AsyncWriteExt;
+
+/// Progress callback shape: `(bytes_downloaded, bytes_total)`. Emit on every
+/// 1 MB chunk to keep event traffic reasonable. The orchestrator wraps this
+/// to forward into Tauri's event bus.
+pub type ProgressFn = Box<dyn Fn(u64, u64) + Send + Sync>;
+
+/// Download a single ModelFile to `target_path` with HTTP Range resumability.
+/// If a partial file already exists, resumes from `len(file)` bytes.
+/// After the body completes, verifies sha256 (if registry has a non-empty hash).
+pub async fn download_file(
+    http: &reqwest::Client,
+    file: &ModelFile,
+    target_path: &Path,
+    on_progress: ProgressFn,
+) -> Result<(), AiError> {
+    if let Some(parent) = target_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| AiError::ModelDownload(format!("mkdir {parent:?}: {e}")))?;
+    }
+
+    let already_downloaded = match tokio::fs::metadata(target_path).await {
+        Ok(m) => m.len(),
+        Err(_) => 0,
+    };
+
+    if already_downloaded == file.size_bytes && file.size_bytes > 0 {
+        verify_sha256(target_path, file.sha256).await?;
+        on_progress(file.size_bytes, file.size_bytes);
+        return Ok(());
+    }
+
+    let mut req = http.get(file.url);
+    if already_downloaded > 0 {
+        req = req.header("Range", format!("bytes={already_downloaded}-"));
+        tracing::info!(
+            url = %file.url,
+            resume_from = already_downloaded,
+            "resuming partial download"
+        );
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| AiError::ModelDownload(format!("GET {}: {e}", file.url)))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(AiError::ModelDownload(format!(
+            "GET {} returned status {}",
+            file.url, status
+        )));
+    }
+
+    let mut out = tokio::fs::OpenOptions::new()
+        .create(true)
+        .append(already_downloaded > 0)
+        .write(already_downloaded == 0)
+        .truncate(already_downloaded == 0)
+        .open(target_path)
+        .await
+        .map_err(|e| AiError::ModelDownload(format!("open {target_path:?}: {e}")))?;
+
+    let total = file.size_bytes;
+    let mut downloaded = already_downloaded;
+    let mut last_emit = Instant::now();
+    const EMIT_INTERVAL_BYTES: u64 = 1024 * 1024;
+    let mut bytes_since_last_emit: u64 = 0;
+
+    use futures_util::StreamExt;
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| AiError::ModelDownload(format!("body chunk: {e}")))?;
+        out.write_all(&chunk)
+            .await
+            .map_err(|e| AiError::ModelDownload(format!("write {target_path:?}: {e}")))?;
+        downloaded += chunk.len() as u64;
+        bytes_since_last_emit += chunk.len() as u64;
+
+        if bytes_since_last_emit >= EMIT_INTERVAL_BYTES
+            || last_emit.elapsed().as_millis() >= 250
+        {
+            on_progress(downloaded, total);
+            bytes_since_last_emit = 0;
+            last_emit = Instant::now();
+        }
+    }
+
+    out.flush()
+        .await
+        .map_err(|e| AiError::ModelDownload(format!("flush {target_path:?}: {e}")))?;
+    on_progress(downloaded, total);
+
+    verify_sha256(target_path, file.sha256).await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,5 +293,89 @@ mod tests {
     async fn verify_sha256_skips_when_expected_empty() {
         let f = write_temp_file(b"hello world");
         verify_sha256(f.path(), "").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn download_file_writes_complete_body() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let body = b"hello world".to_vec();
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/model.bin"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(body.clone()))
+            .mount(&server)
+            .await;
+
+        let url_owned = format!("{}/model.bin", server.uri());
+        let url: &'static str = Box::leak(url_owned.into_boxed_str());
+
+        let file = ModelFile {
+            url,
+            local_filename: "test.bin",
+            sha256: "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+            size_bytes: body.len() as u64,
+        };
+
+        let tmp = tempfile::tempdir().unwrap();
+        let target = tmp.path().join("test.bin");
+        let progress: std::sync::Arc<std::sync::Mutex<Vec<(u64, u64)>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let progress_clone = progress.clone();
+
+        let http = reqwest::Client::new();
+        download_file(
+            &http,
+            &file,
+            &target,
+            Box::new(move |d, t| progress_clone.lock().unwrap().push((d, t))),
+        )
+        .await
+        .unwrap();
+
+        let written = tokio::fs::read(&target).await.unwrap();
+        assert_eq!(written, body);
+
+        let progress_log = progress.lock().unwrap();
+        assert!(!progress_log.is_empty());
+        let last = progress_log.last().unwrap();
+        assert_eq!(last.0, body.len() as u64);
+        assert_eq!(last.1, body.len() as u64);
+    }
+
+    #[tokio::test]
+    async fn download_file_resumes_from_partial() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let full = b"hello world".to_vec();
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/m"))
+            .and(header("range", "bytes=6-"))
+            .respond_with(ResponseTemplate::new(206).set_body_bytes(b"world".to_vec()))
+            .mount(&server)
+            .await;
+
+        let url_owned = format!("{}/m", server.uri());
+        let url: &'static str = Box::leak(url_owned.into_boxed_str());
+
+        let file = ModelFile {
+            url,
+            local_filename: "m",
+            sha256: "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+            size_bytes: full.len() as u64,
+        };
+
+        let tmp = tempfile::tempdir().unwrap();
+        let target = tmp.path().join("m");
+        tokio::fs::write(&target, b"hello ").await.unwrap();
+
+        let http = reqwest::Client::new();
+        download_file(&http, &file, &target, Box::new(|_, _| {})).await.unwrap();
+
+        let final_bytes = tokio::fs::read(&target).await.unwrap();
+        assert_eq!(final_bytes, full);
     }
 }
