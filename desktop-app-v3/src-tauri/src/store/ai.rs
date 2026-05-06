@@ -284,6 +284,118 @@ pub fn delete_all_briefings(conn: &Connection) -> Result<(), AppError> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelStatus {
+    NotStarted,
+    Downloading,
+    Ready,
+    Error,
+    Disabled,
+}
+
+impl ModelStatus {
+    fn as_str(&self) -> &'static str {
+        match self {
+            ModelStatus::NotStarted => "not_started",
+            ModelStatus::Downloading => "downloading",
+            ModelStatus::Ready => "ready",
+            ModelStatus::Error => "error",
+            ModelStatus::Disabled => "disabled",
+        }
+    }
+    fn parse(s: &str) -> Option<Self> {
+        match s {
+            "not_started" => Some(ModelStatus::NotStarted),
+            "downloading" => Some(ModelStatus::Downloading),
+            "ready" => Some(ModelStatus::Ready),
+            "error" => Some(ModelStatus::Error),
+            "disabled" => Some(ModelStatus::Disabled),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelState {
+    pub model_id: String,
+    pub model_path: String,
+    pub model_sha256: String,
+    pub embedder_id: String,
+    pub embedder_path: String,
+    pub embedder_sha256: String,
+    pub downloaded_at: Option<String>,
+    pub status: ModelStatus,
+}
+
+pub fn get_model_state(conn: &Connection) -> Result<Option<ModelState>, AppError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT model_id, model_path, model_sha256, embedder_id, embedder_path,
+                    embedder_sha256, downloaded_at, status
+             FROM ai_model_state
+             WHERE id = 1",
+        )
+        .map_err(|e| AppError::Storage(format!("get_model_state prepare: {e}")))?;
+    let mut rows = stmt
+        .query([])
+        .map_err(|e| AppError::Storage(format!("get_model_state query: {e}")))?;
+    if let Some(row) = rows
+        .next()
+        .map_err(|e| AppError::Storage(format!("get_model_state row: {e}")))?
+    {
+        let status_str: String = row.get(7).map_err(|e| AppError::Storage(format!("{e}")))?;
+        Ok(Some(ModelState {
+            model_id: row.get(0).map_err(|e| AppError::Storage(format!("{e}")))?,
+            model_path: row.get(1).map_err(|e| AppError::Storage(format!("{e}")))?,
+            model_sha256: row.get(2).map_err(|e| AppError::Storage(format!("{e}")))?,
+            embedder_id: row.get(3).map_err(|e| AppError::Storage(format!("{e}")))?,
+            embedder_path: row.get(4).map_err(|e| AppError::Storage(format!("{e}")))?,
+            embedder_sha256: row.get(5).map_err(|e| AppError::Storage(format!("{e}")))?,
+            downloaded_at: row.get(6).map_err(|e| AppError::Storage(format!("{e}")))?,
+            status: ModelStatus::parse(&status_str).unwrap_or(ModelStatus::NotStarted),
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn upsert_model_state(conn: &Connection, m: &ModelState) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO ai_model_state
+         (id, model_id, model_path, model_sha256, embedder_id, embedder_path,
+          embedder_sha256, downloaded_at, status)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+             model_id        = excluded.model_id,
+             model_path      = excluded.model_path,
+             model_sha256    = excluded.model_sha256,
+             embedder_id     = excluded.embedder_id,
+             embedder_path   = excluded.embedder_path,
+             embedder_sha256 = excluded.embedder_sha256,
+             downloaded_at   = excluded.downloaded_at,
+             status          = excluded.status",
+        params![
+            m.model_id,
+            m.model_path,
+            m.model_sha256,
+            m.embedder_id,
+            m.embedder_path,
+            m.embedder_sha256,
+            m.downloaded_at,
+            m.status.as_str(),
+        ],
+    )
+    .map_err(|e| AppError::Storage(format!("upsert_model_state: {e}")))?;
+    Ok(())
+}
+
+pub fn delete_model_state(conn: &Connection) -> Result<(), AppError> {
+    conn.execute("DELETE FROM ai_model_state", [])
+        .map_err(|e| AppError::Storage(format!("delete_model_state: {e}")))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -451,5 +563,46 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM ai_briefings", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 1);
+    }
+
+    fn sample_model_state(status: ModelStatus) -> ModelState {
+        ModelState {
+            model_id: "gemma-2-2b-q4_k_m".to_string(),
+            model_path: "/tmp/gemma.gguf".to_string(),
+            model_sha256: "abc".to_string(),
+            embedder_id: "bge-small".to_string(),
+            embedder_path: "/tmp/bge.gguf".to_string(),
+            embedder_sha256: "def".to_string(),
+            downloaded_at: None,
+            status,
+        }
+    }
+
+    #[test]
+    fn get_model_state_returns_none_initially() {
+        let conn = fresh_conn();
+        assert!(get_model_state(&conn).unwrap().is_none());
+    }
+
+    #[test]
+    fn upsert_then_get_round_trips() {
+        let conn = fresh_conn();
+        upsert_model_state(&conn, &sample_model_state(ModelStatus::Downloading)).unwrap();
+        let got = get_model_state(&conn).unwrap().unwrap();
+        assert_eq!(got.model_id, "gemma-2-2b-q4_k_m");
+        assert_eq!(got.status, ModelStatus::Downloading);
+    }
+
+    #[test]
+    fn upsert_is_singleton_no_duplicate_rows() {
+        let conn = fresh_conn();
+        upsert_model_state(&conn, &sample_model_state(ModelStatus::NotStarted)).unwrap();
+        upsert_model_state(&conn, &sample_model_state(ModelStatus::Ready)).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM ai_model_state", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+        let got = get_model_state(&conn).unwrap().unwrap();
+        assert_eq!(got.status, ModelStatus::Ready);
     }
 }
