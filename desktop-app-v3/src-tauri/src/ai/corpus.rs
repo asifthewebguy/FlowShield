@@ -104,6 +104,19 @@ pub fn render_day_chunk(d: &DayChunkInput) -> String {
     )
 }
 
+#[derive(Debug, Clone)]
+pub struct ReflectionChunkInput {
+    pub date: chrono::NaiveDate,
+    pub questions: Vec<String>,
+    pub answer: String,
+}
+
+pub fn render_reflection_chunk(r: &ReflectionChunkInput) -> String {
+    let date = r.date.format("%a %Y-%m-%d");
+    let q = r.questions.first().map(String::as_str).unwrap_or("(no question)");
+    format!("[Reflection] {date}. Q: '{q}' A: '{a}'", a = r.answer)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,5 +195,31 @@ mod tests {
         };
         let chunk = render_day_chunk(&d);
         assert_eq!(chunk, "[Day] Tue 2026-05-12. 0 sessions, 0.0h focused.");
+    }
+
+    #[test]
+    fn golden_reflection_chunk() {
+        let r = ReflectionChunkInput {
+            date: chrono::NaiveDate::from_ymd_opt(2026, 5, 12).unwrap(),
+            questions: vec!["You stopped design at 47/60 — anything blocking?".into()],
+            answer: "API spec from product is unclear. Need to ping Maya tomorrow.".into(),
+        };
+        let chunk = render_reflection_chunk(&r);
+        let expected = "[Reflection] Tue 2026-05-12. \
+                        Q: 'You stopped design at 47/60 — anything blocking?' \
+                        A: 'API spec from product is unclear. Need to ping Maya tomorrow.'";
+        assert_eq!(chunk, expected);
+    }
+
+    #[test]
+    fn reflection_chunk_handles_missing_question() {
+        let r = ReflectionChunkInput {
+            date: chrono::NaiveDate::from_ymd_opt(2026, 5, 12).unwrap(),
+            questions: vec![],
+            answer: "raw entry".into(),
+        };
+        let chunk = render_reflection_chunk(&r);
+        assert!(chunk.contains("(no question)"));
+        assert!(chunk.contains("raw entry"));
     }
 }
