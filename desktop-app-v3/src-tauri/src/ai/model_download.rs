@@ -222,6 +222,155 @@ pub async fn download_file(
     Ok(())
 }
 
+use crate::ai::registry;
+use crate::store::ai::{self as store_ai, ModelState, ModelStatus};
+use serde::Serialize;
+use std::path::PathBuf;
+use tauri::{AppHandle, Emitter, Manager};
+
+/// Payload for the `ai-model-progress` Tauri event. Frontend listens to this
+/// to render the consent-screen progress bar.
+#[derive(Debug, Clone, Serialize)]
+pub struct ProgressEvent {
+    pub current_file: String,
+    pub current_index: usize,
+    pub total_files: usize,
+    pub bytes_downloaded: u64,
+    pub bytes_total: u64,
+    pub overall_bytes_downloaded: u64,
+    pub overall_bytes_total: u64,
+}
+
+/// Resolve the directory model files live in: `app_data_dir/models/`.
+pub fn models_dir(handle: &AppHandle) -> Result<PathBuf, AiError> {
+    let dir = handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AiError::ModelDownload(format!("app_data_dir: {e}")))?
+        .join("models");
+    Ok(dir)
+}
+
+/// Download every file in the registry into `app_data_dir/models/`. Updates
+/// `ai_model_state.status` from Downloading → Ready (or → Error). Emits
+/// `ai-model-progress` per chunk and `ai-model-status-changed` on transition.
+pub async fn run_download(
+    handle: &AppHandle,
+    http: &reqwest::Client,
+    db: &crate::store::Db,
+) -> Result<(), AiError> {
+    let target_dir = models_dir(handle)?;
+    let total_bytes = registry::total_download_bytes();
+
+    tokio::fs::create_dir_all(&target_dir)
+        .await
+        .map_err(|e| AiError::ModelDownload(format!("mkdir {target_dir:?}: {e}")))?;
+    check_space(&target_dir, total_bytes)?;
+
+    transition_status(db, ModelStatus::Downloading)?;
+    emit_status_changed(handle, ModelStatus::Downloading);
+
+    let files = registry::all_files();
+    let mut overall: u64 = 0;
+    let total_files = files.len();
+
+    for (idx, file) in files.iter().enumerate() {
+        let target = target_dir.join(file.local_filename);
+        let handle_for_cb = handle.clone();
+        let filename = file.local_filename.to_string();
+        let file_total = file.size_bytes;
+        let overall_so_far = overall;
+
+        let progress = move |bytes_dl: u64, _file_total: u64| {
+            let _ = handle_for_cb.emit(
+                "ai-model-progress",
+                ProgressEvent {
+                    current_file: filename.clone(),
+                    current_index: idx,
+                    total_files,
+                    bytes_downloaded: bytes_dl,
+                    bytes_total: file_total,
+                    overall_bytes_downloaded: overall_so_far + bytes_dl,
+                    overall_bytes_total: total_bytes,
+                },
+            );
+        };
+
+        if let Err(e) = download_file(http, file, &target, Box::new(progress)).await {
+            let _ = transition_status(db, ModelStatus::Error);
+            emit_status_changed(handle, ModelStatus::Error);
+            return Err(e);
+        }
+
+        overall += file.size_bytes;
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let model_path = target_dir
+        .join(registry::LLM_FILES[0].local_filename)
+        .to_string_lossy()
+        .to_string();
+    let embedder_path = target_dir
+        .join(registry::EMBEDDER_FILES[0].local_filename)
+        .to_string_lossy()
+        .to_string();
+
+    let state = ModelState {
+        model_id: registry::LLM_ID.to_string(),
+        model_path,
+        model_sha256: registry::LLM_FILES[0].sha256.to_string(),
+        embedder_id: registry::EMBEDDER_ID.to_string(),
+        embedder_path,
+        embedder_sha256: registry::EMBEDDER_FILES[0].sha256.to_string(),
+        downloaded_at: Some(now),
+        status: ModelStatus::Ready,
+    };
+
+    {
+        let conn = db
+            .lock()
+            .map_err(|_| AiError::ModelDownload("db mutex poisoned".into()))?;
+        store_ai::upsert_model_state(&conn, &state)
+            .map_err(|e| AiError::ModelDownload(format!("upsert_model_state: {e}")))?;
+    }
+
+    emit_status_changed(handle, ModelStatus::Ready);
+    Ok(())
+}
+
+fn transition_status(db: &crate::store::Db, new_status: ModelStatus) -> Result<(), AiError> {
+    let conn = db
+        .lock()
+        .map_err(|_| AiError::ModelDownload("db mutex poisoned".into()))?;
+
+    let existing = store_ai::get_model_state(&conn)
+        .map_err(|e| AiError::ModelDownload(format!("get_model_state: {e}")))?;
+
+    let next = match existing {
+        Some(mut s) => {
+            s.status = new_status;
+            s
+        }
+        None => ModelState {
+            model_id: registry::LLM_ID.to_string(),
+            model_path: String::new(),
+            model_sha256: String::new(),
+            embedder_id: registry::EMBEDDER_ID.to_string(),
+            embedder_path: String::new(),
+            embedder_sha256: String::new(),
+            downloaded_at: None,
+            status: new_status,
+        },
+    };
+
+    store_ai::upsert_model_state(&conn, &next)
+        .map_err(|e| AiError::ModelDownload(format!("upsert: {e}")))
+}
+
+fn emit_status_changed(handle: &AppHandle, status: ModelStatus) {
+    let _ = handle.emit("ai-model-status-changed", &status);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
