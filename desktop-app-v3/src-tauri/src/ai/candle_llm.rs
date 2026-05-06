@@ -263,4 +263,46 @@ mod tests {
             Ok(_) => panic!("expected error from invalid GGUF"),
         }
     }
+
+    /// End-to-end generation on real Phi-3-mini weights. Skipped unless
+    /// FLOWSHIELD_AI_TESTS=1 + FLOWSHIELD_AI_TEST_MODELS_DIR is set.
+    #[test]
+    fn real_generation() {
+        if std::env::var("FLOWSHIELD_AI_TESTS").ok().as_deref() != Some("1") {
+            eprintln!("skipped: FLOWSHIELD_AI_TESTS != 1");
+            return;
+        }
+        let base = match std::env::var("FLOWSHIELD_AI_TEST_MODELS_DIR") {
+            Ok(p) => PathBuf::from(p),
+            Err(_) => {
+                eprintln!("skipped: FLOWSHIELD_AI_TEST_MODELS_DIR unset");
+                return;
+            }
+        };
+        if !base.join(GGUF_FILE).exists() {
+            eprintln!("skipped: {} missing", base.join(GGUF_FILE).display());
+            return;
+        }
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("rt");
+
+        let runtime = CandleLlmRuntime::load(&base).expect("load Phi-3-mini");
+
+        let prompt = "Briefly say hello in one short sentence.";
+        let out = rt
+            .block_on(runtime.generate(prompt, 16))
+            .expect("generate");
+
+        eprintln!("Phi-3 generated: {out:?}");
+        assert!(!out.is_empty(), "expected non-empty completion");
+        assert!(
+            out.len() <= 256,
+            "expected ≤256 chars (16 tokens), got {} chars: {:?}",
+            out.len(),
+            out
+        );
+    }
 }
