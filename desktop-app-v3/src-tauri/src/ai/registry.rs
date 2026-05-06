@@ -5,10 +5,10 @@
 //! sha256 column gates whether re-download is needed (sha256 mismatch on disk
 //! triggers redownload).
 //!
-//! The sha256 placeholders below are PLACEHOLDERS confirmed during Plan 1.3
-//! (embedder) and Plan 1.4 (LLM). Plan 1.2 wires the infra; Plans 1.3+1.4 fill
-//! in real hashes once they download the artifacts and verify against the
-//! upstream HuggingFace published sha256s.
+//! The sha256 placeholders below are PLACEHOLDERS for Plan 1.4 (LLM) only —
+//! Plan 1.3 filled the embedder hashes. Plan 1.2 wired the infra; Plan 1.4
+//! fills in real LLM hashes once the artifact is downloaded and verified
+//! against the upstream HuggingFace published sha256.
 
 /// Identifier baked into `ai_briefings.model_id` for cache invalidation.
 pub const LLM_ID: &str = "gemma-2-2b-it-q4_k_m";
@@ -48,19 +48,19 @@ pub const EMBEDDER_FILES: &[ModelFile] = &[
     ModelFile {
         url: "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/model.safetensors",
         local_filename: "bge-small-en-v1.5/model.safetensors",
-        sha256: "",  // PLACEHOLDER — Plan 1.3 fills
+        sha256: "3c9f31665447c8911517620762200d2245a2518d6e7208acc78cd9db317e21ad",  // real upstream sha256 — verified 2026-05-07
         size_bytes: 135_000_000,
     },
     ModelFile {
         url: "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/tokenizer.json",
         local_filename: "bge-small-en-v1.5/tokenizer.json",
-        sha256: "",  // PLACEHOLDER — Plan 1.3 fills
+        sha256: "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",  // real upstream sha256 — verified 2026-05-07
         size_bytes: 700_000,
     },
     ModelFile {
         url: "https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/config.json",
         local_filename: "bge-small-en-v1.5/config.json",
-        sha256: "",  // PLACEHOLDER — Plan 1.3 fills
+        sha256: "094f8e891b932f2000c92cfc663bac4c62069f5d8af5b5278c4306aef3084750",  // real upstream sha256 — verified 2026-05-07
         size_bytes: 800,
     },
 ];
