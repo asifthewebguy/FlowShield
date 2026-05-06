@@ -35,6 +35,12 @@ const MAX_TOKENS: usize = 512;
 
 /// Real BGE-small embedder. Owns the model + tokenizer for the process
 /// lifetime. Cheap to call repeatedly; expensive (~50 ms per chunk) per call.
+///
+/// Runtime requirement: `embed` calls `tokio::task::block_in_place`, which
+/// panics on a single-threaded tokio runtime. Tauri's default runtime is
+/// multi-thread (confirmed via `rt-multi-thread` in Cargo.toml). If a future
+/// caller invokes `embed` from a `#[tokio::test]` (current-thread by default),
+/// build the runtime explicitly with `Builder::new_multi_thread()` first.
 pub struct CandleEmbedder {
     model: BertModel,
     tokenizer: Tokenizer,
@@ -92,7 +98,8 @@ impl CandleEmbedder {
             .map_err(|e| AiError::Tokenize(format!("encode: {e}")))?;
 
         // Truncate to MAX_TOKENS — BGE-small's max position embeddings are
-        // 512. Forward will panic on longer sequences.
+        // 512. Forward will panic on longer sequences. stride=0 means no
+        // overlap window; we embed each chunk independently (no sliding).
         encoding.truncate(MAX_TOKENS, 0, tokenizers::TruncationDirection::Right);
 
         let ids: Vec<u32> = encoding.get_ids().to_vec();
