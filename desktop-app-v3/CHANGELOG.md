@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.3.0-alpha.0...v3.4.0-alpha.0) (2026-05-06)
+
+
+### Features
+
+* **desktop-v3:** local AI substrate — traits, schema, corpus, retriever, prompts ([#70](https://github.com/asifthewebguy/FlowShield/issues/70)) ([fb32bfb](https://github.com/asifthewebguy/FlowShield/commit/fb32bfb508340dd58c1bc5ec8215aa8af97e3916))
+
 ## [3.3.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.2.1-alpha.0...v3.3.0-alpha.0) (2026-05-04)
 
 
