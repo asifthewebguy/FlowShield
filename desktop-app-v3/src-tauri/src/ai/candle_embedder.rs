@@ -190,3 +190,57 @@ impl Embedder for CandleEmbedder {
         EMBEDDER_ID
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use tempfile::tempdir;
+
+    /// embedder_id must match registry constant — Plan 1.5 keys cache lookups
+    /// off this string and a drift would silently invalidate every chunk's
+    /// embedding when re-loaded.
+    #[test]
+    fn embedder_id_matches_registry() {
+        // We can't construct CandleEmbedder without weights, but the
+        // associated constant is reachable.
+        assert_eq!(EMBEDDER_ID, "bge-small-en-v1.5");
+    }
+
+    /// `load` must surface a typed `AiError::ModelLoad` (not panic) when the
+    /// model directory is missing files. Plan 1.5's settings page renders
+    /// this verbatim — a panic here would crash the renderer.
+    #[test]
+    fn load_missing_dir_returns_error() {
+        let tmp = tempdir().expect("tempdir");
+        let bogus = PathBuf::from(tmp.path()).join("does-not-exist");
+
+        match CandleEmbedder::load(&bogus) {
+            Err(AiError::ModelLoad(msg)) => {
+                assert!(
+                    msg.to_lowercase().contains("config")
+                        || msg.to_lowercase().contains("read"),
+                    "expected message to reference config/read, got: {msg}"
+                );
+            }
+            Err(other) => panic!("expected ModelLoad, got {other:?}"),
+            Ok(_) => panic!("expected error loading from empty dir"),
+        }
+    }
+
+    /// `load` must error cleanly when only some of the three files exist
+    /// (partial download case from Plan 1.2 mid-run-cancel).
+    #[test]
+    fn load_partial_dir_returns_error() {
+        let tmp = tempdir().expect("tempdir");
+        let dir = tmp.path();
+        std::fs::write(dir.join(CONFIG_FILE), "not valid json").expect("write config");
+        // tokenizer.json + safetensors intentionally missing.
+
+        match CandleEmbedder::load(dir) {
+            Err(AiError::ModelLoad(_)) => {} // success
+            Err(other) => panic!("expected ModelLoad, got {other:?}"),
+            Ok(_) => panic!("expected error from invalid config"),
+        }
+    }
+}
