@@ -1,6 +1,37 @@
 use serde::Serialize;
 use thiserror::Error;
 
+/// Error categories specific to the AI substrate. Wrapped by `AppError::Ai`
+/// when bubbled to the Tauri command layer; tests inspect the inner variant
+/// directly. Counters of these variants are the only AI telemetry we ship —
+/// content (prompts, outputs, embeddings) is never logged.
+#[derive(Debug, thiserror::Error)]
+pub enum AiError {
+    #[error("model not loaded: {0}")]
+    ModelLoad(String),
+
+    #[error("model download failed: {0}")]
+    ModelDownload(String),
+
+    #[error("inference failed: {0}")]
+    Inference(String),
+
+    #[error("tokenizer failed: {0}")]
+    Tokenize(String),
+
+    #[error("out of memory during inference")]
+    OutOfMemory,
+
+    #[error("disk full: need {needed_mb} MB, have {available_mb} MB")]
+    DiskFull { needed_mb: u64, available_mb: u64 },
+
+    #[error("ai feature disabled by user setting")]
+    Disabled,
+
+    #[error("ai data corpus has fewer than {min} chunks; need more sessions")]
+    InsufficientData { min: usize },
+}
+
 /// All errors the Rust backend can surface to the frontend. Wire format
 /// mirrors the FlowShield REST API so React error-handling can branch on
 /// `code` regardless of source.
@@ -21,6 +52,9 @@ pub enum AppError {
 
     #[error("serialization error: {0}")]
     Serde(#[from] serde_json::Error),
+
+    #[error("ai: {0}")]
+    Ai(#[from] AiError),
 }
 
 #[derive(Debug, Serialize)]
@@ -58,6 +92,12 @@ impl Serialize for AppError {
             },
             AppError::Serde(e) => AppErrorWire {
                 error: "serde".into(),
+                message: e.to_string(),
+                code: None,
+                status: None,
+            },
+            AppError::Ai(e) => AppErrorWire {
+                error: "ai".into(),
                 message: e.to_string(),
                 code: None,
                 status: None,
