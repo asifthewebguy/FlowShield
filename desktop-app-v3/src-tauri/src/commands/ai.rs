@@ -49,3 +49,39 @@ pub async fn ai_model_download_start(
 
     Ok(())
 }
+
+/// Wipe all AI data: drops chunks, reflections, briefings, model_state rows,
+/// and deletes the model files from `app_data_dir/models/`. Used by the
+/// "Delete AI data" button in /settings/ai. Returns Ok even if nothing was
+/// present to delete (idempotent).
+#[tauri::command]
+pub async fn ai_data_delete(
+    handle: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), AppError> {
+    let db = state
+        .db
+        .get()
+        .ok_or_else(|| AppError::Storage("local DB not initialized".into()))?;
+    {
+        let conn = db
+            .lock()
+            .map_err(|_| AppError::Storage("db mutex poisoned".into()))?;
+        store_ai::delete_all_chunks(&conn)?;
+        store_ai::delete_all_reflections(&conn)?;
+        store_ai::delete_all_briefings(&conn)?;
+        store_ai::delete_model_state(&conn)?;
+    } // drop the lock before the async filesystem op below
+
+    let models_dir = model_download::models_dir(&handle)
+        .map_err(|e| AppError::Storage(format!("models_dir: {e}")))?;
+    if models_dir.exists() {
+        tokio::fs::remove_dir_all(&models_dir)
+            .await
+            .map_err(|e| AppError::Storage(format!("remove_dir_all {models_dir:?}: {e}")))?;
+    }
+
+    use tauri::Emitter;
+    let _ = handle.emit("ai-model-status-changed", "not_started");
+    Ok(())
+}
