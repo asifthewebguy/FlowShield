@@ -18,6 +18,7 @@ use rusqlite::Connection;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+pub mod ai;
 pub mod pending_sync;
 
 pub type Db = Arc<Mutex<Connection>>;
