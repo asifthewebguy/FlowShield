@@ -162,6 +162,70 @@ pub fn delete_all_chunks(conn: &Connection) -> Result<(), AppError> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Reflection {
+    pub id: String,
+    pub date: String,
+    pub questions: Vec<String>,
+    pub answer: String,
+    pub created_at: String,
+}
+
+pub fn upsert_reflection(conn: &Connection, r: &Reflection) -> Result<(), AppError> {
+    let questions_json = serde_json::to_string(&r.questions)
+        .map_err(|e| AppError::Storage(format!("reflection questions JSON: {e}")))?;
+    conn.execute(
+        "INSERT INTO ai_reflections (id, date, questions, answer, created_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(date) DO UPDATE SET
+             questions  = excluded.questions,
+             answer     = excluded.answer,
+             created_at = excluded.created_at",
+        params![r.id, r.date, questions_json, r.answer, r.created_at],
+    )
+    .map_err(|e| AppError::Storage(format!("upsert_reflection: {e}")))?;
+    Ok(())
+}
+
+pub fn get_reflection_by_date(
+    conn: &Connection,
+    date: &str,
+) -> Result<Option<Reflection>, AppError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, date, questions, answer, created_at
+             FROM ai_reflections
+             WHERE date = ?",
+        )
+        .map_err(|e| AppError::Storage(format!("get_reflection_by_date prepare: {e}")))?;
+    let mut rows = stmt
+        .query(params![date])
+        .map_err(|e| AppError::Storage(format!("get_reflection_by_date query: {e}")))?;
+    if let Some(row) = rows
+        .next()
+        .map_err(|e| AppError::Storage(format!("get_reflection_by_date row: {e}")))?
+    {
+        let questions_str: String = row.get(2).map_err(|e| AppError::Storage(format!("{e}")))?;
+        let questions: Vec<String> = serde_json::from_str(&questions_str)
+            .map_err(|e| AppError::Storage(format!("reflection questions parse: {e}")))?;
+        Ok(Some(Reflection {
+            id: row.get(0).map_err(|e| AppError::Storage(format!("{e}")))?,
+            date: row.get(1).map_err(|e| AppError::Storage(format!("{e}")))?,
+            questions,
+            answer: row.get(3).map_err(|e| AppError::Storage(format!("{e}")))?,
+            created_at: row.get(4).map_err(|e| AppError::Storage(format!("{e}")))?,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn delete_all_reflections(conn: &Connection) -> Result<(), AppError> {
+    conn.execute("DELETE FROM ai_reflections", [])
+        .map_err(|e| AppError::Storage(format!("delete_all_reflections: {e}")))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,5 +303,52 @@ mod tests {
         delete_all_chunks(&conn).unwrap();
         let listed = list_chunks_since(&conn, "2025-01-01T00:00:00Z").unwrap();
         assert_eq!(listed.len(), 0);
+    }
+
+    fn sample_reflection(id: &str, date: &str) -> Reflection {
+        Reflection {
+            id: id.to_string(),
+            date: date.to_string(),
+            questions: vec!["What blocked you today?".into()],
+            answer: "the api spec was unclear".to_string(),
+            created_at: "2026-05-05T20:00:00Z".to_string(),
+        }
+    }
+
+    #[test]
+    fn upsert_and_get_reflection_round_trips() {
+        let conn = fresh_conn();
+        let r = sample_reflection("rid-1", "2026-05-05");
+        upsert_reflection(&conn, &r).unwrap();
+        let got = get_reflection_by_date(&conn, "2026-05-05").unwrap().unwrap();
+        assert_eq!(got.id, "rid-1");
+        assert_eq!(got.questions, vec!["What blocked you today?"]);
+        assert_eq!(got.answer, "the api spec was unclear");
+    }
+
+    #[test]
+    fn upsert_replaces_existing_reflection_for_same_date() {
+        let conn = fresh_conn();
+        let r1 = sample_reflection("rid-1", "2026-05-05");
+        upsert_reflection(&conn, &r1).unwrap();
+
+        let mut r2 = r1.clone();
+        r2.answer = "different answer".to_string();
+        upsert_reflection(&conn, &r2).unwrap();
+
+        let got = get_reflection_by_date(&conn, "2026-05-05").unwrap().unwrap();
+        assert_eq!(got.answer, "different answer");
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM ai_reflections", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1, "should not duplicate rows on upsert");
+    }
+
+    #[test]
+    fn get_reflection_returns_none_when_missing() {
+        let conn = fresh_conn();
+        let got = get_reflection_by_date(&conn, "2026-05-05").unwrap();
+        assert!(got.is_none());
     }
 }
