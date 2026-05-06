@@ -15,6 +15,7 @@
 //! multi-threaded tokio runtime (Tauri default is fine).
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use async_trait::async_trait;
@@ -48,6 +49,13 @@ const TOP_P: f64 = 0.9;
 ///
 /// std::sync (not tokio): the lock guard never crosses an await — every use
 /// is inside `generate_sync` running under `block_in_place`.
+///
+/// **Single-generation lifetime.** `quantized_phi3::ModelWeights` does not
+/// expose a public KV-cache reset in candle 0.8.4. A second call to
+/// `generate` would feed `index_pos = 0` while the cache still holds the
+/// prior prompt's keys/values, corrupting output. We fail loudly on the
+/// second call instead. Plan 1.5 owns the lifetime — it should drop and
+/// reload the runtime per generation, or batch all prompts into one call.
 pub struct CandleLlmRuntime {
     model: Mutex<ModelWeights>,
     tokenizer: Tokenizer,
@@ -56,6 +64,9 @@ pub struct CandleLlmRuntime {
     /// `<|endoftext|>` for end-of-stream. Resolved at load time so we don't
     /// re-encode every `generate()` call.
     eos_token_ids: Vec<u32>,
+    /// Tripwire for the single-generation constraint above. Set on first
+    /// successful `generate_sync` entry; second call returns AiError.
+    used: AtomicBool,
 }
 
 impl CandleLlmRuntime {
@@ -101,6 +112,7 @@ impl CandleLlmRuntime {
             tokenizer,
             device,
             eos_token_ids,
+            used: AtomicBool::new(false),
         })
     }
 
@@ -111,6 +123,17 @@ impl CandleLlmRuntime {
     /// If outputs are gibberish in Plan 1.4 Task 5's gated test, fall back to
     /// feeding full token history every step.
     fn generate_sync(&self, prompt: &str, max_tokens: usize) -> Result<String, AiError> {
+        // Single-generation tripwire. See struct doc — KV cache cannot be
+        // reset in candle 0.8.4. swap(true) returns the OLD value; if true,
+        // someone already generated.
+        if self.used.swap(true, Ordering::SeqCst) {
+            return Err(AiError::Inference(
+                "CandleLlmRuntime supports one generation per instance — \
+                 reload the runtime before generating again"
+                    .into(),
+            ));
+        }
+
         let encoding = self
             .tokenizer
             .encode(prompt, true)
@@ -183,13 +206,15 @@ impl LlmRuntime for CandleLlmRuntime {
     }
 }
 
-/// Stable u64 hash of a prompt string for `LogitsProcessor` seeding.
-/// `DefaultHasher` is intentionally not cryptographic — we only need
-/// determinism per-prompt across runs with the same Rust toolchain.
+/// Stable u64 hash of a prompt string for `LogitsProcessor` seeding. FNV-1a
+/// because `std::collections::hash_map::DefaultHasher` randomizes its seed
+/// per-process — re-renders of today's briefing would drift across launches.
+/// Plan 1.5 requires the same prompt to produce the same output on revisit.
 fn simple_hash_u64(s: &str) -> u64 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    let mut h = DefaultHasher::new();
-    s.hash(&mut h);
-    h.finish()
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in s.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
 }
