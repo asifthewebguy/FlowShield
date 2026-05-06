@@ -226,6 +226,64 @@ pub fn delete_all_reflections(conn: &Connection) -> Result<(), AppError> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Briefing {
+    pub date: String,
+    pub text: String,
+    pub generated_at: String,
+    pub model_id: String,
+}
+
+pub fn upsert_briefing(conn: &Connection, b: &Briefing) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO ai_briefings (date, text, generated_at, model_id)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(date) DO UPDATE SET
+             text         = excluded.text,
+             generated_at = excluded.generated_at,
+             model_id     = excluded.model_id",
+        params![b.date, b.text, b.generated_at, b.model_id],
+    )
+    .map_err(|e| AppError::Storage(format!("upsert_briefing: {e}")))?;
+    Ok(())
+}
+
+pub fn get_briefing_for(
+    conn: &Connection,
+    date: &str,
+    current_model_id: &str,
+) -> Result<Option<Briefing>, AppError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT date, text, generated_at, model_id
+             FROM ai_briefings
+             WHERE date = ? AND model_id = ?",
+        )
+        .map_err(|e| AppError::Storage(format!("get_briefing_for prepare: {e}")))?;
+    let mut rows = stmt
+        .query(params![date, current_model_id])
+        .map_err(|e| AppError::Storage(format!("get_briefing_for query: {e}")))?;
+    if let Some(row) = rows
+        .next()
+        .map_err(|e| AppError::Storage(format!("get_briefing_for row: {e}")))?
+    {
+        Ok(Some(Briefing {
+            date: row.get(0).map_err(|e| AppError::Storage(format!("{e}")))?,
+            text: row.get(1).map_err(|e| AppError::Storage(format!("{e}")))?,
+            generated_at: row.get(2).map_err(|e| AppError::Storage(format!("{e}")))?,
+            model_id: row.get(3).map_err(|e| AppError::Storage(format!("{e}")))?,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn delete_all_briefings(conn: &Connection) -> Result<(), AppError> {
+    conn.execute("DELETE FROM ai_briefings", [])
+        .map_err(|e| AppError::Storage(format!("delete_all_briefings: {e}")))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -350,5 +408,48 @@ mod tests {
         let conn = fresh_conn();
         let got = get_reflection_by_date(&conn, "2026-05-05").unwrap();
         assert!(got.is_none());
+    }
+
+    fn sample_briefing(date: &str, model_id: &str) -> Briefing {
+        Briefing {
+            date: date.to_string(),
+            text: "you focused 4.2h yesterday".to_string(),
+            generated_at: "2026-05-05T08:42:00Z".to_string(),
+            model_id: model_id.to_string(),
+        }
+    }
+
+    #[test]
+    fn upsert_and_get_briefing_round_trips() {
+        let conn = fresh_conn();
+        upsert_briefing(&conn, &sample_briefing("2026-05-05", "gemma-2-2b")).unwrap();
+        let got = get_briefing_for(&conn, "2026-05-05", "gemma-2-2b").unwrap().unwrap();
+        assert_eq!(got.date, "2026-05-05");
+        assert_eq!(got.text, "you focused 4.2h yesterday");
+    }
+
+    #[test]
+    fn get_briefing_returns_none_when_model_id_changed() {
+        let conn = fresh_conn();
+        upsert_briefing(&conn, &sample_briefing("2026-05-05", "gemma-2-2b")).unwrap();
+        let got = get_briefing_for(&conn, "2026-05-05", "different-model").unwrap();
+        assert!(got.is_none(), "stale cache must not be returned");
+    }
+
+    #[test]
+    fn upsert_replaces_existing_briefing_for_same_date() {
+        let conn = fresh_conn();
+        upsert_briefing(&conn, &sample_briefing("2026-05-05", "gemma-2-2b")).unwrap();
+        let mut updated = sample_briefing("2026-05-05", "gemma-2-2b");
+        updated.text = "regenerated text".to_string();
+        upsert_briefing(&conn, &updated).unwrap();
+
+        let got = get_briefing_for(&conn, "2026-05-05", "gemma-2-2b").unwrap().unwrap();
+        assert_eq!(got.text, "regenerated text");
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM ai_briefings", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
     }
 }
