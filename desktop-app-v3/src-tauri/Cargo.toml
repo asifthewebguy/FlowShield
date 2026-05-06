@@ -67,6 +67,7 @@ semver = "1"
 # crates (candle-core, hf-hub, tokenizers) land in Plan 1.2 once the trait
 # surface is settled.
 ndarray = "0.16"
+async-trait = "0.1"
 
 [features]
 default = ["custom-protocol"]
