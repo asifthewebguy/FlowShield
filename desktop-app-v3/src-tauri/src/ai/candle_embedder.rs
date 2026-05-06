@@ -243,4 +243,74 @@ mod tests {
             Ok(_) => panic!("expected error from invalid config"),
         }
     }
+
+    /// End-to-end forward pass on real BGE-small weights. Skipped unless
+    /// `FLOWSHIELD_AI_TESTS=1` and `FLOWSHIELD_AI_TEST_MODELS_DIR` points at
+    /// a directory containing `bge-small-en-v1.5/{model.safetensors,
+    /// tokenizer.json, config.json}` — typically `~/flowshield-test-models`
+    /// after running:
+    ///
+    ///   mkdir -p ~/flowshield-test-models/bge-small-en-v1.5
+    ///   cd ~/flowshield-test-models/bge-small-en-v1.5
+    ///   curl -L -O https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/model.safetensors
+    ///   curl -L -O https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/tokenizer.json
+    ///   curl -L -O https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/config.json
+    ///
+    ///   FLOWSHIELD_AI_TESTS=1 \
+    ///     FLOWSHIELD_AI_TEST_MODELS_DIR=~/flowshield-test-models \
+    ///     cargo test --lib ai::candle_embedder::tests::real_forward_pass -- --nocapture
+    #[test]
+    fn real_forward_pass() {
+        if std::env::var("FLOWSHIELD_AI_TESTS").ok().as_deref() != Some("1") {
+            eprintln!("skipped: FLOWSHIELD_AI_TESTS != 1");
+            return;
+        }
+        let base = match std::env::var("FLOWSHIELD_AI_TEST_MODELS_DIR") {
+            Ok(p) => PathBuf::from(p),
+            Err(_) => {
+                eprintln!("skipped: FLOWSHIELD_AI_TEST_MODELS_DIR unset");
+                return;
+            }
+        };
+        let model_dir = base.join("bge-small-en-v1.5");
+        if !model_dir.exists() {
+            eprintln!("skipped: {} missing", model_dir.display());
+            return;
+        }
+
+        // Tokio runtime so we can call the async `Embedder::embed`.
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("rt");
+
+        let embedder = CandleEmbedder::load(&model_dir).expect("load BGE-small");
+
+        // Two semantically related sentences should have higher cosine
+        // similarity than two unrelated ones.
+        let a = rt.block_on(embedder.embed("I am working on a coding project."))
+            .expect("embed a");
+        let b = rt.block_on(embedder.embed("Writing software for my job."))
+            .expect("embed b");
+        let c = rt.block_on(embedder.embed("Pineapple pizza is divisive."))
+            .expect("embed c");
+
+        assert_eq!(a.len(), EMBEDDING_DIM);
+        assert_eq!(b.len(), EMBEDDING_DIM);
+        assert_eq!(c.len(), EMBEDDING_DIM);
+
+        // L2-normalized vectors: cosine == dot.
+        let dot = |x: &[f32], y: &[f32]| x.iter().zip(y).map(|(a, b)| a * b).sum::<f32>();
+        let sim_ab = dot(&a, &b);
+        let sim_ac = dot(&a, &c);
+
+        assert!(
+            sim_ab > sim_ac,
+            "expected related pair to score higher: sim_ab={sim_ab} sim_ac={sim_ac}"
+        );
+
+        // Unit-norm sanity (allow small numerical slack).
+        let mag = |x: &[f32]| x.iter().map(|v| v * v).sum::<f32>().sqrt();
+        assert!((mag(&a) - 1.0).abs() < 1e-3, "||a||={}", mag(&a));
+    }
 }
