@@ -218,3 +218,49 @@ fn simple_hash_u64(s: &str) -> u64 {
     }
     h
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use tempfile::tempdir;
+
+    #[test]
+    fn model_id_matches_registry() {
+        assert_eq!(LLM_ID, "phi-3-mini-4k-instruct-q4");
+    }
+
+    #[test]
+    fn load_missing_dir_returns_error() {
+        let tmp = tempdir().expect("tempdir");
+        let bogus = PathBuf::from(tmp.path()).join("does-not-exist");
+
+        match CandleLlmRuntime::load(&bogus) {
+            Err(AiError::ModelLoad(msg)) => {
+                assert!(
+                    msg.to_lowercase().contains("open")
+                        || msg.to_lowercase().contains("gguf"),
+                    "expected message to reference open/gguf, got: {msg}"
+                );
+            }
+            Err(other) => panic!("expected ModelLoad, got {other:?}"),
+            Ok(_) => panic!("expected error loading from empty dir"),
+        }
+    }
+
+    #[test]
+    fn load_corrupt_gguf_returns_error() {
+        let tmp = tempdir().expect("tempdir");
+        let dir = tmp.path();
+        // GGUF_FILE is a nested path; create the parent dir first.
+        let gguf_full = dir.join(GGUF_FILE);
+        std::fs::create_dir_all(gguf_full.parent().unwrap()).expect("mkdir");
+        std::fs::write(&gguf_full, b"not a real gguf").expect("write stub");
+
+        match CandleLlmRuntime::load(dir) {
+            Err(AiError::ModelLoad(_)) => {} // success
+            Err(other) => panic!("expected ModelLoad, got {other:?}"),
+            Ok(_) => panic!("expected error from invalid GGUF"),
+        }
+    }
+}
