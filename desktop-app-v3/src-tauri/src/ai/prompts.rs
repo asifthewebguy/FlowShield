@@ -44,6 +44,31 @@ pub fn render_briefing_prompt(ctx: &BriefingContext<'_>) -> String {
         .replace("{local_time}", ctx.local_time)
 }
 
+const REFLECTION_TEMPLATE: &str = "\
+You are FlowShield generating an evening reflection prompt. The user's data
+for TODAY is below. Generate ONE short, specific question (max 15 words)
+that picks up on something noteworthy from today — a session that ended
+early, an unusual app pattern, an outlier productivity score. Skip generic
+'how was your day?' — be specific.
+
+TODAY'S DATA:
+{chunks}
+
+QUESTION:";
+
+pub struct ReflectionContext<'a> {
+    pub chunks: &'a [String],
+}
+
+pub fn render_reflection_prompt(ctx: &ReflectionContext<'_>) -> String {
+    let chunks_block = if ctx.chunks.is_empty() {
+        "(no sessions today yet)".to_string()
+    } else {
+        ctx.chunks.join("\n")
+    };
+    REFLECTION_TEMPLATE.replace("{chunks}", &chunks_block)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,5 +108,19 @@ mod tests {
         let prompt = render_briefing_prompt(&ctx);
         assert!(prompt.contains("(no recent activity data)"));
         assert!(prompt.contains("YESTERDAY'S REFLECTION:\n—"));
+    }
+
+    #[test]
+    fn reflection_template_substitutes_chunks() {
+        let chunks = vec!["[Session] Tue 2026-05-05 09:30-09:47 (60min planned, 17min actual).".into()];
+        let p = render_reflection_prompt(&ReflectionContext { chunks: &chunks });
+        assert!(p.contains("[Session] Tue 2026-05-05"));
+        assert!(!p.contains("{chunks}"));
+    }
+
+    #[test]
+    fn reflection_template_handles_empty_chunks() {
+        let p = render_reflection_prompt(&ReflectionContext { chunks: &[] });
+        assert!(p.contains("(no sessions today yet)"));
     }
 }
