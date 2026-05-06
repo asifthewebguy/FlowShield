@@ -2,6 +2,7 @@
 //! [`crate::run`] via `invoke_handler!`. Keeping handlers in their own
 //! modules makes the per-feature surface obvious.
 
+pub mod ai;
 pub mod auth;
 pub mod blocking;
 mod elevation;

@@ -3,6 +3,8 @@
 
 pub mod corpus;
 pub mod embedder;
+pub mod model_download;
 pub mod prompts;
+pub mod registry;
 pub mod retriever;
 pub mod runtime;

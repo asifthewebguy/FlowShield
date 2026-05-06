@@ -21,11 +21,11 @@ tauri-plugin-notification = "2"
 tauri-plugin-autostart = "2"
 
 # HTTP client. rustls so we don't pull in OpenSSL/native-tls quirks.
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 
 # Async runtime — tauri::command async fns need one. `time` is for the
 # tracker's tokio::time::interval (one-second poll loop).
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "io-util", "fs"] }
 
 # Cross-platform foreground-window query for the activity tracker.
 # Wraps Win32 / Cocoa / X11 / Wayland under one Result-returning surface.
@@ -44,7 +44,9 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 # Hostname / username lookup for device registration. Cross-platform —
 # wraps gethostname / GetUserName / SCDynamicStoreCopyComputerName.
 whoami = "1"
-# SHA-256 + base64-url for the v2-compatible deviceId derivation.
+# AI model file integrity verification (Plan 1.2 model_download.rs).
+# Pure-Rust SHA-256 — no openssl bindings, works in the same build matrix
+# as ndarray/chrono.
 sha2 = "0.10"
 base64 = "0.22"
 
@@ -69,6 +71,17 @@ semver = "1"
 ndarray = "0.16"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
+futures-util = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+wiremock = "0.6"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem", "Win32_Foundation"] }
 
 [features]
 default = ["custom-protocol"]

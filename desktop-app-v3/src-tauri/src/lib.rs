@@ -245,6 +245,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::ai::ai_data_delete,
+            commands::ai::ai_model_download_start,
+            commands::ai::ai_model_status,
             commands::auth::auth_login,
             commands::auth::auth_load,
             commands::auth::auth_logout,
