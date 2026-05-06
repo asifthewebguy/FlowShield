@@ -60,5 +60,6 @@ fn apply_migrations(conn: &Connection) -> AppResult<()> {
             ON pending_activity_sync (next_retry_at);",
     )
     .map_err(|e| AppError::Storage(format!("migrate: {e}")))?;
+    ai::migrate(conn)?;
     Ok(())
 }
