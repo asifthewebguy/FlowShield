@@ -1,6 +1,7 @@
 //! FlowShield desktop — library entry point. main.rs wraps `run()` so the
 //! same code can be unit-tested without spinning up a webview.
 
+mod ai;
 mod api;
 mod blocking;
 mod commands;
