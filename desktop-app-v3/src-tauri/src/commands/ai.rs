@@ -23,3 +23,29 @@ pub async fn ai_model_status(
     let result = store_ai::get_model_state(&conn)?;
     Ok(result)
 }
+
+/// Kick off the model download in a background tokio task. Returns immediately;
+/// progress comes via `ai-model-progress` and completion via
+/// `ai-model-status-changed` Tauri events. Idempotent — calling twice while a
+/// download is running is a no-op (the orchestrator's resume logic handles it).
+#[tauri::command]
+pub async fn ai_model_download_start(
+    handle: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), AppError> {
+    let db = state
+        .db
+        .get()
+        .cloned()
+        .ok_or_else(|| AppError::Storage("local DB not initialized".into()))?;
+    let http = state.http.clone();
+    let handle_for_task = handle.clone();
+
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = model_download::run_download(&handle_for_task, &http, &db).await {
+            tracing::error!(?e, "model download failed");
+        }
+    });
+
+    Ok(())
+}
