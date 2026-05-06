@@ -77,6 +77,50 @@ pub fn check_space(target_dir: &Path, needed_bytes: u64) -> Result<(), AiError> 
     Ok(())
 }
 
+use sha2::{Digest, Sha256};
+use tokio::io::AsyncReadExt;
+
+/// Compute the sha256 of a file at `path` by streaming through 64 KB chunks.
+/// Returns the lowercase hex digest. Async because callers run inside the
+/// tokio runtime; sync `std::fs` would block the executor on multi-GB models.
+pub async fn sha256_file(path: &Path) -> Result<String, AiError> {
+    let mut file = tokio::fs::File::open(path)
+        .await
+        .map_err(|e| AiError::ModelDownload(format!("open {path:?}: {e}")))?;
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let n = file
+            .read(&mut buf)
+            .await
+            .map_err(|e| AiError::ModelDownload(format!("read {path:?}: {e}")))?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+/// Verify a downloaded file against an expected hash. Empty-string `expected`
+/// is treated as "skip verification" — used during Plans 1.3/1.4 development
+/// when real hashes haven't been published yet. Production callers should
+/// refuse to mark a file usable when the registry hash is empty.
+pub async fn verify_sha256(path: &Path, expected: &str) -> Result<(), AiError> {
+    if expected.is_empty() {
+        tracing::warn!(?path, "sha256 verify skipped: empty expected hash (placeholder)");
+        return Ok(());
+    }
+    let actual = sha256_file(path).await?;
+    if actual.eq_ignore_ascii_case(expected) {
+        Ok(())
+    } else {
+        Err(AiError::ModelDownload(format!(
+            "sha256 mismatch for {path:?}: expected {expected}, got {actual}"
+        )))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,5 +148,49 @@ mod tests {
             }
             other => panic!("expected DiskFull, got {other:?}"),
         }
+    }
+
+    use std::io::Write;
+
+    fn write_temp_file(content: &[u8]) -> tempfile::NamedTempFile {
+        let mut f = tempfile::NamedTempFile::new().expect("temp file");
+        f.write_all(content).expect("write");
+        f
+    }
+
+    #[tokio::test]
+    async fn sha256_of_known_input_is_known_hash() {
+        let f = write_temp_file(b"hello world");
+        let got = sha256_file(f.path()).await.unwrap();
+        assert_eq!(got, "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9");
+    }
+
+    #[tokio::test]
+    async fn verify_sha256_passes_on_match() {
+        let f = write_temp_file(b"hello world");
+        verify_sha256(f.path(), "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9")
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn verify_sha256_passes_case_insensitively() {
+        let f = write_temp_file(b"hello world");
+        verify_sha256(f.path(), "B94D27B9934D3E08A52E52D7DA7DABFAC484EFE37A5380EE9088F7ACE2EFCDE9")
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn verify_sha256_fails_on_mismatch() {
+        let f = write_temp_file(b"hello world");
+        let result = verify_sha256(f.path(), "0000000000000000000000000000000000000000000000000000000000000000").await;
+        assert!(matches!(result, Err(AiError::ModelDownload(_))));
+    }
+
+    #[tokio::test]
+    async fn verify_sha256_skips_when_expected_empty() {
+        let f = write_temp_file(b"hello world");
+        verify_sha256(f.path(), "").await.unwrap();
     }
 }
