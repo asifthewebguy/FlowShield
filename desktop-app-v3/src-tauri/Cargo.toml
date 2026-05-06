@@ -68,6 +68,7 @@ semver = "1"
 # surface is settled.
 ndarray = "0.16"
 async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
 
 [features]
 default = ["custom-protocol"]
