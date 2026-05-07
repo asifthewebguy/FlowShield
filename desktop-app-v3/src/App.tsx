@@ -2,8 +2,10 @@ import { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { LoginPage } from './routes/LoginPage';
 import { DashboardPage } from './routes/DashboardPage';
+import { SettingsAiPage } from './routes/SettingsAiPage';
 import { useAuthStore } from './lib/auth';
 import { useUpdateStore } from './lib/update';
+import { useAIStore } from './lib/ai';
 
 export default function App() {
   const { token, hydrated, hydrate } = useAuthStore();
@@ -26,6 +28,14 @@ export default function App() {
     };
   }, []);
 
+  // Subscribe to AI substrate events (briefing ready/generating/error).
+  useEffect(() => {
+    const unlistenPromise = useAIStore.getState().bootstrap();
+    return () => {
+      void unlistenPromise.then((fn) => fn());
+    };
+  }, []);
+
   // Once hydration finishes, redirect unauthenticated users to /login and
   // authenticated users away from /login.
   useEffect(() => {
@@ -43,6 +53,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<DashboardPage />} />
+      <Route path="/settings/ai" element={<SettingsAiPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
