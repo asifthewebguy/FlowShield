@@ -396,6 +396,11 @@ pub fn delete_model_state(conn: &Connection) -> Result<(), AppError> {
     Ok(())
 }
 
+pub fn count_chunks(conn: &Connection) -> Result<i64, AppError> {
+    conn.query_row("SELECT COUNT(*) FROM ai_chunks", [], |r| r.get(0))
+        .map_err(|e| AppError::Storage(format!("count_chunks: {e}")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

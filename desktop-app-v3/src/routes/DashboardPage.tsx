@@ -5,6 +5,7 @@ import {
   requestPermission,
   sendNotification,
 } from '@tauri-apps/plugin-notification';
+import { Link } from 'react-router-dom';
 import { useAuthStore } from '../lib/auth';
 import { useSessionStore } from '../lib/sessions';
 import { useProjectsStore, type Project } from '../lib/projects';
@@ -14,6 +15,7 @@ import { useRealtimeStore } from '../lib/realtime';
 import { Button } from '../components/Button';
 import { Timer } from '../components/Timer';
 import { UpdateBanner } from '../components/UpdateBanner';
+import { BriefingCard } from '../components/BriefingCard';
 
 const DURATION_OPTIONS = [15, 25, 45, 60, 90];
 const SESSION_TYPES = ['WORK', 'STUDY', 'CREATIVE'] as const;
@@ -274,6 +276,9 @@ export function DashboardPage() {
           Flow<span className="text-primary-500">Shield</span>
         </div>
         <div className="flex items-center gap-3">
+          <Link to="/settings/ai" className="text-xs text-gray-500 hover:text-gray-700">
+            AI Settings
+          </Link>
           <span className="text-sm text-gray-600 dark:text-gray-400">
             {user?.name ?? user?.email}
           </span>
@@ -284,6 +289,7 @@ export function DashboardPage() {
       </header>
 
       <UpdateBanner />
+      <BriefingCard />
 
       <main className="flex-1 p-8 flex flex-col items-center justify-center">
         <div className="w-full max-w-md space-y-6">

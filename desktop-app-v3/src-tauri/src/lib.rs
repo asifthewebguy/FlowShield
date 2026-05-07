@@ -15,6 +15,7 @@ mod tray_indicator;
 mod update;
 
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use tauri::Manager;
 use tokio::sync::RwLock;
 
@@ -88,6 +89,13 @@ pub struct AppState {
     /// std::sync::Mutex (not tokio's) because the menu click handler is
     /// synchronous and lock contention is effectively zero.
     pub latest_update: Arc<std::sync::Mutex<Option<update::UpdateInfo>>>,
+    /// `OnceLock` because `CandleEmbedder` is loaded lazily on first
+    /// briefing generation and reused for the process lifetime (~135 MB
+    /// resident; cheap to keep around).
+    pub embedder: Arc<std::sync::OnceLock<Arc<crate::ai::candle_embedder::CandleEmbedder>>>,
+    /// Set true while `briefing::generate` is running; prevents the 5am
+    /// scheduler tick and the lazy-fallback dashboard mount from racing.
+    pub briefing_in_flight: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -109,6 +117,8 @@ impl AppState {
             db: Arc::new(std::sync::OnceLock::new()),
             device_id: Arc::new(std::sync::OnceLock::new()),
             latest_update: Arc::new(std::sync::Mutex::new(None)),
+            embedder: Arc::new(std::sync::OnceLock::new()),
+            briefing_in_flight: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -242,12 +252,38 @@ pub fn run() {
                 });
             }
 
+            // Phase 1.5 — briefing scheduler. Re-checks labs flag and
+            // model status every 60s; fires the pipeline at 5am local
+            // (or any post-5am tick if the laptop slept through).
+            {
+                let state: tauri::State<'_, AppState> = app.state();
+                let app_handle = app.handle().clone();
+                if let Some(db) = state.db.get().cloned() {
+                    let embedder = state.embedder.clone();
+                    let in_flight = state.briefing_in_flight.clone();
+                    let model_dir = app_data_dir.join("models");
+                    crate::ai::scheduler::spawn(
+                        app_handle,
+                        db,
+                        embedder,
+                        in_flight,
+                        model_dir,
+                    );
+                } else {
+                    tracing::warn!("local store unavailable; briefing scheduler disabled");
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::ai::ai_briefing_today,
             commands::ai::ai_data_delete,
+            commands::ai::ai_labs_get_enabled,
+            commands::ai::ai_labs_set_enabled,
             commands::ai::ai_model_download_start,
             commands::ai::ai_model_status,
+            commands::ai::ai_settings,
             commands::auth::auth_login,
             commands::auth::auth_load,
             commands::auth::auth_logout,
