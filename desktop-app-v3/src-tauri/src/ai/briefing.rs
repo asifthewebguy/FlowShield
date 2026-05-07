@@ -74,15 +74,21 @@ where
     );
     let q_vec = embedder.embed(&query).await?;
 
+    // list_chunks_since's parameter is named `since_rfc3339` and the SQL
+    // column `created_at` stores RFC 3339 timestamps. Emit a matching shape
+    // (lexicographic comparison would coincidentally work for date-only
+    // strings, but the contract is RFC 3339 — don't rely on coincidence).
     let since_str = today
         .checked_sub_signed(chrono::Duration::days(RETRIEVAL_WINDOW_DAYS))
-        .map(|d| d.to_string())
-        .unwrap_or_else(|| "1970-01-01".into());
+        .map(|d| format!("{d}T00:00:00Z"))
+        .unwrap_or_else(|| "1970-01-01T00:00:00Z".into());
 
+    // get_reflection_by_date matches against a `date` column (YYYY-MM-DD)
+    // not a timestamp, so a plain date string is correct here.
     let yesterday_str = today
         .checked_sub_signed(chrono::Duration::days(1))
         .map(|d| d.to_string())
-        .unwrap_or_default();
+        .unwrap_or_else(|| "1970-01-01".into());
 
     // Phase 1: read everything we need from the DB inside one locked
     // block. The mutex guard MUST be dropped before the runtime.generate()
@@ -128,11 +134,14 @@ where
     }
 
     // Phase 3: write the cached briefing back inside a fresh locked block.
+    // model_id comes from the runtime itself, not the registry constant —
+    // cache invalidation must follow the actual model that produced the
+    // text, not whatever the registry thinks it should be.
     let briefing = Briefing {
         date: today.to_string(),
         text: trimmed.to_string(),
         generated_at: chrono::Utc::now().to_rfc3339(),
-        model_id: LLM_ID.to_string(),
+        model_id: runtime.model_id().to_string(),
     };
     {
         let conn = db
@@ -197,14 +206,15 @@ mod tests {
         let llm = MockLlmRuntime::default();
         let today = chrono::NaiveDate::from_ymd_opt(2026, 5, 8).unwrap();
 
+        let mock_id = llm.model_id().to_string();
         generate(&db, &in_flight, &emb, &llm, today).await.expect("ok");
 
         let conn = db.lock().unwrap();
-        let row = store_ai::get_briefing_for(&conn, &today.to_string(), LLM_ID)
+        let row = store_ai::get_briefing_for(&conn, &today.to_string(), &mock_id)
             .expect("ok")
             .expect("some");
         assert!(row.text.contains("mock briefing"));
-        assert_eq!(row.model_id, LLM_ID);
+        assert_eq!(row.model_id, mock_id);
     }
 
     #[tokio::test]
@@ -214,11 +224,12 @@ mod tests {
         let emb = MockEmbedder::default();
         let llm = MockLlmRuntime::default();
         let today = chrono::NaiveDate::from_ymd_opt(2026, 5, 8).unwrap();
+        let mock_id = llm.model_id().to_string();
 
         generate(&db, &in_flight, &emb, &llm, today).await.expect("ok");
 
         let conn = db.lock().unwrap();
-        let row = store_ai::get_briefing_for(&conn, &today.to_string(), LLM_ID).expect("ok");
+        let row = store_ai::get_briefing_for(&conn, &today.to_string(), &mock_id).expect("ok");
         assert!(row.is_none(), "no row should be written when in_flight already true");
         drop(conn);
         // Flag must remain set — another caller owns the work.
@@ -248,11 +259,12 @@ mod tests {
             id: "mock-llm-v0",
         };
         let today = chrono::NaiveDate::from_ymd_opt(2026, 5, 8).unwrap();
+        let mock_id = llm.model_id().to_string();
 
         generate(&db, &in_flight, &emb, &llm, today).await.expect("ok");
 
         let conn = db.lock().unwrap();
-        let row = store_ai::get_briefing_for(&conn, &today.to_string(), LLM_ID).expect("ok");
+        let row = store_ai::get_briefing_for(&conn, &today.to_string(), &mock_id).expect("ok");
         assert!(row.is_none());
     }
 }
