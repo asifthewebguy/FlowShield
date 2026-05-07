@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.5.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.4.0-alpha.0...v3.5.0-alpha.0) (2026-05-07)
+
+
+### Features
+
+* **desktop-v3:** concrete BGE-small embedder via candle (Phase 1.3) ([#74](https://github.com/asifthewebguy/FlowShield/issues/74)) ([7939670](https://github.com/asifthewebguy/FlowShield/commit/7939670a2cce0a42d39b5007205e146c3fcf6aa3))
+* **desktop-v3:** concrete Phi-3-mini LLM runtime via candle (Phase 1.4) ([#75](https://github.com/asifthewebguy/FlowShield/issues/75)) ([1783518](https://github.com/asifthewebguy/FlowShield/commit/1783518c083e06103d8b3394aa3a55cf2f8ae528))
+* **desktop-v3:** Local AI briefing pipeline + UI (Phase 1.5) ([#76](https://github.com/asifthewebguy/FlowShield/issues/76)) ([f307444](https://github.com/asifthewebguy/FlowShield/commit/f3074448999ac7c9fb03e2e5058d634bf181474a))
+* **desktop-v3:** local AI model download infra (Phase 1.2) ([#72](https://github.com/asifthewebguy/FlowShield/issues/72)) ([faee56a](https://github.com/asifthewebguy/FlowShield/commit/faee56aef68c14e4cc6f6a36d5d8bae66fcda4c9))
+
 ## [3.4.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.3.0-alpha.0...v3.4.0-alpha.0) (2026-05-06)
 
 
