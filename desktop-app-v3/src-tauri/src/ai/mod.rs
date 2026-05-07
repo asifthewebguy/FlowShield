@@ -11,3 +11,4 @@ pub mod prompts;
 pub mod registry;
 pub mod retriever;
 pub mod runtime;
+pub mod scheduler;
