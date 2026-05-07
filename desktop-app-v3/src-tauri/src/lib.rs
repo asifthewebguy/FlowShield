@@ -252,6 +252,28 @@ pub fn run() {
                 });
             }
 
+            // Phase 1.5 — briefing scheduler. Re-checks labs flag and
+            // model status every 60s; fires the pipeline at 5am local
+            // (or any post-5am tick if the laptop slept through).
+            {
+                let state: tauri::State<'_, AppState> = app.state();
+                let app_handle = app.handle().clone();
+                if let Some(db) = state.db.get().cloned() {
+                    let embedder = state.embedder.clone();
+                    let in_flight = state.briefing_in_flight.clone();
+                    let model_dir = app_data_dir.join("models");
+                    crate::ai::scheduler::spawn(
+                        app_handle,
+                        db,
+                        embedder,
+                        in_flight,
+                        model_dir,
+                    );
+                } else {
+                    tracing::warn!("local store unavailable; briefing scheduler disabled");
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

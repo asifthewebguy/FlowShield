@@ -48,6 +48,79 @@ pub fn should_fire(
     true
 }
 
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use tauri::{AppHandle, Emitter};
+
+pub fn spawn(
+    app_handle: AppHandle,
+    db: crate::store::Db,
+    embedder_slot: Arc<std::sync::OnceLock<Arc<crate::ai::candle_embedder::CandleEmbedder>>>,
+    in_flight: Arc<std::sync::atomic::AtomicBool>,
+    model_dir: PathBuf,
+) {
+    tauri::async_runtime::spawn(async move {
+        // 60s warmup so we don't fire on the literal first tick.
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+
+            let now = chrono::Local::now();
+            let labs = read_labs_flag(&app_handle);
+            // get_model_state takes &Connection; lock briefly to query, drop guard
+            // before the await on briefing::generate_with_real_models.
+            let status = {
+                let conn = match db.lock() {
+                    Ok(g) => g,
+                    Err(_) => continue,
+                };
+                match crate::store::ai::get_model_state(&conn) {
+                    Ok(Some(state)) => state.status,
+                    _ => crate::store::ai::ModelStatus::NotStarted,
+                }
+            };
+
+            if !should_fire(now, &db, labs, status) {
+                continue;
+            }
+
+            let today = now.date_naive();
+            tracing::info!(date = %today, "scheduler firing briefing pipeline");
+
+            match crate::ai::briefing::generate_with_real_models(
+                &db,
+                &in_flight,
+                &embedder_slot,
+                &model_dir,
+                today,
+            )
+            .await
+            {
+                Ok(()) => {
+                    let _ = app_handle.emit("ai-briefing-ready", today.to_string());
+                }
+                Err(e) => {
+                    tracing::warn!(?e, "briefing generation failed");
+                    let _ = app_handle.emit("ai-briefing-error", e.to_string());
+                }
+            }
+        }
+    });
+}
+
+fn read_labs_flag(app: &AppHandle) -> bool {
+    use tauri_plugin_store::StoreExt;
+    match app.store("settings.json") {
+        Ok(store) => store
+            .get("ai.labs.enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
