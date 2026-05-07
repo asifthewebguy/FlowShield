@@ -5,13 +5,12 @@
 //! sha256 column gates whether re-download is needed (sha256 mismatch on disk
 //! triggers redownload).
 //!
-//! The sha256 placeholders below are PLACEHOLDERS for Plan 1.4 (LLM) only —
-//! Plan 1.3 filled the embedder hashes. Plan 1.2 wired the infra; Plan 1.4
-//! fills in real LLM hashes once the artifact is downloaded and verified
-//! against the upstream HuggingFace published sha256.
+//! All sha256 hashes are real, verified values — Plan 1.3 filled the embedder
+//! hashes, Plan 1.4 filled the LLM hashes (Phi-3-mini-4k-instruct-q4, verified
+//! 2026-05-07 against upstream HuggingFace artifacts).
 
 /// Identifier baked into `ai_briefings.model_id` for cache invalidation.
-pub const LLM_ID: &str = "gemma-2-2b-it-q4_k_m";
+pub const LLM_ID: &str = "phi-3-mini-4k-instruct-q4";
 
 /// BGE-small-en-v1.5 embedder identifier.
 pub const EMBEDDER_ID: &str = "bge-small-en-v1.5";
@@ -32,13 +31,21 @@ pub struct ModelFile {
     pub size_bytes: u64,
 }
 
-/// Files that make up the LLM bundle. Gemma-2-2B Q4_K_M is a single GGUF.
+/// Files that make up the LLM bundle. Phi-3-mini-4k-instruct ships as a
+/// quantized GGUF + a tokenizer.json (the GGUF doesn't carry tokenizer
+/// vocab in a form candle-transformers' quantized_phi3 reads).
 pub const LLM_FILES: &[ModelFile] = &[
     ModelFile {
-        url: "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf",
-        local_filename: "gemma-2-2b-it-Q4_K_M.gguf",
-        sha256: "",  // PLACEHOLDER — Plan 1.4 fills with real hash
-        size_bytes: 1_500_000_000, // ~1.5 GB; refined in Plan 1.4
+        url: "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
+        local_filename: "phi-3-mini-4k-instruct/Phi-3-mini-4k-instruct-q4.gguf",
+        sha256: "8a83c7fb9049a9b2e92266fa7ad04933bb53aa1e85136b7b30f1b8000ff2edef",  // real upstream sha256 — verified 2026-05-07
+        size_bytes: 2_393_231_072,
+    },
+    ModelFile {
+        url: "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/resolve/main/tokenizer.json",
+        local_filename: "phi-3-mini-4k-instruct/tokenizer.json",
+        sha256: "072ab882d6c7192a42f78790945d16c064691321a73251a4b18f6a380f0fbe39",  // real upstream sha256 — verified 2026-05-07
+        size_bytes: 1_937_869,
     },
 ];
 
