@@ -53,15 +53,16 @@ This phase wires those pieces into a user-visible briefing on the desktop dashbo
 
 - `scheduler.rs` — single tokio task, ticks once per minute. Calls `briefing::generate` when local time has crossed 5am AND no row exists in `ai_briefings` for today's date AND labs are enabled AND model is `Ready` AND `empty_state::has_minimum_data` returns true.
 - `briefing.rs` — orchestrates generation: load embedder + LLM → embed query → retrieve top-k chunks → render prompt via existing `prompts.rs` → generate 80 tokens → upsert `ai_briefings`. Pure orchestration; no Tauri-specific code beyond emitting events through a passed-in `app_handle`.
-- `empty_state.rs` — `has_minimum_data(db)` returns `true` if ≥5 completed sessions exist in the last 7 days. Both the scheduler and the lazy fallback gate on this.
+- `empty_state.rs` — `has_minimum_data(db)` returns `true` if ≥5 sessions with non-NULL `ended_at` (completed sessions, not in-progress or cancelled) exist in the last 7 days. Both the scheduler and the lazy fallback gate on this.
 
 **Extended modules:**
 
 - `commands/ai.rs` — three new commands: `ai_briefing_today`, `ai_labs_set_enabled` / `ai_labs_get_enabled`, `ai_settings`.
-- `lib.rs` — extend `AppState` with three fields:
+- `lib.rs` — extend `AppState` with two fields:
   - `embedder: OnceLock<Arc<CandleEmbedder>>` — long-lived, set on first need.
-  - `llm: tokio::sync::Mutex<Option<CandleLlmRuntime>>` — `Option` so it's `None` between calls (frees ~3 GB RAM); Mutex because we drop+reload per generation (Plan 1.4's KV-cache constraint).
   - `briefing_in_flight: AtomicBool` — prevents concurrent 5am scheduler + lazy fallback runs.
+
+The LLM is **not** held on `AppState` — `briefing::generate` constructs a fresh `CandleLlmRuntime` as a local variable each call and drops it before return. `briefing_in_flight` is sufficient to serialize generations, so no mutex on a stored slot is needed.
 
 **New frontend files under `desktop-app-v3/src/`:**
 
@@ -87,7 +88,7 @@ This phase wires those pieces into a user-visible briefing on the desktop dashbo
 | `commands/ai.rs` (extended) | `ai_briefing_today`, `ai_labs_set_enabled`, `ai_labs_get_enabled`, `ai_settings` | `ai_briefing_today` returns the cached `ai_briefings` row for today; if missing AND model ready AND data sufficient, spawns the lazy fallback. Returns one of `{status: "ready", text}`, `{status: "generating"}`, `{status: "empty_state"}`, `{status: "hidden"}`, `{status: "error", message}`. |
 | `BriefingCard.tsx` | Default-exported component | 4 render states: skeleton (generating), ready (text + relative timestamp), error (message + retry hint), hidden (no labs / no model / empty state). Mounted on `DashboardPage` between header and main. |
 | `SettingsAiPage.tsx` | Default-exported component | Sections: (a) **Beta toggle** "Enable Local AI (Beta)" with one-line description; (b) **Status** model id + ready/downloading/error + disk usage MB + indexed chunk count; (c) **Actions** "Re-download" button (re-runs `ai_model_download_start`), "Delete AI data" button (calls `ai_data_delete` from Plan 1.2). |
-| `lib/ai.ts` | Zustand store: `useAIStore` with state `{enabled, status, briefing}` + actions `{toggleBeta, refresh, deleteData, redownload}` | Subscribes to backend events on mount. |
+| `lib/ai.ts` | Zustand store: `useAIStore` with state `{enabled, status, briefing}` + actions `{toggleBeta, refresh, deleteData, redownload}` | Subscribes to backend Tauri events ONCE at store-module load (via a side-effecting `subscribe()` call at file scope), not per-component-mount. Components just read state. |
 
 **One key constraint encoded above:** `briefing::generate` is the SINGLE entry point. Both the 5am scheduler and the lazy `ai_briefing_today` fallback call it. The `briefing_in_flight` `AtomicBool` prevents the race when both fire within ~30s of each other (e.g., user opens dashboard at 4:59:50am).
 
