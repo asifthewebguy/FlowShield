@@ -4,6 +4,7 @@
 pub mod candle_embedder;
 pub mod candle_llm;
 pub mod corpus;
+pub mod empty_state;
 pub mod embedder;
 pub mod model_download;
 pub mod prompts;
