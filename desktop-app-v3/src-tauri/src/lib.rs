@@ -15,6 +15,7 @@ mod tray_indicator;
 mod update;
 
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use tauri::Manager;
 use tokio::sync::RwLock;
 
@@ -88,6 +89,13 @@ pub struct AppState {
     /// std::sync::Mutex (not tokio's) because the menu click handler is
     /// synchronous and lock contention is effectively zero.
     pub latest_update: Arc<std::sync::Mutex<Option<update::UpdateInfo>>>,
+    /// `OnceLock` because `CandleEmbedder` is loaded lazily on first
+    /// briefing generation and reused for the process lifetime (~135 MB
+    /// resident; cheap to keep around).
+    pub embedder: Arc<std::sync::OnceLock<Arc<crate::ai::candle_embedder::CandleEmbedder>>>,
+    /// Set true while `briefing::generate` is running; prevents the 5am
+    /// scheduler tick and the lazy-fallback dashboard mount from racing.
+    pub briefing_in_flight: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -109,6 +117,8 @@ impl AppState {
             db: Arc::new(std::sync::OnceLock::new()),
             device_id: Arc::new(std::sync::OnceLock::new()),
             latest_update: Arc::new(std::sync::Mutex::new(None)),
+            embedder: Arc::new(std::sync::OnceLock::new()),
+            briefing_in_flight: Arc::new(AtomicBool::new(false)),
         }
     }
 }
