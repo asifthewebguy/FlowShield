@@ -267,4 +267,78 @@ mod tests {
         let row = store_ai::get_briefing_for(&conn, &today.to_string(), &mock_id).expect("ok");
         assert!(row.is_none());
     }
+
+    /// End-to-end pipeline against real BGE + Phi-3 weights. Skipped
+    /// unless FLOWSHIELD_AI_TESTS=1 + FLOWSHIELD_AI_TEST_MODELS_DIR is set.
+    #[test]
+    fn briefing_pipeline_with_real_models() {
+        if std::env::var("FLOWSHIELD_AI_TESTS").ok().as_deref() != Some("1") {
+            eprintln!("skipped: FLOWSHIELD_AI_TESTS != 1");
+            return;
+        }
+        let base = match std::env::var("FLOWSHIELD_AI_TEST_MODELS_DIR") {
+            Ok(p) => std::path::PathBuf::from(p),
+            Err(_) => {
+                eprintln!("skipped: FLOWSHIELD_AI_TEST_MODELS_DIR unset");
+                return;
+            }
+        };
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("rt");
+
+        // Seed enough session chunks to pass has_minimum_data threshold (≥5
+        // session chunks in last 7 days). Embeddings are zeroblobs — the
+        // test asserts pipeline plumbing, not retrieval quality.
+        let db = open_test_db();
+        {
+            let conn = db.lock().unwrap();
+            let now = chrono::Utc::now();
+            for i in 0..6 {
+                let dt = now - chrono::Duration::days(i);
+                conn.execute(
+                    "INSERT INTO ai_chunks (id, source, source_ref, text, embedding, created_at, embedded_at) \
+                     VALUES (?, 'session', ?, ?, zeroblob(1536), ?, ?)",
+                    rusqlite::params![
+                        format!("eval-chunk-{}", i),
+                        format!("eval-session-{}", i),
+                        format!("Worked on coding for 1 hour on day {}.", i),
+                        dt.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                        dt.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                    ],
+                )
+                .unwrap();
+            }
+        }
+
+        let in_flight = std::sync::atomic::AtomicBool::new(false);
+        let embedder_slot = std::sync::OnceLock::new();
+        let today = chrono::Local::now().date_naive();
+
+        rt.block_on(async {
+            super::generate_with_real_models(&db, &in_flight, &embedder_slot, &base, today)
+                .await
+                .expect("generate");
+        });
+
+        // Use whatever model_id the runtime reported; we don't have access
+        // to the registry constant here without coupling tightly. The test
+        // queries by date alone first to find any cached row.
+        let conn = db.lock().unwrap();
+        // Query directly: SELECT all rows for today regardless of model_id
+        let row: Option<(String, String, String)> = conn
+            .query_row(
+                "SELECT text, generated_at, model_id FROM ai_briefings WHERE date = ?",
+                rusqlite::params![today.to_string()],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .ok();
+        assert!(row.is_some(), "expected a briefing row to be cached");
+        let (text, _generated_at, model_id) = row.unwrap();
+        eprintln!("Briefing generated with {model_id}: {text:?}");
+        assert!(!text.is_empty());
+        assert!(text.len() <= 400, "text too long: {} chars", text.len());
+    }
 }
