@@ -7,6 +7,7 @@ pub mod candle_llm;
 pub mod corpus;
 pub mod empty_state;
 pub mod embedder;
+pub mod indexer;
 pub mod model_download;
 pub mod prompts;
 pub mod registry;
