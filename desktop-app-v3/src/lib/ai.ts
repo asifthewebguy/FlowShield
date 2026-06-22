@@ -6,7 +6,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 export type BriefingState =
   | { status: 'ready'; text: string; generated_at: string }
   | { status: 'generating' }
-  | { status: 'empty_state' }
+  | { status: 'empty_state'; sessions: number; needed: number }
   | { status: 'hidden' }
   | { status: 'error'; message: string };
 

@@ -30,10 +30,22 @@ export function BriefingCard() {
   }
 
   if (briefing.status === 'empty_state') {
+    const { sessions, needed } = briefing;
+    const remaining = Math.max(0, needed - sessions);
+    const pct = needed > 0 ? Math.min(100, (sessions / needed) * 100) : 0;
     return (
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 mb-4">
-        <div className="text-sm text-gray-600 dark:text-gray-400">
-          ✨ Complete a few more focus sessions to unlock your AI briefing.
+        <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+          ✨ {sessions} of {needed} focus sessions
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded bg-gray-200 dark:bg-gray-700">
+          <div
+            className="h-full bg-primary-500 transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="mt-2 text-xs text-gray-500 dark:text-gray-500">
+          Complete {remaining} more to unlock your AI briefing · counts sessions completed since Local AI was enabled
         </div>
       </div>
     );
