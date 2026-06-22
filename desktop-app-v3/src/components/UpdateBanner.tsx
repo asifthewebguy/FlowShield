@@ -1,4 +1,4 @@
-import { open } from '@tauri-apps/plugin-shell';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { Button } from './Button';
 import { useUpdateStore, selectShowBanner } from '../lib/update';
 
@@ -22,7 +22,7 @@ export function UpdateBanner() {
 
   const handleDownload = async () => {
     try {
-      await open(info.release_url);
+      await openUrl(info.release_url);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn('[update] open url failed', err);

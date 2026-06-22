@@ -22,7 +22,7 @@ use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconEvent;
 use tauri::{App, AppHandle, Manager};
-use tauri_plugin_shell::ShellExt;
+use tauri_plugin_opener::OpenerExt;
 
 const TRAY_ID: &str = "main";
 const SHOW_ID: &str = "show";
@@ -81,7 +81,7 @@ fn open_update_url(app: &AppHandle) {
         tracing::warn!("update menu clicked but no UpdateInfo cached — ignoring");
         return;
     };
-    if let Err(e) = app.shell().open(&url, None) {
+    if let Err(e) = app.opener().open_url(&url, None::<&str>) {
         tracing::warn!(error = %e, %url, "failed to open update URL");
     }
 }
