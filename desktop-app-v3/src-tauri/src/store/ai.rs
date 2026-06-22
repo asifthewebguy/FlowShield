@@ -49,6 +49,19 @@ pub fn migrate(conn: &Connection) -> Result<(), AppError> {
             downloaded_at   TEXT,
             status          TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS ai_session_facts (
+            session_id   TEXT PRIMARY KEY,
+            date         TEXT NOT NULL,
+            start_time   TEXT NOT NULL,
+            end_time     TEXT,
+            planned_min  INTEGER NOT NULL,
+            actual_min   INTEGER,
+            productivity INTEGER,
+            top_apps     TEXT NOT NULL,
+            created_at   TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_ai_session_facts_date ON ai_session_facts(date);
         "#,
     )
     .map_err(|e| AppError::Storage(format!("ai migrate: {e}")))?;
@@ -401,6 +414,108 @@ pub fn count_chunks(conn: &Connection) -> Result<i64, AppError> {
         .map_err(|e| AppError::Storage(format!("count_chunks: {e}")))
 }
 
+/// Whether a chunk row with this exact id already exists. Used by the day
+/// rollup to avoid re-embedding a day it already indexed.
+pub fn chunk_exists(conn: &Connection, id: &str) -> Result<bool, AppError> {
+    let n: i64 = conn
+        .query_row("SELECT COUNT(*) FROM ai_chunks WHERE id = ?", params![id], |r| r.get(0))
+        .map_err(|e| AppError::Storage(format!("chunk_exists: {e}")))?;
+    Ok(n > 0)
+}
+
+/// Structured facts for one completed session, persisted alongside the
+/// rendered session chunk. The day-rollup aggregates these by `date`;
+/// `ai_chunks` itself stores only text + embedding, so this table is the
+/// source of truth for day-level numbers.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionFacts {
+    pub session_id: String,
+    pub date: String,
+    pub start_time: String,
+    pub end_time: Option<String>,
+    pub planned_min: i32,
+    pub actual_min: Option<i32>,
+    pub productivity: Option<i32>,
+    pub top_apps: Vec<(String, i32)>,
+    pub created_at: String,
+}
+
+pub fn upsert_session_facts(conn: &Connection, f: &SessionFacts) -> Result<(), AppError> {
+    let top_apps_json = serde_json::to_string(&f.top_apps)
+        .map_err(|e| AppError::Storage(format!("session_facts top_apps JSON: {e}")))?;
+    conn.execute(
+        "INSERT OR REPLACE INTO ai_session_facts
+         (session_id, date, start_time, end_time, planned_min, actual_min, productivity, top_apps, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        params![
+            f.session_id,
+            f.date,
+            f.start_time,
+            f.end_time,
+            f.planned_min,
+            f.actual_min,
+            f.productivity,
+            top_apps_json,
+            f.created_at,
+        ],
+    )
+    .map_err(|e| AppError::Storage(format!("upsert_session_facts: {e}")))?;
+    Ok(())
+}
+
+pub fn list_session_facts_for_date(
+    conn: &Connection,
+    date: &str,
+) -> Result<Vec<SessionFacts>, AppError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT session_id, date, start_time, end_time, planned_min, actual_min, productivity, top_apps, created_at
+             FROM ai_session_facts WHERE date = ? ORDER BY start_time",
+        )
+        .map_err(|e| AppError::Storage(format!("list_session_facts prepare: {e}")))?;
+    let rows = stmt
+        .query_map(params![date], |row| {
+            let top_apps_json: String = row.get(7)?;
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, i32>(4)?,
+                row.get::<_, Option<i32>>(5)?,
+                row.get::<_, Option<i32>>(6)?,
+                top_apps_json,
+                row.get::<_, String>(8)?,
+            ))
+        })
+        .map_err(|e| AppError::Storage(format!("list_session_facts query: {e}")))?;
+    let mut out = Vec::new();
+    for r in rows {
+        let (session_id, date, start_time, end_time, planned_min, actual_min, productivity, top_apps_json, created_at) =
+            r.map_err(|e| AppError::Storage(format!("list_session_facts row: {e}")))?;
+        let top_apps: Vec<(String, i32)> = serde_json::from_str(&top_apps_json)
+            .map_err(|e| AppError::Storage(format!("session_facts top_apps parse: {e}")))?;
+        out.push(SessionFacts {
+            session_id,
+            date,
+            start_time,
+            end_time,
+            planned_min,
+            actual_min,
+            productivity,
+            top_apps,
+            created_at,
+        });
+    }
+    Ok(out)
+}
+
+pub fn delete_all_session_facts(conn: &Connection) -> Result<(), AppError> {
+    conn.execute("DELETE FROM ai_session_facts", [])
+        .map_err(|e| AppError::Storage(format!("delete_all_session_facts: {e}")))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -412,9 +527,9 @@ mod tests {
     }
 
     #[test]
-    fn migrate_creates_all_four_tables() {
+    fn migrate_creates_all_tables() {
         let conn = fresh_conn();
-        for tbl in ["ai_chunks", "ai_reflections", "ai_briefings", "ai_model_state"] {
+        for tbl in ["ai_chunks", "ai_reflections", "ai_briefings", "ai_model_state", "ai_session_facts"] {
             let row: i64 = conn
                 .query_row(
                     "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?",
@@ -609,5 +724,51 @@ mod tests {
         assert_eq!(count, 1);
         let got = get_model_state(&conn).unwrap().unwrap();
         assert_eq!(got.status, ModelStatus::Ready);
+    }
+
+    fn sample_facts(id: &str, date: &str) -> SessionFacts {
+        SessionFacts {
+            session_id: id.into(),
+            date: date.into(),
+            start_time: "2026-06-23T09:00:00Z".into(),
+            end_time: Some("2026-06-23T09:55:00Z".into()),
+            planned_min: 60,
+            actual_min: Some(55),
+            productivity: Some(80),
+            top_apps: vec![("Code".into(), 40), ("Chrome".into(), 15)],
+            created_at: "2026-06-23T09:55:00Z".into(),
+        }
+    }
+
+    #[test]
+    fn session_facts_round_trip_and_list_by_date() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+        upsert_session_facts(&conn, &sample_facts("s1", "2026-06-23")).unwrap();
+        upsert_session_facts(&conn, &sample_facts("s2", "2026-06-23")).unwrap();
+        upsert_session_facts(&conn, &sample_facts("s3", "2026-06-22")).unwrap();
+
+        let day = list_session_facts_for_date(&conn, "2026-06-23").unwrap();
+        assert_eq!(day.len(), 2);
+        assert_eq!(day[0].top_apps[0], ("Code".to_string(), 40));
+        assert_eq!(day[0].actual_min, Some(55));
+    }
+
+    #[test]
+    fn session_facts_upsert_is_idempotent_by_session_id() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+        upsert_session_facts(&conn, &sample_facts("s1", "2026-06-23")).unwrap();
+        upsert_session_facts(&conn, &sample_facts("s1", "2026-06-23")).unwrap();
+        assert_eq!(list_session_facts_for_date(&conn, "2026-06-23").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn chunk_exists_reflects_inserted_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+        assert!(!chunk_exists(&conn, "activity_day:2026-06-22").unwrap());
+        insert_chunk(&conn, &sample_chunk("activity_day:2026-06-22", ChunkSource::ActivityDay)).unwrap();
+        assert!(chunk_exists(&conn, "activity_day:2026-06-22").unwrap());
     }
 }

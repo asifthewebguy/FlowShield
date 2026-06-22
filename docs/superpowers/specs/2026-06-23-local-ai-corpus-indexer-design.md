@@ -115,13 +115,31 @@ true and the briefing leaves empty-state.
 "once per local day" guard (fire after local midnight for the *previous*
 calendar day, analogous to the 5am briefing guard).
 
+**Revision (2026-06-23):** the original flow assumed day stats could be
+aggregated from the `Session` chunks in `ai_chunks`. They cannot — `ai_chunks`
+persists only rendered *text* + embedding (no structured duration / productivity
+/ app fields), and desktop-v3 has no list-sessions API to re-fetch from. To keep
+Local AI fully on-device, 1.6a's indexing path is extended to also persist a
+small **`ai_session_facts`** row per session (the structured fields it already
+has in hand). 1.6b aggregates from that table.
+
 **Flow:**
-1. For yesterday's date, read that day's `Session` chunks from `ai_chunks`
-   (single source of truth — no re-fetch from the web API).
-2. Aggregate into `DayChunkInput { date, session_count, total_focus_minutes,
-   best_window, top_apps, lowest_productivity_label }`.
+1. The session indexing path persists one `ai_session_facts` row per completed
+   session: `{ session_id, date (local), start_time, end_time, planned_min,
+   actual_min, productivity, top_apps (JSON), created_at }`.
+2. For yesterday's local date, read its `ai_session_facts` rows and aggregate
+   into `DayChunkInput { date, session_count, total_focus_minutes,
+   best_window, top_apps, lowest_productivity_label }`. In 1.6b,
+   `session_count`, `total_focus_minutes`, and `top_apps` are populated;
+   `best_window` and `lowest_productivity_label` are `None` (deferred — squishy
+   product definitions, added later only if briefing quality needs them).
 3. `render_day_chunk` → `index_chunk(source=ActivityDay, source_ref=date)`.
    Keyed by date → idempotent across re-runs.
+4. A once-per-day scheduler guard rolls up yesterday after local midnight,
+   skipping when the `ActivityDay:date` chunk already exists.
+
+Day rollups apply to sessions completed **after 1.6b ships** (earlier sessions
+have no `ai_session_facts` row). This is acceptable — the corpus warms forward.
 
 ## 1.6c — Reflections (evening question + user answer)
 

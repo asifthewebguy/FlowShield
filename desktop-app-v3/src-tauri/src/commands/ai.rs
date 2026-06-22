@@ -72,6 +72,7 @@ pub async fn ai_data_delete(
         store_ai::delete_all_chunks(&conn)?;
         store_ai::delete_all_reflections(&conn)?;
         store_ai::delete_all_briefings(&conn)?;
+        store_ai::delete_all_session_facts(&conn)?;
         store_ai::delete_model_state(&conn)?;
     } // drop the lock before the async filesystem op below
 
