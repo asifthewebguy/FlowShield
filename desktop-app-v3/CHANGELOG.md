@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.6.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.5.1-alpha.0...v3.6.0-alpha.0) (2026-06-22)
+
+
+### Features
+
+* **desktop-v3:** Local AI corpus day rollups (Phase 1.6b) ([#82](https://github.com/asifthewebguy/FlowShield/issues/82)) ([6d30895](https://github.com/asifthewebguy/FlowShield/commit/6d3089514f87578e8f6a38e2e9547491e6bad461))
+* **desktop-v3:** Local AI corpus session-chunk indexer (Phase 1.6a) ([#80](https://github.com/asifthewebguy/FlowShield/issues/80)) ([cdde3ea](https://github.com/asifthewebguy/FlowShield/commit/cdde3eae0e28074f1b0ac32f85075c7040f29787))
+* **desktop-v3:** Local AI reflections (Phase 1.6c) ([#83](https://github.com/asifthewebguy/FlowShield/issues/83)) ([bd4e78b](https://github.com/asifthewebguy/FlowShield/commit/bd4e78bc1cfe0e6e19cfff7f4854485e1359c645))
+
 ## [3.5.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.5.0-alpha.0...v3.5.1-alpha.0) (2026-06-22)
 
 
