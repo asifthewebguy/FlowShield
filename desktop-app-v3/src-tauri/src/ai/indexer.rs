@@ -268,9 +268,10 @@ pub fn local_part_of_day(f: &SessionFacts) -> Option<String> {
 
 /// Aggregate one day's session facts into a DayChunkInput. Returns None when
 /// there were no sessions that day (nothing to roll up). `best_window` is the
-/// highest-productivity session's local clock span; `lowest_productivity_label`
-/// is the lowest-productivity session's part-of-day (both require ≥2 scored
-/// sessions; both `None` when no/insufficient scored sessions exist).
+/// highest-productivity session's local clock span (needs ≥1 scored session);
+/// `lowest_productivity_label` is the lowest-productivity session's part-of-day
+/// (needs ≥2 scored sessions for contrast). Each is `None` when too few scored
+/// sessions exist.
 pub fn aggregate_day(
     date: chrono::NaiveDate,
     facts: &[SessionFacts],
