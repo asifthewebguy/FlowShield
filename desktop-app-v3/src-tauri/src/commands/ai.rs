@@ -101,7 +101,7 @@ use crate::ai::briefing;
 pub enum BriefingState {
     Ready { text: String, generated_at: String },
     Generating,
-    EmptyState,
+    EmptyState { sessions: i64, needed: i64 },
     Hidden,
 }
 
@@ -151,8 +151,12 @@ pub async fn ai_briefing_today(
         return Ok(BriefingState::Hidden);
     }
 
-    if !crate::ai::empty_state::has_minimum_data(&db) {
-        return Ok(BriefingState::EmptyState);
+    let sessions = crate::ai::empty_state::session_chunk_count_last_7d(&db);
+    if sessions < crate::ai::empty_state::MIN_SESSION_CHUNKS_LAST_7D {
+        return Ok(BriefingState::EmptyState {
+            sessions,
+            needed: crate::ai::empty_state::MIN_SESSION_CHUNKS_LAST_7D,
+        });
     }
 
     let _ = app.emit("ai-briefing-generating", today_s.clone());
