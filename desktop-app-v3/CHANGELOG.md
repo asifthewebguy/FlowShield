@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.5.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.5.0-alpha.0...v3.5.1-alpha.0) (2026-06-22)
+
+
+### Bug Fixes
+
+* **desktop-v3:** use dedicated HTTP client for model download ([#77](https://github.com/asifthewebguy/FlowShield/issues/77)) ([9ff2c33](https://github.com/asifthewebguy/FlowShield/commit/9ff2c33ca311bd65a9245f64c918f14efc3e3980))
+
 ## [3.5.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.4.0-alpha.0...v3.5.0-alpha.0) (2026-05-07)
 
 
