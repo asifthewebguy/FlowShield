@@ -18,35 +18,21 @@ pub trait Embedder: Send + Sync {
     /// produces a different dimensionality (which would be a configuration
     /// bug, not a runtime error).
     async fn embed(&self, text: &str) -> Result<Vec<f32>, AiError>;
-
-    /// Batch variant — implementations are encouraged to fuse forward passes.
-    /// Default impl just calls `embed` in a loop, but real implementations
-    /// override for ~10x throughput on large batches.
-    async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, AiError> {
-        let mut out = Vec::with_capacity(texts.len());
-        for t in texts {
-            out.push(self.embed(t).await?);
-        }
-        Ok(out)
-    }
-
-    /// Identifier baked into `ai_chunks.embedded_at` semantics. When this
-    /// changes (rare — a real embedder swap), every chunk needs re-indexing.
-    fn embedder_id(&self) -> &str;
 }
 
 /// Deterministic mock — hashes input text into a 384-dim unit vector. Used
 /// by every substrate test that needs an embedder without loading BGE-small.
-pub struct MockEmbedder {
-    pub id: &'static str,
-}
+#[cfg(test)]
+pub struct MockEmbedder;
 
+#[cfg(test)]
 impl Default for MockEmbedder {
     fn default() -> Self {
-        Self { id: "mock-embedder-v0" }
+        MockEmbedder
     }
 }
 
+#[cfg(test)]
 #[async_trait]
 impl Embedder for MockEmbedder {
     async fn embed(&self, text: &str) -> Result<Vec<f32>, AiError> {
@@ -63,9 +49,6 @@ impl Embedder for MockEmbedder {
             *x /= norm;
         }
         Ok(v)
-    }
-    fn embedder_id(&self) -> &str {
-        self.id
     }
 }
 
@@ -96,13 +79,5 @@ mod tests {
         let a = m.embed("apple").await.unwrap();
         let b = m.embed("zebra").await.unwrap();
         assert_ne!(a, b);
-    }
-
-    #[tokio::test]
-    async fn batch_default_works() {
-        let m = MockEmbedder::default();
-        let out = m.embed_batch(&["a".into(), "b".into()]).await.unwrap();
-        assert_eq!(out.len(), 2);
-        assert_eq!(out[0].len(), EMBEDDING_DIM);
     }
 }

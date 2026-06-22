@@ -103,7 +103,6 @@ pub enum BriefingState {
     Generating,
     EmptyState,
     Hidden,
-    Error { message: String },
 }
 
 #[tauri::command]

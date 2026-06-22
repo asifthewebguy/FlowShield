@@ -21,11 +21,13 @@ pub trait LlmRuntime: Send + Sync {
 
 /// In-memory mock returning canned strings. Used by every substrate test
 /// that exercises orchestration without the real model.
+#[cfg(test)]
 pub struct MockLlmRuntime {
     pub canned_response: String,
     pub id: &'static str,
 }
 
+#[cfg(test)]
 impl Default for MockLlmRuntime {
     fn default() -> Self {
         Self {
@@ -35,6 +37,7 @@ impl Default for MockLlmRuntime {
     }
 }
 
+#[cfg(test)]
 #[async_trait]
 impl LlmRuntime for MockLlmRuntime {
     async fn generate(&self, _prompt: &str, _max_tokens: usize) -> Result<String, AiError> {

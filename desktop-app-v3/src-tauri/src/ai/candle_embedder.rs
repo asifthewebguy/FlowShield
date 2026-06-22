@@ -19,7 +19,6 @@ use candle_transformers::models::bert::{BertModel, Config, DTYPE};
 use tokenizers::Tokenizer;
 
 use crate::ai::embedder::{Embedder, EMBEDDING_DIM};
-use crate::ai::registry::EMBEDDER_ID;
 use crate::error::AiError;
 
 /// Filenames inside the model directory. Match the layout the Plan 1.2
@@ -200,10 +199,6 @@ impl Embedder for CandleEmbedder {
         // tracker poll loop, etc).
         tokio::task::block_in_place(|| self.embed_sync(text))
     }
-
-    fn embedder_id(&self) -> &str {
-        EMBEDDER_ID
-    }
 }
 
 #[cfg(test)]
@@ -211,16 +206,6 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
     use tempfile::tempdir;
-
-    /// embedder_id must match registry constant — Plan 1.5 keys cache lookups
-    /// off this string and a drift would silently invalidate every chunk's
-    /// embedding when re-loaded.
-    #[test]
-    fn embedder_id_matches_registry() {
-        // We can't construct CandleEmbedder without weights, but the
-        // associated constant is reachable.
-        assert_eq!(EMBEDDER_ID, "bge-small-en-v1.5");
-    }
 
     /// `load` must surface a typed `AiError::ModelLoad` (not panic) when the
     /// model directory is missing files. Plan 1.5's settings page renders
