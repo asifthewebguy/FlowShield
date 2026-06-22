@@ -283,6 +283,8 @@ pub fn run() {
             commands::ai::ai_labs_set_enabled,
             commands::ai::ai_model_download_start,
             commands::ai::ai_model_status,
+            commands::ai::ai_reflection_today,
+            commands::ai::ai_reflection_answer,
             commands::ai::ai_settings,
             commands::auth::auth_login,
             commands::auth::auth_load,
