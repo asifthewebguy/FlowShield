@@ -163,13 +163,7 @@ pub async fn generate_with_real_models(
     model_dir: &Path,
     today: chrono::NaiveDate,
 ) -> Result<(), AppError> {
-    let embedder = if let Some(e) = embedder_slot.get() {
-        e.clone()
-    } else {
-        let loaded = Arc::new(CandleEmbedder::load(&model_dir.join("bge-small-en-v1.5"))?);
-        let _ = embedder_slot.set(loaded.clone());
-        embedder_slot.get().cloned().unwrap_or(loaded)
-    };
+    let embedder = CandleEmbedder::get_or_load(embedder_slot, model_dir)?;
 
     let runtime = CandleLlmRuntime::load(&model_dir.join("phi-3-mini-4k-instruct"))?;
 

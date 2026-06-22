@@ -48,6 +48,21 @@ pub struct CandleEmbedder {
 }
 
 impl CandleEmbedder {
+    /// Return the cached embedder, loading it from `model_dir/bge-small-en-v1.5`
+    /// on first use. The embedder is stateless and ~135 MB; both the briefing
+    /// pipeline and the corpus indexer share this one instance.
+    pub fn get_or_load(
+        slot: &std::sync::OnceLock<std::sync::Arc<CandleEmbedder>>,
+        model_dir: &std::path::Path,
+    ) -> Result<std::sync::Arc<CandleEmbedder>, crate::error::AiError> {
+        if let Some(e) = slot.get() {
+            return Ok(e.clone());
+        }
+        let loaded = std::sync::Arc::new(CandleEmbedder::load(&model_dir.join("bge-small-en-v1.5"))?);
+        let _ = slot.set(loaded.clone());
+        Ok(slot.get().cloned().unwrap_or(loaded))
+    }
+
     /// Load BGE-small from a directory containing `model.safetensors`,
     /// `tokenizer.json`, and `config.json`. Returns `AiError::ModelLoad` if
     /// any file is missing, the safetensors fails to parse, or the tensor
