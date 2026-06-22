@@ -527,9 +527,9 @@ mod tests {
     }
 
     #[test]
-    fn migrate_creates_all_four_tables() {
+    fn migrate_creates_all_tables() {
         let conn = fresh_conn();
-        for tbl in ["ai_chunks", "ai_reflections", "ai_briefings", "ai_model_state"] {
+        for tbl in ["ai_chunks", "ai_reflections", "ai_briefings", "ai_model_state", "ai_session_facts"] {
             let row: i64 = conn
                 .query_row(
                     "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?",
