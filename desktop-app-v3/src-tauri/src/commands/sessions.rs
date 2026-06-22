@@ -78,6 +78,7 @@ pub async fn session_active(state: State<'_, AppState>) -> AppResult<Option<Sess
 #[tauri::command]
 pub async fn session_end(
     state: State<'_, AppState>,
+    app: tauri::AppHandle,
     session_id: String,
     productivity_score: Option<i32>,
 ) -> AppResult<Session> {
@@ -140,6 +141,26 @@ pub async fn session_end(
                 tracing::debug!(?err, "device re-register on session end failed");
             }
         });
+    }
+
+    // Phase 1.6a — index this completed session into the AI corpus.
+    // Best-effort, backgrounded: never blocks or fails the session end.
+    if let Some(db) = state.db.get().cloned() {
+        use tauri::Manager;
+        if let Ok(app_data_dir) = app.path().app_data_dir() {
+            let input = crate::ai::indexer::session_chunk_input(
+                &session,
+                productivity_score,
+                &samples,
+            );
+            crate::ai::indexer::index_session_background(
+                app.clone(),
+                db,
+                state.embedder.clone(),
+                app_data_dir.join("models"),
+                input,
+            );
+        }
     }
 
     Ok(session)

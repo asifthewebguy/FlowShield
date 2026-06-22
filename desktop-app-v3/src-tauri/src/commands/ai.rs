@@ -133,7 +133,7 @@ pub async fn ai_briefing_today(
         }
     }
 
-    let labs = read_labs_flag(&app);
+    let labs = labs_enabled(&app);
     if !labs {
         return Ok(BriefingState::Hidden);
     }
@@ -199,7 +199,7 @@ pub async fn ai_labs_set_enabled(enabled: bool, app: AppHandle) -> Result<(), St
 
 #[tauri::command]
 pub async fn ai_labs_get_enabled(app: AppHandle) -> Result<bool, String> {
-    Ok(read_labs_flag(&app))
+    Ok(labs_enabled(&app))
 }
 
 #[derive(Serialize, Debug)]
@@ -219,7 +219,7 @@ pub async fn ai_settings(
 ) -> Result<AiSettings, String> {
     let db = state.db.get().ok_or_else(|| "store unavailable".to_string())?;
 
-    let labs_enabled = read_labs_flag(&app);
+    let labs_enabled = labs_enabled(&app);
 
     let (status_str, indexed_chunk_count) = {
         let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
@@ -253,7 +253,7 @@ pub async fn ai_settings(
     })
 }
 
-fn read_labs_flag(app: &AppHandle) -> bool {
+pub(crate) fn labs_enabled(app: &AppHandle) -> bool {
     use tauri_plugin_store::StoreExt;
     match app.store("settings.json") {
         Ok(store) => store
