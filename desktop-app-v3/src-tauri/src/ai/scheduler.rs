@@ -103,6 +103,29 @@ pub fn spawn(
                 }
             }
 
+            // Phase 1.6c — evening reflection question (once per day, ≥18:00).
+            {
+                let today = now.date_naive();
+                let already = {
+                    match db.lock() {
+                        Ok(conn) => crate::store::ai::get_reflection_by_date(&conn, &today.to_string())
+                            .map(|r| r.is_some())
+                            .unwrap_or(true),
+                        Err(_) => true, // fail closed
+                    }
+                };
+                if crate::ai::reflection::should_generate_reflection(labs, status.clone(), now.hour(), already) {
+                    match crate::ai::reflection::generate_and_store_question(&db, &in_flight, &model_dir, today).await {
+                        Ok(true) => {
+                            tracing::info!(date = %today, "generated reflection question");
+                            let _ = app_handle.emit("ai-reflection-ready", today.to_string());
+                        }
+                        Ok(false) => {}
+                        Err(e) => tracing::warn!(?e, "reflection generation failed"),
+                    }
+                }
+            }
+
             if !should_fire(now, &db, labs, status) {
                 continue;
             }

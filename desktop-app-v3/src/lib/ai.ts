@@ -10,6 +10,12 @@ export type BriefingState =
   | { status: 'hidden' }
   | { status: 'error'; message: string };
 
+// Mirrors the Rust `ReflectionState` enum (serde tagged on `status`).
+export type ReflectionState =
+  | { status: 'pending'; question: string }
+  | { status: 'answered' }
+  | { status: 'hidden' };
+
 export interface AiSettings {
   labs_enabled: boolean;
   model_id: string;
@@ -26,16 +32,20 @@ export interface DownloadProgress {
 
 interface AiStore {
   briefing: BriefingState;
+  reflection: ReflectionState;
   settings: AiSettings | null;
   downloadProgress: DownloadProgress | null;
   refreshBriefing: () => Promise<void>;
   refreshSettings: () => Promise<void>;
   setLabsEnabled: (enabled: boolean) => Promise<void>;
+  refreshReflection: () => Promise<void>;
+  submitReflectionAnswer: (answer: string) => Promise<void>;
   bootstrap: () => Promise<UnlistenFn>;
 }
 
 export const useAIStore = create<AiStore>((set, get) => ({
   briefing: { status: 'hidden' },
+  reflection: { status: 'hidden' },
   settings: null,
   downloadProgress: null,
 
@@ -63,9 +73,25 @@ export const useAIStore = create<AiStore>((set, get) => ({
     await get().refreshBriefing();
   },
 
+  refreshReflection: async () => {
+    try {
+      const state = await invoke<ReflectionState>('ai_reflection_today');
+      set({ reflection: state });
+    } catch (e) {
+      console.error('ai_reflection_today failed:', e);
+      set({ reflection: { status: 'hidden' } });
+    }
+  },
+
+  submitReflectionAnswer: async (answer) => {
+    await invoke('ai_reflection_answer', { answer });
+    await get().refreshReflection();
+  },
+
   bootstrap: async () => {
     await get().refreshSettings();
     await get().refreshBriefing();
+    await get().refreshReflection();
 
     const unReady = await listen<string>('ai-briefing-ready', () => {
       void get().refreshBriefing();
@@ -97,12 +123,21 @@ export const useAIStore = create<AiStore>((set, get) => ({
       }
     });
 
+    const unReflectionReady = await listen<string>('ai-reflection-ready', () => {
+      void get().refreshReflection();
+    });
+    const unReflectionAnswered = await listen<string>('ai-reflection-answered', () => {
+      void get().refreshReflection();
+    });
+
     return () => {
       unReady();
       unGenerating();
       unError();
       unModelProgress();
       unModelStatus();
+      unReflectionReady();
+      unReflectionAnswered();
     };
   },
 }));

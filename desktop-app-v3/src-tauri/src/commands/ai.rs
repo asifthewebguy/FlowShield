@@ -282,3 +282,167 @@ fn dir_size_bytes(dir: &std::path::Path) -> std::io::Result<u64> {
     }
     Ok(total)
 }
+
+// ---------- Plan 1.6c commands: reflection state + answer ----------
+
+#[derive(Serialize, Debug)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum ReflectionState {
+    Pending { question: String },
+    Answered,
+    Hidden,
+}
+
+/// Pure mapping from a stored reflection row (or none) + labs flag to the
+/// UI state. Hidden when labs off, no row, or a row with no question.
+pub(crate) fn reflection_state_from(
+    row: Option<store_ai::Reflection>,
+    labs_enabled: bool,
+) -> ReflectionState {
+    if !labs_enabled {
+        return ReflectionState::Hidden;
+    }
+    match row {
+        Some(r) => {
+            if r.answer.is_empty() {
+                match r.questions.into_iter().next() {
+                    Some(question) => ReflectionState::Pending { question },
+                    None => ReflectionState::Hidden,
+                }
+            } else {
+                ReflectionState::Answered
+            }
+        }
+        None => ReflectionState::Hidden,
+    }
+}
+
+/// Today's reflection state for the dashboard card.
+#[tauri::command]
+pub async fn ai_reflection_today(
+    state: State<'_, crate::AppState>,
+    app: AppHandle,
+) -> Result<ReflectionState, String> {
+    let labs = labs_enabled(&app);
+    let db = match state.db.get() {
+        Some(d) => d.clone(),
+        None => return Ok(ReflectionState::Hidden),
+    };
+    let today = chrono::Local::now().date_naive().to_string();
+    let row = {
+        let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
+        store_ai::get_reflection_by_date(&conn, &today).map_err(|e| e.to_string())?
+    };
+    Ok(reflection_state_from(row, labs))
+}
+
+/// Persist the user's answer to today's reflection, then index it as a
+/// Reflection chunk (best-effort). The answer save is the contract; a
+/// chunk-index failure is logged, not fatal.
+#[tauri::command]
+pub async fn ai_reflection_answer(
+    state: State<'_, crate::AppState>,
+    app: AppHandle,
+    answer: String,
+) -> Result<(), String> {
+    let db = state
+        .db
+        .get()
+        .cloned()
+        .ok_or_else(|| "local DB not initialized".to_string())?;
+    let today = chrono::Local::now().date_naive();
+    let today_s = today.to_string();
+
+    // Load today's pending row; update its answer; upsert.
+    let updated = {
+        let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
+        let mut row = store_ai::get_reflection_by_date(&conn, &today_s)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "no reflection for today".to_string())?;
+        row.answer = answer;
+        store_ai::upsert_reflection(&conn, &row).map_err(|e| e.to_string())?;
+        row
+    };
+
+    // Best-effort: index the answered reflection as a chunk for retrieval.
+    if let Ok(app_data_dir) = app.path().app_data_dir() {
+        let model_dir = app_data_dir.join("models");
+        let questions = updated.questions.clone();
+        let answer_text = updated.answer.clone();
+        let embedder_slot = state.embedder.clone();
+        let db2 = db.clone();
+        let date_for_chunk = today;
+        let today_for_chunk = today_s.clone();
+        tauri::async_runtime::spawn(async move {
+            let input = crate::ai::corpus::ReflectionChunkInput {
+                date: date_for_chunk,
+                questions,
+                answer: answer_text,
+            };
+            let text = crate::ai::corpus::render_reflection_chunk(&input);
+            match crate::ai::candle_embedder::CandleEmbedder::get_or_load(
+                &embedder_slot,
+                &model_dir,
+            ) {
+                Ok(embedder) => {
+                    if let Err(e) = crate::ai::indexer::index_chunk(
+                        &db2,
+                        embedder.as_ref(),
+                        crate::store::ai::ChunkSource::Reflection,
+                        &today_for_chunk,
+                        &format!("{today_for_chunk}T23:59:59Z"),
+                        text,
+                    )
+                    .await
+                    {
+                        tracing::warn!(?e, "reflection chunk index failed");
+                    }
+                }
+                Err(e) => tracing::warn!(?e, "reflection index skipped: embedder load failed"),
+            }
+        });
+    }
+
+    let _ = app.emit("ai-reflection-answered", today_s);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::store::ai::Reflection;
+
+    fn row(answer: &str) -> Reflection {
+        Reflection {
+            id: "reflection-2026-06-23".into(),
+            date: "2026-06-23".into(),
+            questions: vec!["What blocked you?".into()],
+            answer: answer.into(),
+            created_at: "2026-06-23T18:05:00Z".into(),
+        }
+    }
+
+    #[test]
+    fn reflection_state_maps_pending_answered_hidden() {
+        // labs off → always Hidden
+        assert!(matches!(
+            reflection_state_from(Some(row("")), false),
+            ReflectionState::Hidden
+        ));
+        // no row → Hidden
+        assert!(matches!(
+            reflection_state_from(None, true),
+            ReflectionState::Hidden
+        ));
+        // empty answer → Pending with the question
+        match reflection_state_from(Some(row("")), true) {
+            ReflectionState::Pending { question } => assert_eq!(question, "What blocked you?"),
+            other => panic!("expected Pending, got {other:?}"),
+        }
+        // non-empty answer → Answered
+        assert!(matches!(
+            reflection_state_from(Some(row("it was fine")), true),
+            ReflectionState::Answered
+        ));
+    }
+}
