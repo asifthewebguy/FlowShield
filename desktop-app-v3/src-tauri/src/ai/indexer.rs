@@ -8,6 +8,8 @@ use crate::store::Db;
 
 /// Deterministic row id for an indexed chunk. Same (source, source_ref) →
 /// same id → `INSERT OR REPLACE` overwrites instead of duplicating.
+/// Note: the `:` separator is collision-free as long as `source_ref` contains no
+/// colon — guaranteed for session UUIDs and ISO date strings.
 pub fn stable_chunk_id(source: ChunkSource, source_ref: &str) -> String {
     format!("{}:{}", source.as_str(), source_ref)
 }
@@ -23,6 +25,7 @@ pub async fn index_chunk<E: Embedder + ?Sized>(
     created_at: &str,
     text: String,
 ) -> Result<(), AppError> {
+    tracing::debug!(source = source.as_str(), source_ref, "indexing chunk");
     let embedding = embedder.embed(&text).await?; // AiError -> AppError via From
     let chunk = Chunk {
         id: stable_chunk_id(source, source_ref),
