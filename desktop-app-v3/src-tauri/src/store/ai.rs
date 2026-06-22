@@ -169,6 +169,31 @@ pub fn list_chunks_since(conn: &Connection, since_rfc3339: &str) -> Result<Vec<C
     Ok(rows.filter_map(Result::ok).collect())
 }
 
+/// Texts of chunks of one `source` whose `created_at` is at or after
+/// `since_rfc3339`, ordered oldest-first. Used by reflection generation to
+/// gather "today's sessions" for the prompt.
+pub fn list_chunk_texts_for_source_since(
+    conn: &Connection,
+    source: ChunkSource,
+    since_rfc3339: &str,
+) -> Result<Vec<String>, AppError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT text FROM ai_chunks
+             WHERE source = ? AND created_at >= ?
+             ORDER BY created_at",
+        )
+        .map_err(|e| AppError::Storage(format!("list_chunk_texts prepare: {e}")))?;
+    let rows = stmt
+        .query_map(params![source.as_str(), since_rfc3339], |row| row.get::<_, String>(0))
+        .map_err(|e| AppError::Storage(format!("list_chunk_texts query: {e}")))?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r.map_err(|e| AppError::Storage(format!("list_chunk_texts row: {e}")))?);
+    }
+    Ok(out)
+}
+
 pub fn delete_all_chunks(conn: &Connection) -> Result<(), AppError> {
     conn.execute("DELETE FROM ai_chunks", [])
         .map_err(|e| AppError::Storage(format!("delete_all_chunks: {e}")))?;
@@ -770,5 +795,34 @@ mod tests {
         assert!(!chunk_exists(&conn, "activity_day:2026-06-22").unwrap());
         insert_chunk(&conn, &sample_chunk("activity_day:2026-06-22", ChunkSource::ActivityDay)).unwrap();
         assert!(chunk_exists(&conn, "activity_day:2026-06-22").unwrap());
+    }
+
+    #[test]
+    fn list_chunk_texts_for_source_since_filters_by_source_and_time() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+
+        let mut s = sample_chunk("session:1", ChunkSource::Session);
+        s.text = "[Session] today A".into();
+        s.created_at = "2026-06-23T09:00:00Z".into();
+        insert_chunk(&conn, &s).unwrap();
+
+        let mut s2 = sample_chunk("session:2", ChunkSource::Session);
+        s2.text = "[Session] today B".into();
+        s2.created_at = "2026-06-23T11:00:00Z".into();
+        insert_chunk(&conn, &s2).unwrap();
+
+        // Different source — must be excluded.
+        let mut d = sample_chunk("activity_day:2026-06-23", ChunkSource::ActivityDay);
+        d.created_at = "2026-06-23T23:59:59Z".into();
+        insert_chunk(&conn, &d).unwrap();
+
+        // Older session — before the cutoff, excluded.
+        let mut old = sample_chunk("session:old", ChunkSource::Session);
+        old.created_at = "2026-06-22T09:00:00Z".into();
+        insert_chunk(&conn, &old).unwrap();
+
+        let texts = list_chunk_texts_for_source_since(&conn, ChunkSource::Session, "2026-06-23T00:00:00Z").unwrap();
+        assert_eq!(texts, vec!["[Session] today A".to_string(), "[Session] today B".to_string()]);
     }
 }
