@@ -825,4 +825,56 @@ mod tests {
         let texts = list_chunk_texts_for_source_since(&conn, ChunkSource::Session, "2026-06-23T00:00:00Z").unwrap();
         assert_eq!(texts, vec!["[Session] today A".to_string(), "[Session] today B".to_string()]);
     }
+
+    /// Regression: UTC-ahead zones (e.g. Bangladesh UTC+6) produce sessions
+    /// whose `created_at` is in the *previous* UTC calendar day even though
+    /// they occurred today locally.
+    ///
+    /// Example: session ending 05:00 local on 2026-06-23 (UTC+6) →
+    ///   created_at = "2026-06-22T23:00:00+00:00"
+    ///
+    /// The fix: use local-midnight converted to UTC as the cutoff
+    ///   (e.g. "2026-06-22T18:00:00+00:00" for UTC+6).
+    /// The old bug: use UTC-midnight labeled with the local date
+    ///   (e.g. "2026-06-23T00:00:00Z") — which incorrectly EXCLUDES the chunk.
+    ///
+    /// This test asserts the boundary directly:
+    ///   - UTC-ahead-correct cutoff "2026-06-22T18:00:00+00:00" → INCLUDES it.
+    ///   - UTC-midnight cutoff      "2026-06-23T00:00:00Z"      → EXCLUDES it.
+    #[test]
+    fn list_chunk_texts_for_source_since_utc_ahead_early_morning_session_included() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+
+        // A session that ended at 05:00 local (UTC+6) on 2026-06-23.
+        // Its UTC timestamp is 2026-06-22T23:00:00+00:00.
+        let mut s = sample_chunk("session:early-morning", ChunkSource::Session);
+        s.text = "[Session] early-morning UTC+6 session".into();
+        s.created_at = "2026-06-22T23:00:00+00:00".into();
+        insert_chunk(&conn, &s).unwrap();
+
+        // Correct cutoff: local midnight (00:00 UTC+6) expressed as UTC instant
+        // = "2026-06-22T18:00:00+00:00".  This MUST include the chunk.
+        let correct_cutoff = "2026-06-22T18:00:00+00:00";
+        let included =
+            list_chunk_texts_for_source_since(&conn, ChunkSource::Session, correct_cutoff)
+                .unwrap();
+        assert_eq!(
+            included,
+            vec!["[Session] early-morning UTC+6 session".to_string()],
+            "correct UTC-aware cutoff must INCLUDE early-morning UTC+6 session"
+        );
+
+        // Buggy cutoff: UTC midnight labeled with the local date
+        // = "2026-06-23T00:00:00Z".  This incorrectly EXCLUDES the chunk.
+        let buggy_cutoff = "2026-06-23T00:00:00Z";
+        let excluded =
+            list_chunk_texts_for_source_since(&conn, ChunkSource::Session, buggy_cutoff)
+                .unwrap();
+        assert!(
+            excluded.is_empty(),
+            "UTC-midnight cutoff (the bug) must EXCLUDE the early-morning session — \
+             proving a naive cutoff would have dropped it"
+        );
+    }
 }

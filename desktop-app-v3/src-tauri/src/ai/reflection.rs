@@ -79,9 +79,27 @@ pub async fn generate_and_store_question(
         }
     } // conn (MutexGuard) drops here — before any await
 
-    // Gather today's session texts (local-midnight cutoff, RFC 3339 Z form to
-    // match how session chunks store created_at).
-    let since = format!("{today_s}T00:00:00Z");
+    // Gather today's session texts. Cutoff = true local midnight expressed as a
+    // UTC instant so it lexicographically compares correctly against session
+    // chunks whose `created_at` is stored as `DateTime<Utc>.to_rfc3339()`.
+    // Using `{today_s}T00:00:00Z` would be UTC midnight labeled with the local
+    // date, which silently excludes early-morning sessions in UTC-ahead zones
+    // (e.g. Bangladesh UTC+6: a 05:00 local session ends at 23:00 UTC *the
+    // previous calendar day* and is dropped by the UTC-midnight cutoff).
+    let since = {
+        use chrono::{Local, TimeZone};
+        match Local
+            .from_local_datetime(&today.and_hms_opt(0, 0, 0).expect("00:00:00 is always valid"))
+            .single()
+        {
+            Some(local_midnight) => local_midnight
+                .with_timezone(&chrono::Utc)
+                .to_rfc3339(),
+            // DST gap (clock jumps forward past midnight) — astronomically rare;
+            // fall back to UTC-midnight rather than silently skipping the call.
+            None => format!("{today_s}T00:00:00Z"),
+        }
+    };
     let texts = {
         let conn = db
             .lock()
