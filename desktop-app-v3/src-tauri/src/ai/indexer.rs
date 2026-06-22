@@ -292,9 +292,9 @@ pub fn aggregate_day(
         date,
         session_count,
         total_focus_minutes,
-        best_window: None,
+        best_window: pick_best(facts).and_then(format_window),
         top_apps,
-        lowest_productivity_label: None,
+        lowest_productivity_label: pick_lowest(facts).and_then(local_part_of_day),
     })
 }
 
@@ -491,8 +491,6 @@ mod tests {
         assert_eq!(day.session_count, 2);
         assert_eq!(day.total_focus_minutes, 80); // 55 + 25
         assert_eq!(day.top_apps[0], ("Code".to_string(), 60)); // 40 + 20, merged
-        assert_eq!(day.best_window, None);
-        assert_eq!(day.lowest_productivity_label, None);
     }
 
     #[test]
@@ -591,5 +589,34 @@ mod tests {
         let good = scored_fact("a", Some(80), Some(55), "2026-06-23T09:00:00+00:00", None);
         let label = local_part_of_day(&good).unwrap();
         assert!(["morning", "afternoon", "evening"].contains(&label.as_str()), "got {label}");
+    }
+
+    #[test]
+    fn aggregate_day_fills_best_window_and_lowest_label() {
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 6, 23).unwrap();
+        let facts = vec![
+            scored_fact("a", Some(50), Some(40), "2026-06-23T09:00:00+00:00", Some("2026-06-23T09:40:00+00:00")),
+            scored_fact("b", Some(90), Some(55), "2026-06-23T11:00:00+00:00", Some("2026-06-23T11:55:00+00:00")),
+            scored_fact("c", Some(20), Some(25), "2026-06-23T14:00:00+00:00", Some("2026-06-23T14:25:00+00:00")),
+        ];
+        let day = aggregate_day(date, &facts).expect("non-empty");
+        // best is 'b' (prod 90) -> a window string of shape HH:MM-HH:MM.
+        let bw = day.best_window.expect("best_window set");
+        assert_eq!(bw.len(), 11, "expected HH:MM-HH:MM, got {bw}");
+        // lowest is 'c' (prod 20) -> a part-of-day bucket.
+        let label = day.lowest_productivity_label.expect("lowest label set");
+        assert!(["morning", "afternoon", "evening"].contains(&label.as_str()), "got {label}");
+    }
+
+    #[test]
+    fn aggregate_day_lowest_none_with_one_scored_session() {
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 6, 23).unwrap();
+        let facts = vec![
+            scored_fact("a", Some(80), Some(40), "2026-06-23T09:00:00+00:00", Some("2026-06-23T09:40:00+00:00")),
+            scored_fact("b", None, Some(30), "2026-06-23T11:00:00+00:00", None),
+        ];
+        let day = aggregate_day(date, &facts).expect("non-empty");
+        assert!(day.best_window.is_some(), "one scored session still yields best_window");
+        assert!(day.lowest_productivity_label.is_none(), "needs >=2 scored for a lowest label");
     }
 }
