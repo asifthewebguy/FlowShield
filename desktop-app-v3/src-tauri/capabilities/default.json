@@ -8,7 +8,7 @@
     "core:window:allow-close",
     "core:window:allow-minimize",
     "store:default",
-    "shell:allow-open",
+    "opener:allow-open-url",
     "notification:default",
     "autostart:default"
   ]
