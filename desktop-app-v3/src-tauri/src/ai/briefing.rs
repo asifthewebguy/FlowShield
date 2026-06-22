@@ -21,7 +21,6 @@ use crate::ai::candle_embedder::CandleEmbedder;
 use crate::ai::candle_llm::CandleLlmRuntime;
 use crate::ai::embedder::Embedder;
 use crate::ai::prompts::{render_briefing_prompt, BriefingContext};
-use crate::ai::registry::LLM_ID;
 use crate::ai::retriever::top_k_by_cosine;
 use crate::ai::runtime::LlmRuntime;
 use crate::error::AppError;
