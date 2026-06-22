@@ -10,6 +10,7 @@ pub mod embedder;
 pub mod indexer;
 pub mod model_download;
 pub mod prompts;
+pub mod reflection;
 pub mod registry;
 pub mod retriever;
 pub mod runtime;
