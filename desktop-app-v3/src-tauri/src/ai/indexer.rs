@@ -199,9 +199,79 @@ pub fn index_session_background(
     });
 }
 
+/// Part-of-day bucket for a local hour: <12 morning, 12-16 afternoon, >=17 evening.
+pub fn part_of_day(hour: u32) -> &'static str {
+    if hour < 12 {
+        "morning"
+    } else if hour < 17 {
+        "afternoon"
+    } else {
+        "evening"
+    }
+}
+
+/// The highest-productivity scored session (tie -> larger actual_min). None when
+/// no session carries a productivity score.
+pub fn pick_best(facts: &[SessionFacts]) -> Option<&SessionFacts> {
+    facts
+        .iter()
+        .filter(|f| f.productivity.is_some())
+        .max_by(|a, b| {
+            a.productivity
+                .cmp(&b.productivity)
+                .then_with(|| a.actual_min.unwrap_or(0).cmp(&b.actual_min.unwrap_or(0)))
+        })
+}
+
+/// The lowest-productivity scored session (tie -> smaller actual_min). Requires
+/// at least two scored sessions, so a lone session is never both "best" and
+/// "lowest".
+pub fn pick_lowest(facts: &[SessionFacts]) -> Option<&SessionFacts> {
+    let scored: Vec<&SessionFacts> = facts.iter().filter(|f| f.productivity.is_some()).collect();
+    if scored.len() < 2 {
+        return None;
+    }
+    scored.into_iter().min_by(|a, b| {
+        a.productivity
+            .cmp(&b.productivity)
+            .then_with(|| a.actual_min.unwrap_or(0).cmp(&b.actual_min.unwrap_or(0)))
+    })
+}
+
+/// Parse an RFC 3339 timestamp into local time. None if unparseable.
+fn to_local(ts: &str) -> Option<chrono::DateTime<chrono::Local>> {
+    chrono::DateTime::parse_from_rfc3339(ts)
+        .ok()
+        .map(|dt| dt.with_timezone(&chrono::Local))
+}
+
+/// Local clock span "HH:MM-HH:MM" (end absent -> "HH:MM-??"). None if the start
+/// time can't be parsed.
+pub fn format_window(f: &SessionFacts) -> Option<String> {
+    let start = to_local(&f.start_time)?;
+    let start_s = start.format("%H:%M").to_string();
+    let end_s = f
+        .end_time
+        .as_deref()
+        .and_then(to_local)
+        .map(|e| e.format("%H:%M").to_string())
+        .unwrap_or_else(|| "??".to_string());
+    Some(format!("{start_s}-{end_s}"))
+}
+
+/// Local part-of-day bucket of the session's start. None if start unparseable.
+pub fn local_part_of_day(f: &SessionFacts) -> Option<String> {
+    use chrono::Timelike;
+    let start = to_local(&f.start_time)?;
+    Some(part_of_day(start.hour()).to_string())
+}
+
 /// Aggregate one day's session facts into a DayChunkInput. Returns None when
-/// there were no sessions that day (nothing to roll up). `best_window` and
-/// `lowest_productivity_label` are left None in 1.6b.
+/// there were no sessions that day (nothing to roll up). `best_window` is the
+/// highest-productivity session's local clock span (needs ≥1 scored session);
+/// `lowest_productivity_label` is the lowest-productivity session's part-of-day
+/// (needs ≥2 scored sessions for contrast). Each is `None` when too few scored
+/// sessions exist.
 pub fn aggregate_day(
     date: chrono::NaiveDate,
     facts: &[SessionFacts],
@@ -225,9 +295,9 @@ pub fn aggregate_day(
         date,
         session_count,
         total_focus_minutes,
-        best_window: None,
+        best_window: pick_best(facts).and_then(format_window),
         top_apps,
-        lowest_productivity_label: None,
+        lowest_productivity_label: pick_lowest(facts).and_then(local_part_of_day),
     })
 }
 
@@ -424,13 +494,132 @@ mod tests {
         assert_eq!(day.session_count, 2);
         assert_eq!(day.total_focus_minutes, 80); // 55 + 25
         assert_eq!(day.top_apps[0], ("Code".to_string(), 60)); // 40 + 20, merged
-        assert_eq!(day.best_window, None);
-        assert_eq!(day.lowest_productivity_label, None);
     }
 
     #[test]
     fn aggregate_day_returns_none_for_empty() {
         let date = chrono::NaiveDate::from_ymd_opt(2026, 6, 23).unwrap();
         assert!(aggregate_day(date, &[]).is_none());
+    }
+
+    fn scored_fact(
+        id: &str,
+        productivity: Option<i32>,
+        actual: Option<i32>,
+        start: &str,
+        end: Option<&str>,
+    ) -> SessionFacts {
+        SessionFacts {
+            session_id: id.into(),
+            date: "2026-06-23".into(),
+            start_time: start.into(),
+            end_time: end.map(|s| s.into()),
+            planned_min: 60,
+            actual_min: actual,
+            productivity,
+            top_apps: vec![("Code".into(), actual.unwrap_or(0))],
+            created_at: start.into(),
+        }
+    }
+
+    #[test]
+    fn part_of_day_buckets() {
+        assert_eq!(part_of_day(0), "morning");
+        assert_eq!(part_of_day(9), "morning");
+        assert_eq!(part_of_day(11), "morning");
+        assert_eq!(part_of_day(12), "afternoon");
+        assert_eq!(part_of_day(16), "afternoon");
+        assert_eq!(part_of_day(17), "evening");
+        assert_eq!(part_of_day(21), "evening");
+    }
+
+    #[test]
+    fn pick_best_takes_highest_productivity_then_longer_focus() {
+        let facts = vec![
+            scored_fact("a", Some(60), Some(40), "2026-06-23T09:00:00+00:00", Some("2026-06-23T09:40:00+00:00")),
+            scored_fact("b", Some(90), Some(20), "2026-06-23T11:00:00+00:00", Some("2026-06-23T11:20:00+00:00")),
+            scored_fact("c", Some(90), Some(55), "2026-06-23T13:00:00+00:00", Some("2026-06-23T13:55:00+00:00")),
+            scored_fact("d", None, Some(99), "2026-06-23T15:00:00+00:00", None),
+        ];
+        // 'c' and 'b' tie at 90; 'c' wins on larger actual_min (55 > 20).
+        assert_eq!(pick_best(&facts).unwrap().session_id, "c");
+    }
+
+    #[test]
+    fn pick_best_none_when_no_scores() {
+        let facts = vec![scored_fact("a", None, Some(40), "2026-06-23T09:00:00+00:00", None)];
+        assert!(pick_best(&facts).is_none());
+    }
+
+    #[test]
+    fn pick_lowest_takes_lowest_and_needs_two_scored() {
+        let one = vec![scored_fact("a", Some(30), Some(40), "2026-06-23T09:00:00+00:00", None)];
+        assert!(pick_lowest(&one).is_none(), "single scored session has no contrast");
+
+        let many = vec![
+            scored_fact("a", Some(80), Some(40), "2026-06-23T09:00:00+00:00", None),
+            scored_fact("b", Some(30), Some(25), "2026-06-23T14:00:00+00:00", None),
+            scored_fact("c", Some(30), Some(10), "2026-06-23T16:00:00+00:00", None),
+            scored_fact("d", None, Some(99), "2026-06-23T18:00:00+00:00", None),
+        ];
+        // 'b' and 'c' tie at 30; 'c' wins (smaller actual_min 10 < 25).
+        assert_eq!(pick_lowest(&many).unwrap().session_id, "c");
+    }
+
+    #[test]
+    fn format_window_shape_and_missing_end() {
+        let with_end = scored_fact("a", Some(80), Some(55), "2026-06-23T09:00:00+00:00", Some("2026-06-23T09:55:00+00:00"));
+        let w = format_window(&with_end).unwrap();
+        // Local time varies by runner TZ; assert the SHAPE "HH:MM-HH:MM".
+        let bytes = w.as_bytes();
+        assert_eq!(w.len(), 11, "expected HH:MM-HH:MM, got {w}");
+        assert_eq!(bytes[2], b':');
+        assert_eq!(bytes[5], b'-');
+        assert_eq!(bytes[8], b':');
+
+        let no_end = scored_fact("a", Some(80), Some(55), "2026-06-23T09:00:00+00:00", None);
+        assert!(format_window(&no_end).unwrap().ends_with("-??"));
+
+        let bad = scored_fact("a", Some(80), Some(55), "not-a-timestamp", None);
+        assert!(format_window(&bad).is_none());
+    }
+
+    #[test]
+    fn local_part_of_day_none_on_bad_timestamp() {
+        let bad = scored_fact("a", Some(80), Some(55), "nonsense", None);
+        assert!(local_part_of_day(&bad).is_none());
+        // Good timestamp yields one of the three buckets (exact one is TZ-dependent).
+        let good = scored_fact("a", Some(80), Some(55), "2026-06-23T09:00:00+00:00", None);
+        let label = local_part_of_day(&good).unwrap();
+        assert!(["morning", "afternoon", "evening"].contains(&label.as_str()), "got {label}");
+    }
+
+    #[test]
+    fn aggregate_day_fills_best_window_and_lowest_label() {
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 6, 23).unwrap();
+        let facts = vec![
+            scored_fact("a", Some(50), Some(40), "2026-06-23T09:00:00+00:00", Some("2026-06-23T09:40:00+00:00")),
+            scored_fact("b", Some(90), Some(55), "2026-06-23T11:00:00+00:00", Some("2026-06-23T11:55:00+00:00")),
+            scored_fact("c", Some(20), Some(25), "2026-06-23T14:00:00+00:00", Some("2026-06-23T14:25:00+00:00")),
+        ];
+        let day = aggregate_day(date, &facts).expect("non-empty");
+        // best is 'b' (prod 90) -> a window string of shape HH:MM-HH:MM.
+        let bw = day.best_window.expect("best_window set");
+        assert_eq!(bw.len(), 11, "expected HH:MM-HH:MM, got {bw}");
+        // lowest is 'c' (prod 20) -> a part-of-day bucket.
+        let label = day.lowest_productivity_label.expect("lowest label set");
+        assert!(["morning", "afternoon", "evening"].contains(&label.as_str()), "got {label}");
+    }
+
+    #[test]
+    fn aggregate_day_lowest_none_with_one_scored_session() {
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 6, 23).unwrap();
+        let facts = vec![
+            scored_fact("a", Some(80), Some(40), "2026-06-23T09:00:00+00:00", Some("2026-06-23T09:40:00+00:00")),
+            scored_fact("b", None, Some(30), "2026-06-23T11:00:00+00:00", None),
+        ];
+        let day = aggregate_day(date, &facts).expect("non-empty");
+        assert!(day.best_window.is_some(), "one scored session still yields best_window");
+        assert!(day.lowest_productivity_label.is_none(), "needs >=2 scored for a lowest label");
     }
 }
