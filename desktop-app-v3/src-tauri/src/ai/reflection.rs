@@ -6,11 +6,26 @@ use crate::ai::candle_llm::CandleLlmRuntime;
 use crate::ai::prompts::{render_reflection_prompt, ReflectionContext};
 use crate::ai::runtime::LlmRuntime;
 use crate::error::{AiError, AppError};
-use crate::store::ai::{self as store_ai, ChunkSource, Reflection};
+use crate::store::ai::{self as store_ai, ChunkSource, ModelStatus, Reflection};
 use crate::store::Db;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 const REFLECTION_MAX_TOKENS: usize = 40;
+const REFLECTION_FROM_HOUR_LOCAL: u32 = 18;
+
+/// Gate for evening reflection generation: Local AI on, model Ready, it is
+/// past 18:00 local, and today has no reflection row yet.
+pub fn should_generate_reflection(
+    labs_enabled: bool,
+    status: ModelStatus,
+    local_hour: u32,
+    already_has_row: bool,
+) -> bool {
+    labs_enabled
+        && matches!(status, ModelStatus::Ready)
+        && local_hour >= REFLECTION_FROM_HOUR_LOCAL
+        && !already_has_row
+}
 
 /// Render the reflection prompt over today's session texts and ask the LLM
 /// for one short question. Returns the trimmed model output.
@@ -112,6 +127,7 @@ pub async fn generate_and_store_question(
 mod tests {
     use super::*;
     use crate::ai::runtime::MockLlmRuntime;
+    use crate::store::ai::ModelStatus;
 
     #[tokio::test]
     async fn build_question_renders_prompt_and_returns_trimmed_llm_output() {
@@ -122,6 +138,16 @@ mod tests {
         let texts = vec!["[Session] Tue 2026-06-23 09:00-09:20 (60min planned, 20min actual).".to_string()];
         let q = build_question(&llm, &texts).await.unwrap();
         assert_eq!(q, "What blocked your 9am session?");
+    }
+
+    #[test]
+    fn should_generate_reflection_gate() {
+        assert!(should_generate_reflection(true, ModelStatus::Ready, 18, false));
+        assert!(should_generate_reflection(true, ModelStatus::Ready, 21, false));
+        assert!(!should_generate_reflection(true, ModelStatus::Ready, 17, false)); // before 18:00
+        assert!(!should_generate_reflection(true, ModelStatus::Ready, 20, true));  // already has today's row
+        assert!(!should_generate_reflection(false, ModelStatus::Ready, 20, false)); // labs off
+        assert!(!should_generate_reflection(true, ModelStatus::Downloading, 20, false)); // not ready
     }
 
     #[test]
