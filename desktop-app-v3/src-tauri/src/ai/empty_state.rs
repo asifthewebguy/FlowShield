@@ -9,7 +9,25 @@ use crate::store::Db;
 /// sessions to unlock your AI briefing" copy. ≥5 session chunks in
 /// the last 7 days. Each completed focus session produces one chunk
 /// (source = 'session') during the nightly indexing pass.
-const MIN_SESSION_CHUNKS_LAST_7D: i64 = 5;
+pub const MIN_SESSION_CHUNKS_LAST_7D: i64 = 5;
+
+/// Count of `source='session'` chunks in `ai_chunks` from the last 7 days —
+/// the input to both `has_minimum_data` and the empty-state progress counter.
+/// Fails closed to 0 on a poisoned mutex or any DB error.
+pub fn session_chunk_count_last_7d(db: &Db) -> i64 {
+    let conn = match db.lock() {
+        Ok(g) => g,
+        Err(_) => return 0, // poisoned mutex → fail closed
+    };
+    conn.query_row(
+        "SELECT COUNT(*) FROM ai_chunks \
+         WHERE source = 'session' \
+           AND created_at >= datetime('now', '-7 days')",
+        [],
+        |row| row.get(0),
+    )
+    .unwrap_or(0)
+}
 
 /// Returns true when ≥5 session chunks exist in `ai_chunks` from the
 /// last 7 days. Uses the existing `ai_chunks` table (source = 'session')
@@ -18,20 +36,7 @@ const MIN_SESSION_CHUNKS_LAST_7D: i64 = 5;
 ///
 /// Fails closed: returns false on a poisoned mutex or any DB error.
 pub fn has_minimum_data(db: &Db) -> bool {
-    let conn = match db.lock() {
-        Ok(g) => g,
-        Err(_) => return false, // poisoned mutex → fail closed
-    };
-    let count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM ai_chunks \
-             WHERE source = 'session' \
-               AND created_at >= datetime('now', '-7 days')",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-    count >= MIN_SESSION_CHUNKS_LAST_7D
+    session_chunk_count_last_7d(db) >= MIN_SESSION_CHUNKS_LAST_7D
 }
 
 #[cfg(test)]
@@ -119,5 +124,42 @@ mod tests {
         }
         drop(conn);
         assert!(!has_minimum_data(&db));
+    }
+
+    #[test]
+    fn count_is_zero_when_no_chunks() {
+        let db = open_test_db();
+        assert_eq!(session_chunk_count_last_7d(&db), 0);
+    }
+
+    #[test]
+    fn count_matches_recent_session_chunks() {
+        let db = open_test_db();
+        let now = chrono::Utc::now();
+        for i in 0..4i64 {
+            let dt = now - chrono::Duration::days(i);
+            insert_session_chunk(&db, &dt.format("%Y-%m-%d %H:%M:%S").to_string());
+        }
+        assert_eq!(session_chunk_count_last_7d(&db), 4);
+    }
+
+    #[test]
+    fn count_excludes_old_and_non_session_chunks() {
+        let db = open_test_db();
+        // Old session chunk (outside the 7-day window).
+        insert_session_chunk(&db, "2025-01-01 09:00:00");
+        // Recent non-session chunk (activity_day) — must not be counted.
+        {
+            let conn = db.lock().unwrap();
+            let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            conn.execute(
+                "INSERT INTO ai_chunks \
+                 (id, source, source_ref, text, embedding, created_at, embedded_at) \
+                 VALUES (?, 'activity_day', 'ref', 'day', zeroblob(1536), ?, ?)",
+                params![format!("act-{now}"), now, now],
+            )
+            .unwrap();
+        }
+        assert_eq!(session_chunk_count_last_7d(&db), 0);
     }
 }
