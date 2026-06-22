@@ -6,7 +6,7 @@ use crate::ai::corpus::SessionChunkInput;
 use crate::ai::embedder::Embedder;
 use crate::api::Session;
 use crate::error::AppError;
-use crate::store::ai::{self as store_ai, Chunk, ChunkSource, ModelStatus};
+use crate::store::ai::{self as store_ai, Chunk, ChunkSource, ModelStatus, SessionFacts};
 use crate::store::Db;
 use crate::tracker::ActivitySample;
 use std::collections::HashMap;
@@ -101,6 +101,26 @@ pub fn should_index(labs_enabled: bool, status: ModelStatus) -> bool {
     labs_enabled && matches!(status, ModelStatus::Ready)
 }
 
+/// Build the structured facts row for one session from the same input used to
+/// render its chunk. `date` is the LOCAL calendar day of the session's end
+/// time (falls back to start time when end is absent) — day rollups group by
+/// local day.
+pub fn session_facts(input: &SessionChunkInput) -> SessionFacts {
+    let anchor = input.end_time.unwrap_or(input.start_time);
+    let date = anchor.with_timezone(&chrono::Local).date_naive().to_string();
+    SessionFacts {
+        session_id: input.id.clone(),
+        date,
+        start_time: input.start_time.to_rfc3339(),
+        end_time: input.end_time.map(|t| t.to_rfc3339()),
+        planned_min: input.planned_duration,
+        actual_min: input.actual_duration,
+        productivity: input.productivity_score,
+        top_apps: input.top_apps.clone(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+    }
+}
+
 /// Spawn a best-effort background task that renders + indexes one session
 /// chunk. Never blocks or fails the caller. Reads the labs flag and model
 /// status itself, loads the shared embedder, and indexes the chunk.
@@ -126,6 +146,20 @@ pub fn index_session_background(
         };
         if !should_index(labs, status) {
             return;
+        }
+
+        // Persist structured facts first — they need no model and power the
+        // day rollup even if embedding later fails.
+        {
+            let facts = session_facts(&input);
+            match state_db.lock() {
+                Ok(conn) => {
+                    if let Err(e) = store_ai::upsert_session_facts(&conn, &facts) {
+                        tracing::warn!(?e, session = %input.id, "session facts upsert failed");
+                    }
+                }
+                Err(_) => return,
+            }
         }
 
         let embedder = match CandleEmbedder::get_or_load(&embedder_slot, &model_dir) {
@@ -251,6 +285,22 @@ mod tests {
         let top = aggregate_top_apps(&samples);
         assert_eq!(top[0], ("Code".to_string(), 15)); // 900s -> 15m
         assert_eq!(top[1], ("Chrome".to_string(), 2)); // 120s -> 2m
+    }
+
+    #[test]
+    fn session_facts_maps_from_chunk_input() {
+        let samples = vec![sample("Code", 2400)]; // 40m
+        let input = session_chunk_input(&sample_session(), Some(80), &samples);
+        let facts = session_facts(&input);
+
+        assert_eq!(facts.session_id, "sid-1");
+        assert_eq!(facts.planned_min, 60);
+        assert_eq!(facts.actual_min, Some(55));
+        assert_eq!(facts.productivity, Some(80));
+        assert_eq!(facts.top_apps[0], ("Code".to_string(), 40));
+        // date is the LOCAL calendar day of the session's end time.
+        assert_eq!(facts.date.len(), 10); // YYYY-MM-DD
+        assert!(facts.end_time.is_some());
     }
 
     #[test]
