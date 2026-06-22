@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.6.0-alpha.0...v3.7.0-alpha.0) (2026-06-22)
+
+
+### Features
+
+* **desktop-v3:** day-chunk best_window + lowest_productivity_label ([#86](https://github.com/asifthewebguy/FlowShield/issues/86)) ([4da1bc1](https://github.com/asifthewebguy/FlowShield/commit/4da1bc174ce23b949fdc3131294cd426f7c1983a))
+
 ## [3.6.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.5.1-alpha.0...v3.6.0-alpha.0) (2026-06-22)
 
 
