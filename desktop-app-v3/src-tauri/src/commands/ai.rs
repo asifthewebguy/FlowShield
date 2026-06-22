@@ -38,7 +38,9 @@ pub async fn ai_model_download_start(
         .get()
         .cloned()
         .ok_or_else(|| AppError::Storage("local DB not initialized".into()))?;
-    let http = state.http.clone();
+    // Use a download-specific client: the shared `state.http` carries a 20s
+    // total-request timeout that would abort a multi-GB model download.
+    let http = model_download::download_client()?;
     let handle_for_task = handle.clone();
 
     tauri::async_runtime::spawn(async move {
