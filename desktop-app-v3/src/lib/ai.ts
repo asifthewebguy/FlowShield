@@ -19,9 +19,15 @@ export interface AiSettings {
   indexed_chunk_count: number;
 }
 
+export interface DownloadProgress {
+  downloaded: number;
+  total: number;
+}
+
 interface AiStore {
   briefing: BriefingState;
   settings: AiSettings | null;
+  downloadProgress: DownloadProgress | null;
   refreshBriefing: () => Promise<void>;
   refreshSettings: () => Promise<void>;
   setLabsEnabled: (enabled: boolean) => Promise<void>;
@@ -31,6 +37,7 @@ interface AiStore {
 export const useAIStore = create<AiStore>((set, get) => ({
   briefing: { status: 'hidden' },
   settings: null,
+  downloadProgress: null,
 
   refreshBriefing: async () => {
     try {
@@ -70,10 +77,32 @@ export const useAIStore = create<AiStore>((set, get) => ({
       set({ briefing: { status: 'error', message: String(evt.payload) } });
     });
 
+    // Live model-download feedback. Backend emits `ai-model-progress` per
+    // ~1MB chunk and `ai-model-status-changed` on every status transition.
+    const unModelProgress = await listen<{
+      overall_bytes_downloaded: number;
+      overall_bytes_total: number;
+    }>('ai-model-progress', (evt) => {
+      set({
+        downloadProgress: {
+          downloaded: evt.payload.overall_bytes_downloaded,
+          total: evt.payload.overall_bytes_total,
+        },
+      });
+    });
+    const unModelStatus = await listen<string>('ai-model-status-changed', async (evt) => {
+      await get().refreshSettings();
+      if (evt.payload !== 'downloading') {
+        set({ downloadProgress: null });
+      }
+    });
+
     return () => {
       unReady();
       unGenerating();
       unError();
+      unModelProgress();
+      unModelStatus();
     };
   },
 }));

@@ -13,6 +13,7 @@ import { Button } from '../components/Button';
 export function SettingsAiPage() {
   const navigate = useNavigate();
   const settings = useAIStore((s) => s.settings);
+  const downloadProgress = useAIStore((s) => s.downloadProgress);
   const refreshSettings = useAIStore((s) => s.refreshSettings);
   const setLabsEnabled = useAIStore((s) => s.setLabsEnabled);
 
@@ -88,6 +89,20 @@ export function SettingsAiPage() {
         <div>Status: <span className="font-mono">{settings.status}</span></div>
         <div>Disk usage: {diskMB} MB</div>
         <div>Indexed chunks: {settings.indexed_chunk_count}</div>
+        {settings.status === 'downloading' && downloadProgress && downloadProgress.total > 0 && (
+          <div className="space-y-1 pt-1">
+            <div className="h-2 w-full overflow-hidden rounded bg-gray-200">
+              <div
+                className="h-full bg-primary-500 transition-all"
+                style={{ width: `${Math.min(100, (downloadProgress.downloaded / downloadProgress.total) * 100)}%` }}
+              />
+            </div>
+            <div className="font-mono text-xs text-gray-500">
+              {(downloadProgress.downloaded / (1024 * 1024)).toFixed(0)} /{' '}
+              {(downloadProgress.total / (1024 * 1024)).toFixed(0)} MB
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="space-y-2">

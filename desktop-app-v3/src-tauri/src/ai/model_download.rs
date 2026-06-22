@@ -251,6 +251,21 @@ pub fn models_dir(handle: &AppHandle) -> Result<PathBuf, AiError> {
     Ok(dir)
 }
 
+/// HTTP client purpose-built for large model downloads. The shared app client
+/// (`AppState::http`) carries a 20s *total* request timeout — correct for JSON
+/// API calls, fatal for a multi-GB GGUF that legitimately streams for minutes.
+/// This client sets NO total timeout. Stalls are still bounded: `read_timeout`
+/// aborts when the stream delivers no bytes for 60s, and `connect_timeout`
+/// fails fast when HuggingFace is unreachable.
+pub fn download_client() -> Result<reqwest::Client, AiError> {
+    reqwest::Client::builder()
+        .user_agent(concat!("FlowShield-Desktop/", env!("CARGO_PKG_VERSION"), " (rust)"))
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .read_timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| AiError::ModelDownload(format!("build download client: {e}")))
+}
+
 /// Download every file in the registry into `app_data_dir/models/`. Updates
 /// `ai_model_state.status` from Downloading → Ready (or → Error). Emits
 /// `ai-model-progress` per chunk and `ai-model-status-changed` on transition.
@@ -526,5 +541,50 @@ mod tests {
 
         let final_bytes = tokio::fs::read(&target).await.unwrap();
         assert_eq!(final_bytes, full);
+    }
+
+    #[tokio::test]
+    async fn download_client_tolerates_slow_body() {
+        // Regression: the model download once reused the shared app client,
+        // whose 20s *total* request timeout aborted multi-GB downloads.
+        // `download_client()` must carry no short total timeout. A 100ms-total
+        // client fails on a 300ms-delayed body; download_client() streams it.
+        use std::time::Duration;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/m"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_bytes(b"hello world".to_vec())
+                    .set_delay(Duration::from_millis(300)),
+            )
+            .mount(&server)
+            .await;
+
+        let url = format!("{}/m", server.uri());
+
+        // Sanity: a tiny total-timeout client (like the old shared client)
+        // DOES abort on this slow body.
+        let strict = reqwest::Client::builder()
+            .timeout(Duration::from_millis(100))
+            .build()
+            .unwrap();
+        assert!(
+            strict.get(&url).send().await.is_err(),
+            "100ms total-timeout client should abort on a 300ms-delayed body"
+        );
+
+        // The download client tolerates the slow body and reads it fully.
+        let dl = download_client().unwrap();
+        let resp = dl
+            .get(&url)
+            .send()
+            .await
+            .expect("download client must not time out on a slow body");
+        let body = resp.bytes().await.unwrap();
+        assert_eq!(&body[..], b"hello world");
     }
 }
