@@ -1,10 +1,14 @@
 //! Shared corpus indexing: embed chunk text and upsert it as one ai_chunks
 //! row. Idempotent via a deterministic id derived from (source, source_ref).
 
+use crate::ai::corpus::SessionChunkInput;
 use crate::ai::embedder::Embedder;
+use crate::api::Session;
 use crate::error::AppError;
 use crate::store::ai::{self as store_ai, Chunk, ChunkSource};
 use crate::store::Db;
+use crate::tracker::ActivitySample;
+use std::collections::HashMap;
 
 /// Deterministic row id for an indexed chunk. Same (source, source_ref) →
 /// same id → `INSERT OR REPLACE` overwrites instead of duplicating.
@@ -12,6 +16,52 @@ use crate::store::Db;
 /// colon — guaranteed for session UUIDs and ISO date strings.
 pub fn stable_chunk_id(source: ChunkSource, source_ref: &str) -> String {
     format!("{}:{}", source.as_str(), source_ref)
+}
+
+/// Sum tracker samples by application, convert seconds → whole minutes, and
+/// return `(app, minutes)` sorted by minutes descending (ties broken by name
+/// for a stable order).
+pub fn aggregate_top_apps(samples: &[ActivitySample]) -> Vec<(String, i32)> {
+    let mut by_app: HashMap<String, u64> = HashMap::new();
+    for s in samples {
+        *by_app.entry(s.application_name.clone()).or_insert(0) += s.duration_seconds;
+    }
+    let mut out: Vec<(String, i32)> = by_app
+        .into_iter()
+        .map(|(app, secs)| (app, (secs / 60) as i32))
+        .collect();
+    out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    out
+}
+
+/// Build the corpus input for one completed session. Times come off the API
+/// `Session` as RFC 3339 strings; unparseable values fall back to "now" /
+/// `None` rather than failing the index. `project_name` is `None` in 1.6a —
+/// the API `Session` carries only `project_id`; name enrichment is later work.
+pub fn session_chunk_input(
+    session: &Session,
+    productivity_score: Option<i32>,
+    samples: &[ActivitySample],
+) -> SessionChunkInput {
+    let start_time = chrono::DateTime::parse_from_rfc3339(&session.start_time)
+        .map(|d| d.with_timezone(&chrono::Utc))
+        .unwrap_or_else(|_| chrono::Utc::now());
+    let end_time = session
+        .end_time
+        .as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|d| d.with_timezone(&chrono::Utc));
+
+    SessionChunkInput {
+        id: session.id.clone(),
+        start_time,
+        end_time,
+        planned_duration: session.planned_duration,
+        actual_duration: session.actual_duration,
+        project_name: None,
+        productivity_score: productivity_score.or(session.productivity_score),
+        top_apps: aggregate_top_apps(samples),
+    }
 }
 
 /// Embed `text` and upsert it as one ai_chunks row. Best-effort callers
@@ -46,7 +96,9 @@ pub async fn index_chunk<E: Embedder + ?Sized>(
 mod tests {
     use super::*;
     use crate::ai::embedder::MockEmbedder;
+    use crate::api::Session;
     use crate::store;
+    use crate::tracker::ActivitySample;
 
     fn open_test_db() -> Db {
         let tmp = tempfile::tempdir().expect("tempdir");
@@ -87,5 +139,55 @@ mod tests {
         }
         let conn = db.lock().unwrap();
         assert_eq!(store_ai::count_chunks(&conn).unwrap(), 1, "same source_ref must not duplicate");
+    }
+
+    fn sample(app: &str, secs: u64) -> ActivitySample {
+        ActivitySample {
+            application_name: app.into(),
+            process_name: app.into(),
+            window_title: "w".into(),
+            url: None,
+            timestamp: "2026-06-23T09:10:00Z".into(),
+            duration_seconds: secs,
+        }
+    }
+
+    fn sample_session() -> Session {
+        Session {
+            id: "sid-1".into(),
+            user_id: None,
+            start_time: "2026-06-23T09:00:00Z".into(),
+            end_time: Some("2026-06-23T09:55:00Z".into()),
+            planned_duration: 60,
+            actual_duration: Some(55),
+            session_type: "WORK".into(),
+            productivity_score: None,
+            completed: true,
+            is_paused: false,
+            paused_at: None,
+            project_id: Some("proj-1".into()),
+        }
+    }
+
+    #[test]
+    fn aggregate_top_apps_sums_and_sorts_desc_in_minutes() {
+        let samples = vec![sample("Code", 600), sample("Chrome", 120), sample("Code", 300)];
+        let top = aggregate_top_apps(&samples);
+        assert_eq!(top[0], ("Code".to_string(), 15)); // 900s -> 15m
+        assert_eq!(top[1], ("Chrome".to_string(), 2)); // 120s -> 2m
+    }
+
+    #[test]
+    fn session_chunk_input_maps_fields_and_parses_times() {
+        let samples = vec![sample("Code", 600)];
+        let input = session_chunk_input(&sample_session(), Some(80), &samples);
+        assert_eq!(input.id, "sid-1");
+        assert_eq!(input.planned_duration, 60);
+        assert_eq!(input.actual_duration, Some(55));
+        assert_eq!(input.productivity_score, Some(80));
+        assert_eq!(input.project_name, None); // Session has no project name, only id (1.6a)
+        assert_eq!(input.start_time.format("%H:%M").to_string(), "09:00");
+        assert_eq!(input.end_time.unwrap().format("%H:%M").to_string(), "09:55");
+        assert_eq!(input.top_apps[0], ("Code".to_string(), 10));
     }
 }
