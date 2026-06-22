@@ -82,6 +82,27 @@ pub fn spawn(
                 }
             };
 
+            // Phase 1.6b — roll up yesterday into a [Day] chunk once per day.
+            if let Some(yesterday) = now.date_naive().pred_opt() {
+                let yday_id = crate::ai::indexer::stable_chunk_id(
+                    crate::store::ai::ChunkSource::ActivityDay,
+                    &yesterday.to_string(),
+                );
+                let already = {
+                    match db.lock() {
+                        Ok(conn) => crate::store::ai::chunk_exists(&conn, &yday_id).unwrap_or(true),
+                        Err(_) => true, // fail closed — skip this tick
+                    }
+                };
+                if crate::ai::indexer::should_roll_up(labs, status.clone(), already) {
+                    match crate::ai::indexer::run_day_rollup(&db, &embedder_slot, &model_dir, yesterday).await {
+                        Ok(true) => tracing::info!(date = %yesterday, "indexed day rollup chunk"),
+                        Ok(false) => {} // no sessions that day
+                        Err(e) => tracing::warn!(?e, date = %yesterday, "day rollup failed"),
+                    }
+                }
+            }
+
             if !should_fire(now, &db, labs, status) {
                 continue;
             }

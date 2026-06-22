@@ -102,6 +102,12 @@ pub fn should_index(labs_enabled: bool, status: ModelStatus) -> bool {
     labs_enabled && matches!(status, ModelStatus::Ready)
 }
 
+/// Gate for the daily rollup: only when Local AI is on, the model is Ready,
+/// and we have not already indexed this day's chunk.
+pub fn should_roll_up(labs_enabled: bool, status: ModelStatus, already_exists: bool) -> bool {
+    labs_enabled && matches!(status, ModelStatus::Ready) && !already_exists
+}
+
 /// Build the structured facts row for one session from the same input used to
 /// render its chunk. `date` is the LOCAL calendar day of the session's end
 /// time (falls back to start time when end is absent) — day rollups group by
@@ -276,6 +282,14 @@ mod tests {
         assert!(!should_index(true, ModelStatus::Downloading));
         assert!(!should_index(true, ModelStatus::NotStarted));
         assert!(!should_index(true, ModelStatus::Error));
+    }
+
+    #[test]
+    fn should_roll_up_only_when_ready_labs_on_and_not_yet_indexed() {
+        assert!(should_roll_up(true, ModelStatus::Ready, false));
+        assert!(!should_roll_up(true, ModelStatus::Ready, true)); // already done today
+        assert!(!should_roll_up(false, ModelStatus::Ready, false));
+        assert!(!should_roll_up(true, ModelStatus::Downloading, false));
     }
 
     fn open_test_db() -> Db {
