@@ -2,11 +2,12 @@
 //! row. Idempotent via a deterministic id derived from (source, source_ref).
 
 use crate::ai::candle_embedder::CandleEmbedder;
-use crate::ai::corpus::SessionChunkInput;
+use crate::ai::corpus::{DayChunkInput, SessionChunkInput};
 use crate::ai::embedder::Embedder;
 use crate::api::Session;
 use crate::error::AppError;
 use crate::store::ai::{self as store_ai, Chunk, ChunkSource, ModelStatus, SessionFacts};
+use crate::store::ai::list_session_facts_for_date;
 use crate::store::Db;
 use crate::tracker::ActivitySample;
 use std::collections::HashMap;
@@ -192,6 +193,73 @@ pub fn index_session_background(
     });
 }
 
+/// Aggregate one day's session facts into a DayChunkInput. Returns None when
+/// there were no sessions that day (nothing to roll up). `best_window` and
+/// `lowest_productivity_label` are left None in 1.6b.
+pub fn aggregate_day(
+    date: chrono::NaiveDate,
+    facts: &[SessionFacts],
+) -> Option<DayChunkInput> {
+    if facts.is_empty() {
+        return None;
+    }
+    let session_count = facts.len() as i32;
+    let total_focus_minutes: i32 = facts.iter().map(|f| f.actual_min.unwrap_or(0)).sum();
+
+    let mut by_app: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
+    for f in facts {
+        for (app, mins) in &f.top_apps {
+            *by_app.entry(app.clone()).or_insert(0) += mins;
+        }
+    }
+    let mut top_apps: Vec<(String, i32)> = by_app.into_iter().collect();
+    top_apps.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+
+    Some(DayChunkInput {
+        date,
+        session_count,
+        total_focus_minutes,
+        best_window: None,
+        top_apps,
+        lowest_productivity_label: None,
+    })
+}
+
+/// Read `date`'s session facts, aggregate, render, and index one ActivityDay
+/// chunk. Returns Ok(false) when there were no sessions that day. Idempotent:
+/// the chunk id is stable per date.
+pub async fn run_day_rollup(
+    db: &Db,
+    embedder_slot: &OnceLock<Arc<CandleEmbedder>>,
+    model_dir: &std::path::Path,
+    date: chrono::NaiveDate,
+) -> Result<bool, AppError> {
+    let date_str = date.to_string();
+    let facts = {
+        let conn = db
+            .lock()
+            .map_err(|_| AppError::Storage("db mutex poisoned".into()))?;
+        list_session_facts_for_date(&conn, &date_str)?
+    };
+    let Some(day_input) = aggregate_day(date, &facts) else {
+        return Ok(false);
+    };
+
+    let embedder = CandleEmbedder::get_or_load(embedder_slot, model_dir)?;
+    let text = crate::ai::corpus::render_day_chunk(&day_input);
+    let created_at = format!("{date_str}T23:59:59Z");
+    index_chunk(
+        db,
+        embedder.as_ref(),
+        ChunkSource::ActivityDay,
+        &date_str,
+        &created_at,
+        text,
+    )
+    .await?;
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -315,5 +383,40 @@ mod tests {
         assert_eq!(input.start_time.format("%H:%M").to_string(), "09:00");
         assert_eq!(input.end_time.unwrap().format("%H:%M").to_string(), "09:55");
         assert_eq!(input.top_apps[0], ("Code".to_string(), 10));
+    }
+
+    fn facts_row(id: &str, date: &str, actual: i32, top: Vec<(&str, i32)>) -> SessionFacts {
+        SessionFacts {
+            session_id: id.into(),
+            date: date.into(),
+            start_time: format!("{date}T09:00:00Z"),
+            end_time: Some(format!("{date}T09:55:00Z")),
+            planned_min: 60,
+            actual_min: Some(actual),
+            productivity: Some(70),
+            top_apps: top.into_iter().map(|(n, m)| (n.to_string(), m)).collect(),
+            created_at: format!("{date}T09:55:00Z"),
+        }
+    }
+
+    #[test]
+    fn aggregate_day_sums_sessions_focus_and_merges_top_apps() {
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 6, 23).unwrap();
+        let facts = vec![
+            facts_row("s1", "2026-06-23", 55, vec![("Code", 40), ("Chrome", 15)]),
+            facts_row("s2", "2026-06-23", 25, vec![("Code", 20), ("Slack", 5)]),
+        ];
+        let day = aggregate_day(date, &facts).expect("non-empty day");
+        assert_eq!(day.session_count, 2);
+        assert_eq!(day.total_focus_minutes, 80); // 55 + 25
+        assert_eq!(day.top_apps[0], ("Code".to_string(), 60)); // 40 + 20, merged
+        assert_eq!(day.best_window, None);
+        assert_eq!(day.lowest_productivity_label, None);
+    }
+
+    #[test]
+    fn aggregate_day_returns_none_for_empty() {
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 6, 23).unwrap();
+        assert!(aggregate_day(date, &[]).is_none());
     }
 }
