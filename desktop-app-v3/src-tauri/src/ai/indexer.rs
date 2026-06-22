@@ -1,14 +1,17 @@
 //! Shared corpus indexing: embed chunk text and upsert it as one ai_chunks
 //! row. Idempotent via a deterministic id derived from (source, source_ref).
 
+use crate::ai::candle_embedder::CandleEmbedder;
 use crate::ai::corpus::SessionChunkInput;
 use crate::ai::embedder::Embedder;
 use crate::api::Session;
 use crate::error::AppError;
-use crate::store::ai::{self as store_ai, Chunk, ChunkSource};
+use crate::store::ai::{self as store_ai, Chunk, ChunkSource, ModelStatus};
 use crate::store::Db;
 use crate::tracker::ActivitySample;
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::{Arc, OnceLock};
 
 /// Deterministic row id for an indexed chunk. Same (source, source_ref) →
 /// same id → `INSERT OR REPLACE` overwrites instead of duplicating.
@@ -92,13 +95,86 @@ pub async fn index_chunk<E: Embedder + ?Sized>(
     store_ai::insert_chunk(&conn, &chunk)
 }
 
+/// Gate for session indexing. Index only when the user enabled Local AI and
+/// the model finished downloading.
+pub fn should_index(labs_enabled: bool, status: ModelStatus) -> bool {
+    labs_enabled && matches!(status, ModelStatus::Ready)
+}
+
+/// Spawn a best-effort background task that renders + indexes one session
+/// chunk. Never blocks or fails the caller. Reads the labs flag and model
+/// status itself, loads the shared embedder, and indexes the chunk.
+pub fn index_session_background(
+    app: tauri::AppHandle,
+    state_db: Db,
+    embedder_slot: Arc<OnceLock<Arc<CandleEmbedder>>>,
+    model_dir: PathBuf,
+    input: SessionChunkInput,
+) {
+    tauri::async_runtime::spawn(async move {
+        let labs = crate::commands::ai::labs_enabled(&app);
+        let status = {
+            let conn = match state_db.lock() {
+                Ok(c) => c,
+                Err(_) => return,
+            };
+            store_ai::get_model_state(&conn)
+                .ok()
+                .flatten()
+                .map(|s| s.status)
+                .unwrap_or(ModelStatus::NotStarted)
+        };
+        if !should_index(labs, status) {
+            return;
+        }
+
+        let embedder = match CandleEmbedder::get_or_load(&embedder_slot, &model_dir) {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::warn!(?e, "session index skipped: embedder load failed");
+                return;
+            }
+        };
+
+        let created_at = input
+            .end_time
+            .unwrap_or_else(chrono::Utc::now)
+            .to_rfc3339();
+        let text = crate::ai::corpus::render_session_chunk(&input);
+        if let Err(e) = index_chunk(
+            &state_db,
+            embedder.as_ref(),
+            ChunkSource::Session,
+            &input.id,
+            &created_at,
+            text,
+        )
+        .await
+        {
+            tracing::warn!(?e, session = %input.id, "session chunk index failed");
+        } else {
+            tracing::info!(session = %input.id, "indexed session chunk");
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ai::embedder::MockEmbedder;
     use crate::api::Session;
     use crate::store;
+    use crate::store::ai::ModelStatus;
     use crate::tracker::ActivitySample;
+
+    #[test]
+    fn should_index_only_when_labs_on_and_ready() {
+        assert!(should_index(true, ModelStatus::Ready));
+        assert!(!should_index(false, ModelStatus::Ready));
+        assert!(!should_index(true, ModelStatus::Downloading));
+        assert!(!should_index(true, ModelStatus::NotStarted));
+        assert!(!should_index(true, ModelStatus::Error));
+    }
 
     fn open_test_db() -> Db {
         let tmp = tempfile::tempdir().expect("tempdir");
