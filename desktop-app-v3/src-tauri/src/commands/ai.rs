@@ -101,8 +101,34 @@ use crate::ai::briefing;
 pub enum BriefingState {
     Ready { text: String, generated_at: String },
     Generating,
+    Idle,
     EmptyState { sessions: i64, needed: i64 },
     Hidden,
+}
+
+/// Pure briefing-state decision. No I/O, no generation. A cached row always
+/// wins; otherwise gate on labs + model-ready + session count, landing on
+/// `Idle` when eligible but not yet generated.
+pub(crate) fn briefing_state(
+    cached: Option<store_ai::Briefing>,
+    labs_enabled: bool,
+    model_ready: bool,
+    sessions: i64,
+    needed: i64,
+) -> BriefingState {
+    if let Some(row) = cached {
+        return BriefingState::Ready {
+            text: row.text,
+            generated_at: row.generated_at,
+        };
+    }
+    if !labs_enabled || !model_ready {
+        return BriefingState::Hidden;
+    }
+    if sessions < needed {
+        return BriefingState::EmptyState { sessions, needed };
+    }
+    BriefingState::Idle
 }
 
 #[tauri::command]
@@ -114,52 +140,68 @@ pub async fn ai_briefing_today(
         Some(d) => d.clone(),
         None => return Ok(BriefingState::Hidden),
     };
+    let today_s = chrono::Local::now().date_naive().to_string();
 
+    let cached = {
+        let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
+        store_ai::get_briefing_for(&conn, &today_s, crate::ai::registry::LLM_ID)
+            .ok()
+            .flatten()
+    };
+    let labs = labs_enabled(&app);
+    let model_ready = {
+        let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
+        matches!(
+            store_ai::get_model_state(&conn).ok().flatten().map(|s| s.status),
+            Some(store_ai::ModelStatus::Ready)
+        )
+    };
+    let sessions = crate::ai::empty_state::session_chunk_count_last_7d(&db);
+    let needed = crate::ai::empty_state::MIN_SESSION_CHUNKS_LAST_7D;
+
+    Ok(briefing_state(cached, labs, model_ready, sessions, needed))
+}
+
+/// User-initiated briefing generation. Re-checks eligibility; if eligible
+/// (Idle), emits `ai-briefing-generating`, spawns generation, and returns
+/// `Generating`. Otherwise returns the current non-Idle state without
+/// spawning. This is the ONLY path that runs the briefing LLM.
+#[tauri::command]
+pub async fn ai_briefing_generate(
+    state: State<'_, crate::AppState>,
+    app: AppHandle,
+) -> Result<BriefingState, String> {
+    let db = state
+        .db
+        .get()
+        .cloned()
+        .ok_or_else(|| "local DB not initialized".to_string())?;
     let today = chrono::Local::now().date_naive();
     let today_s = today.to_string();
 
-    // Cached row?
-    {
+    let cached = {
         let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
-        if let Ok(Some(row)) = store_ai::get_briefing_for(
-            &conn,
-            &today_s,
-            crate::ai::registry::LLM_ID,
-        ) {
-            return Ok(BriefingState::Ready {
-                text: row.text,
-                generated_at: row.generated_at,
-            });
-        }
-    }
-
-    let labs = labs_enabled(&app);
-    if !labs {
-        return Ok(BriefingState::Hidden);
-    }
-
-    // Model status check (lock briefly).
-    let status = {
-        let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
-        store_ai::get_model_state(&conn)
+        store_ai::get_briefing_for(&conn, &today_s, crate::ai::registry::LLM_ID)
             .ok()
             .flatten()
-            .map(|s| s.status)
-            .unwrap_or(store_ai::ModelStatus::NotStarted)
     };
-    if !matches!(status, store_ai::ModelStatus::Ready) {
-        return Ok(BriefingState::Hidden);
-    }
-
+    let labs = labs_enabled(&app);
+    let model_ready = {
+        let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
+        matches!(
+            store_ai::get_model_state(&conn).ok().flatten().map(|s| s.status),
+            Some(store_ai::ModelStatus::Ready)
+        )
+    };
     let sessions = crate::ai::empty_state::session_chunk_count_last_7d(&db);
-    if sessions < crate::ai::empty_state::MIN_SESSION_CHUNKS_LAST_7D {
-        return Ok(BriefingState::EmptyState {
-            sessions,
-            needed: crate::ai::empty_state::MIN_SESSION_CHUNKS_LAST_7D,
-        });
+    let needed = crate::ai::empty_state::MIN_SESSION_CHUNKS_LAST_7D;
+
+    match briefing_state(cached, labs, model_ready, sessions, needed) {
+        BriefingState::Idle => {}
+        other => return Ok(other), // not eligible to generate (Hidden / EmptyState / Ready)
     }
 
-    let _ = app.emit("ai-briefing-generating", today_s.clone());
+    let _ = app.emit("ai-briefing-generating", today_s);
     let app_handle = app.clone();
     let db_clone = db.clone();
     let embedder = state.embedder.clone();
@@ -171,15 +213,7 @@ pub async fn ai_briefing_today(
     let model_dir = app_data_dir.join("models");
 
     tauri::async_runtime::spawn(async move {
-        match briefing::generate_with_real_models(
-            &db_clone,
-            &in_flight,
-            &embedder,
-            &model_dir,
-            today,
-        )
-        .await
-        {
+        match briefing::generate_with_real_models(&db_clone, &in_flight, &embedder, &model_dir, today).await {
             Ok(()) => {
                 let _ = app_handle.emit("ai-briefing-ready", today.to_string());
             }
@@ -413,7 +447,30 @@ pub async fn ai_reflection_answer(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store::ai::Reflection;
+    use crate::store::ai::{Briefing, Reflection};
+
+    fn cached_row() -> Briefing {
+        Briefing {
+            date: "2026-06-24".into(),
+            text: "hi".into(),
+            generated_at: "2026-06-24T05:00:00Z".into(),
+            model_id: "phi-3-mini-4k-instruct-q4".into(),
+        }
+    }
+
+    #[test]
+    fn briefing_state_decision_table() {
+        // cached row → Ready regardless of other inputs
+        assert!(matches!(briefing_state(Some(cached_row()), true, true, 9, 5), BriefingState::Ready { .. }));
+        // labs off → Hidden
+        assert!(matches!(briefing_state(None, false, true, 9, 5), BriefingState::Hidden));
+        // model not ready → Hidden
+        assert!(matches!(briefing_state(None, true, false, 9, 5), BriefingState::Hidden));
+        // eligible but under threshold → EmptyState
+        assert!(matches!(briefing_state(None, true, true, 3, 5), BriefingState::EmptyState { sessions: 3, needed: 5 }));
+        // eligible, enough chunks, no cache → Idle
+        assert!(matches!(briefing_state(None, true, true, 5, 5), BriefingState::Idle));
+    }
 
     fn row(answer: &str) -> Reflection {
         Reflection {
