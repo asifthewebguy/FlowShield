@@ -31,8 +31,8 @@ use crate::error::AiError;
 
 /// Filenames inside the model directory. Match the layout the Plan 1.2
 /// downloader writes to disk via `LLM_FILES` `local_filename` entries.
-const GGUF_FILE: &str = "phi-3-mini-4k-instruct/Phi-3-mini-4k-instruct-q4.gguf";
-const TOKENIZER_FILE: &str = "phi-3-mini-4k-instruct/tokenizer.json";
+const GGUF_FILE: &str = "Phi-3-mini-4k-instruct-q4.gguf";
+const TOKENIZER_FILE: &str = "tokenizer.json";
 
 /// Sampling temperature. 0.0 = greedy; we use a low non-zero temp for slight
 /// variation across days while staying mostly deterministic for the same
@@ -228,6 +228,18 @@ mod tests {
     #[test]
     fn model_id_matches_registry() {
         assert_eq!(LLM_ID, "phi-3-mini-4k-instruct-q4");
+    }
+
+    #[test]
+    fn model_filenames_are_bare_not_subdir_prefixed() {
+        // Callers pass the model subdir (e.g. `model_dir.join("phi-3-mini-4k-instruct")`),
+        // and `load` joins these constants onto it. They must be bare filenames —
+        // a subdir prefix here doubles the path (…/phi-3-mini-4k-instruct/phi-3-mini-4k-instruct/…).
+        assert!(!GGUF_FILE.contains('/'), "GGUF_FILE must be a bare filename: {GGUF_FILE}");
+        assert!(
+            !TOKENIZER_FILE.contains('/'),
+            "TOKENIZER_FILE must be a bare filename: {TOKENIZER_FILE}"
+        );
     }
 
     #[test]
