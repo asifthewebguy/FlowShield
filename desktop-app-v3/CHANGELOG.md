@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.9.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.8.1-alpha.0...v3.9.0-alpha.0) (2026-06-23)
+
+
+### Features
+
+* **desktop-v3:** idle state + Generate briefing button ([944563f](https://github.com/asifthewebguy/FlowShield/commit/944563f061b60e8d5d65ef3dcaeb5386261ad418))
+* **desktop-v3:** raise briefing token cap 80-&gt;200 for full output ([5b79c96](https://github.com/asifthewebguy/FlowShield/commit/5b79c96906d25d67624f79f77944063d46df43a0))
+* **desktop-v3:** read-only ai_briefing_today + Idle + ai_briefing_generate ([6f1d7d6](https://github.com/asifthewebguy/FlowShield/commit/6f1d7d654fc63de352e995ff718dbbc32bfe53f5))
+* **desktop-v3:** remove 5am scheduler briefing auto-run (fully manual) ([3ca300e](https://github.com/asifthewebguy/FlowShield/commit/3ca300eed40921423cb9cecfe7ab1d0aecdf6fe6))
+
 ## [3.8.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.8.0-alpha.0...v3.8.1-alpha.0) (2026-06-23)
 
 
