@@ -11,6 +11,7 @@ export function BriefingCard() {
   const briefing = useAIStore((s) => s.briefing);
   const visible = useAIStore(selectBriefingVisible);
   const refresh = useAIStore((s) => s.refreshBriefing);
+  const generate = useAIStore((s) => s.generateBriefing);
 
   useEffect(() => {
     void refresh();
@@ -47,6 +48,22 @@ export function BriefingCard() {
         <div className="mt-2 text-xs text-gray-500 dark:text-gray-500">
           Complete {remaining} more to unlock your AI briefing · counts sessions completed since Local AI was enabled
         </div>
+      </div>
+    );
+  }
+
+  if (briefing.status === 'idle') {
+    return (
+      <div className="rounded-lg border border-primary-500/30 bg-primary-500/10 p-4 mb-4">
+        <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+          ✨ Your AI briefing is ready to generate.
+        </div>
+        <button
+          className="rounded bg-primary-500 px-3 py-1 text-sm text-white"
+          onClick={() => void generate()}
+        >
+          Generate today's briefing
+        </button>
       </div>
     );
   }

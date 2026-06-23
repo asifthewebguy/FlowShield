@@ -6,6 +6,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 export type BriefingState =
   | { status: 'ready'; text: string; generated_at: string }
   | { status: 'generating' }
+  | { status: 'idle' }
   | { status: 'empty_state'; sessions: number; needed: number }
   | { status: 'hidden' }
   | { status: 'error'; message: string };
@@ -36,6 +37,7 @@ interface AiStore {
   settings: AiSettings | null;
   downloadProgress: DownloadProgress | null;
   refreshBriefing: () => Promise<void>;
+  generateBriefing: () => Promise<void>;
   refreshSettings: () => Promise<void>;
   setLabsEnabled: (enabled: boolean) => Promise<void>;
   refreshReflection: () => Promise<void>;
@@ -53,6 +55,17 @@ export const useAIStore = create<AiStore>((set, get) => ({
     try {
       const state = await invoke<BriefingState>('ai_briefing_today');
       set({ briefing: state });
+    } catch (e) {
+      set({ briefing: { status: 'error', message: String(e) } });
+    }
+  },
+
+  generateBriefing: async () => {
+    // Optimistic: flip to generating immediately; the backend also emits
+    // `ai-briefing-generating`, and `ai-briefing-ready` drives the refresh.
+    set({ briefing: { status: 'generating' } });
+    try {
+      await invoke('ai_briefing_generate');
     } catch (e) {
       set({ briefing: { status: 'error', message: String(e) } });
     }
