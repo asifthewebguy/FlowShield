@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.8.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.8.0-alpha.0...v3.8.1-alpha.0) (2026-06-23)
+
+
+### Bug Fixes
+
+* **desktop-v3:** LLM load doubled the model subdir in the path ([#89](https://github.com/asifthewebguy/FlowShield/issues/89)) ([17b4136](https://github.com/asifthewebguy/FlowShield/commit/17b413619054d41ca0cb5f13369c479388144280))
+
 ## [3.8.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.7.0-alpha.0...v3.8.0-alpha.0) (2026-06-23)
 
 
