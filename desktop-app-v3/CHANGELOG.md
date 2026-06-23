@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.8.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.7.0-alpha.0...v3.8.0-alpha.0) (2026-06-23)
+
+
+### Features
+
+* **desktop-v3:** empty-state session progress bar + counter ([39cd84d](https://github.com/asifthewebguy/FlowShield/commit/39cd84d8394334b3d575390c1fbfa248eeeda1bb))
+* **desktop-v3:** EmptyState briefing state carries sessions/needed ([feca663](https://github.com/asifthewebguy/FlowShield/commit/feca663cec8929fc0f427b28083c5a554bc14c9d))
+* **desktop-v3:** session_chunk_count_last_7d + pub threshold ([5a4c7e2](https://github.com/asifthewebguy/FlowShield/commit/5a4c7e2a9e0d0db16828e2c2b565ed36675e3595))
+
 ## [3.7.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.6.0-alpha.0...v3.7.0-alpha.0) (2026-06-22)
 
 
