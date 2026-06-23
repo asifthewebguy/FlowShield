@@ -1,5 +1,5 @@
-//! Briefing pipeline orchestrator. The single entry point for both the
-//! 5am scheduler tick and the lazy dashboard-mount fallback.
+//! Briefing pipeline orchestrator. The single entry point for briefing
+//! generation, triggered only by the manual `ai_briefing_generate` command.
 //!
 //! Design constraints:
 //! - **One generation at a time.** A caller-owned `AtomicBool` gates entry;
@@ -8,7 +8,7 @@
 //!   isn't resettable in candle 0.8.4, so the runtime is single-use. The
 //!   `generate_with_real_models` helper enforces this.
 //! - **Drop-guard for in-flight flag.** A panic anywhere inside the
-//!   orchestrator must reset the flag so the next tick can try again.
+//!   orchestrator must reset the flag so the next generation can try again.
 //! - **No mutex guard across `.await`.** `std::sync::Mutex` guards are
 //!   `!Send`; reads happen inside a tight block scope, then the lock is
 //!   released before the LLM call awaits.
@@ -288,9 +288,9 @@ mod tests {
             .build()
             .expect("rt");
 
-        // Seed enough session chunks to pass has_minimum_data threshold (≥5
-        // session chunks in last 7 days). Embeddings are zeroblobs — the
-        // test asserts pipeline plumbing, not retrieval quality.
+        // Seed enough session chunks to meet the MIN_SESSION_CHUNKS_LAST_7D
+        // threshold (≥5 session chunks in the last 7 days). Embeddings are
+        // zeroblobs — the test asserts pipeline plumbing, not retrieval quality.
         let db = open_test_db();
         {
             let conn = db.lock().unwrap();
