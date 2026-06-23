@@ -1,7 +1,7 @@
 //! Whether the user has enough recent activity for a useful briefing.
-//! Both the 5am scheduler and the lazy `ai_briefing_today` fallback gate
-//! on this — a briefing built from < 5 sessions reads generic and erodes
-//! trust.
+//! The empty-state UI gates on `session_chunk_count_last_7d` vs
+//! `MIN_SESSION_CHUNKS_LAST_7D` — a briefing built from < 5 sessions
+//! reads generic and erodes trust.
 
 use crate::store::Db;
 
@@ -12,7 +12,7 @@ use crate::store::Db;
 pub const MIN_SESSION_CHUNKS_LAST_7D: i64 = 5;
 
 /// Count of `source='session'` chunks in `ai_chunks` from the last 7 days —
-/// the input to both `has_minimum_data` and the empty-state progress counter.
+/// the input to the empty-state progress counter.
 /// Fails closed to 0 on a poisoned mutex or any DB error.
 pub fn session_chunk_count_last_7d(db: &Db) -> i64 {
     let conn = match db.lock() {
@@ -27,16 +27,6 @@ pub fn session_chunk_count_last_7d(db: &Db) -> i64 {
         |row| row.get(0),
     )
     .unwrap_or(0)
-}
-
-/// Returns true when ≥5 session chunks exist in `ai_chunks` from the
-/// last 7 days. Uses the existing `ai_chunks` table (source = 'session')
-/// because the desktop-v3 store has no standalone `sessions` table —
-/// the corpus indexer is the authoritative record of completed sessions.
-///
-/// Fails closed: returns false on a poisoned mutex or any DB error.
-pub fn has_minimum_data(db: &Db) -> bool {
-    session_chunk_count_last_7d(db) >= MIN_SESSION_CHUNKS_LAST_7D
 }
 
 #[cfg(test)]
@@ -72,58 +62,6 @@ mod tests {
             "test-{}",
             chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
         )
-    }
-
-    #[test]
-    fn has_minimum_data_returns_false_below_threshold() {
-        let db = open_test_db();
-        // 4 recent completed sessions — one short of the ≥5 threshold
-        for i in 1..=4u32 {
-            insert_session_chunk(&db, &format!("2026-05-0{i} 09:00:00"));
-        }
-        assert!(!has_minimum_data(&db));
-    }
-
-    #[test]
-    fn has_minimum_data_returns_true_at_threshold() {
-        let db = open_test_db();
-        let now = chrono::Utc::now();
-        for i in 0..5i64 {
-            let dt = now - chrono::Duration::days(i);
-            insert_session_chunk(&db, &dt.format("%Y-%m-%d %H:%M:%S").to_string());
-        }
-        assert!(has_minimum_data(&db));
-    }
-
-    #[test]
-    fn has_minimum_data_excludes_old_sessions() {
-        let db = open_test_db();
-        // 5 sessions from 2025 — outside the 7-day window
-        for i in 1..=5u32 {
-            insert_session_chunk(&db, &format!("2025-01-0{i} 09:00:00"));
-        }
-        assert!(!has_minimum_data(&db));
-    }
-
-    #[test]
-    fn has_minimum_data_excludes_non_session_chunks() {
-        let db = open_test_db();
-        let now = chrono::Utc::now();
-        // 5 activity_day chunks within the window — source is not 'session'
-        let conn = db.lock().unwrap();
-        for i in 0..5i64 {
-            let dt = now - chrono::Duration::days(i);
-            let ts = dt.format("%Y-%m-%d %H:%M:%S").to_string();
-            conn.execute(
-                "INSERT INTO ai_chunks \
-                 (id, source, source_ref, text, embedding, created_at, embedded_at) \
-                 VALUES (?, 'activity_day', 'ref', 'day chunk', zeroblob(1536), ?, ?)",
-                params![format!("act-{i}"), ts, ts],
-            )
-            .expect("insert activity_day chunk");
-        }
-        drop(conn);
-        assert!(!has_minimum_data(&db));
     }
 
     #[test]
