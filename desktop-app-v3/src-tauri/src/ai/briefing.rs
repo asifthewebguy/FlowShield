@@ -27,7 +27,7 @@ use crate::error::AppError;
 use crate::store::ai::{self as store_ai, Briefing, Chunk};
 use crate::store::Db;
 
-const BRIEFING_MAX_TOKENS: usize = 80;
+const BRIEFING_MAX_TOKENS: usize = 200;
 const RETRIEVAL_K: usize = 15;
 const RETRIEVAL_WINDOW_DAYS: i64 = 7;
 const MIN_OUTPUT_LEN: usize = 5;
@@ -259,6 +259,12 @@ mod tests {
         let conn = db.lock().unwrap();
         let row = store_ai::get_briefing_for(&conn, &today.to_string(), &mock_id).expect("ok");
         assert!(row.is_none());
+    }
+
+    #[test]
+    fn briefing_token_cap_allows_full_output() {
+        // 80 truncated 2-3 sentence briefings mid-word; 200 lets them finish.
+        assert_eq!(super::BRIEFING_MAX_TOKENS, 200);
     }
 
     /// End-to-end pipeline against real BGE + Phi-3 weights. Skipped
