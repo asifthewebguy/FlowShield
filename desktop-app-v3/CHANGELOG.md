@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.9.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.9.0-alpha.0...v3.9.1-alpha.0) (2026-06-24)
+
+
+### Bug Fixes
+
+* **desktop-v3:** security hardening — model verify fail-closed, https-only update URL ([#92](https://github.com/asifthewebguy/FlowShield/issues/92)) ([bd20d12](https://github.com/asifthewebguy/FlowShield/commit/bd20d12801403161b8896ccd4c013c2a7c02826c))
+
 ## [3.9.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.8.1-alpha.0...v3.9.0-alpha.0) (2026-06-23)
 
 
