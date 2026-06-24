@@ -74,7 +74,7 @@ impl CandleLlmRuntime {
     /// `tokenizer.json` under `phi-3-mini-4k-instruct/`. Returns
     /// `AiError::ModelLoad` for any IO/parse/missing-file failure — never panics.
     pub fn load(model_dir: &Path) -> Result<Self, AiError> {
-        let device = Device::Cpu;
+        let device = crate::ai::device::select_device();
 
         let gguf_path = model_dir.join(GGUF_FILE);
         let mut file = std::fs::File::open(&gguf_path)

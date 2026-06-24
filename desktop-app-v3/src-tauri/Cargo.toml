@@ -104,6 +104,7 @@ windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem", "Win32
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+cuda = ["candle-core/cuda", "candle-nn/cuda", "candle-transformers/cuda"]
 
 [profile.release]
 panic = "abort"
