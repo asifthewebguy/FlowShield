@@ -22,6 +22,12 @@ export function UpdateBanner() {
 
   const handleDownload = async () => {
     try {
+      // Defense-in-depth: only open https update URLs.
+      if (!info.release_url.startsWith('https://')) {
+        // eslint-disable-next-line no-console
+        console.warn('[update] refusing non-https url', info.release_url);
+        return;
+      }
       await openUrl(info.release_url);
     } catch (err) {
       // eslint-disable-next-line no-console

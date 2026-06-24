@@ -17,6 +17,7 @@
 .DS_Store
 *.pem
 .env
+.env*.local
 .env.production
 
 next-env.d.ts
