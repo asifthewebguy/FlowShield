@@ -19,9 +19,15 @@ pub fn select_device() -> Device {
             Ok(_) => tracing::warn!("CUDA feature built but no CUDA device; using CPU"),
             Err(e) => tracing::warn!(?e, "CUDA init failed; using CPU"),
         }
+        // CUDA fallback: the warn above already explained the CPU choice — skip
+        // the redundant info log below.
+        return Device::Cpu;
     }
-    tracing::info!("AI compute device: CPU");
-    Device::Cpu
+    #[cfg(not(feature = "cuda"))]
+    {
+        tracing::info!("AI compute device: CPU");
+        Device::Cpu
+    }
 }
 
 #[cfg(test)]
