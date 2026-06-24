@@ -4,6 +4,7 @@
 pub mod briefing;
 pub mod candle_embedder;
 pub mod candle_llm;
+pub mod device;
 pub mod corpus;
 pub mod empty_state;
 pub mod embedder;

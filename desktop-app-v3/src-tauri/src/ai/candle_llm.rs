@@ -74,7 +74,7 @@ impl CandleLlmRuntime {
     /// `tokenizer.json` under `phi-3-mini-4k-instruct/`. Returns
     /// `AiError::ModelLoad` for any IO/parse/missing-file failure — never panics.
     pub fn load(model_dir: &Path) -> Result<Self, AiError> {
-        let device = Device::Cpu;
+        let device = crate::ai::device::select_device();
 
         let gguf_path = model_dir.join(GGUF_FILE);
         let mut file = std::fs::File::open(&gguf_path)
@@ -82,9 +82,11 @@ impl CandleLlmRuntime {
         let content = gguf_file::Content::read(&mut file)
             .map_err(|e| AiError::ModelLoad(format!("parse GGUF: {e}")))?;
 
-        // candle 0.8.4 added a leading `use_flash_attn: bool` arg. We're CPU-
-        // only (no flash-attn feature) — pass false. If the build flips to a
-        // CUDA target with flash-attn, this becomes a feature gate.
+        // candle 0.8.4 added a leading `use_flash_attn: bool` arg. We pass
+        // false because the quantized (GGUF) path does not use flash-attn even
+        // on a CUDA build — flash-attn is a dense-attention optimization and
+        // is unrelated to quantization format. The compute device itself is
+        // chosen by `select_device()` above and may be CPU or CUDA.
         let model = ModelWeights::from_gguf(false, content, &mut file, &device)
             .map_err(|e| AiError::ModelLoad(format!("ModelWeights::from_gguf: {e}")))?;
 

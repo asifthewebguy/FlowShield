@@ -67,7 +67,7 @@ impl CandleEmbedder {
     /// any file is missing, the safetensors fails to parse, or the tensor
     /// names don't match what `BertModel` expects.
     pub fn load(model_dir: &Path) -> Result<Self, AiError> {
-        let device = Device::Cpu;
+        let device = crate::ai::device::select_device();
 
         let config_path = model_dir.join(CONFIG_FILE);
         let config_bytes = std::fs::read(&config_path)
