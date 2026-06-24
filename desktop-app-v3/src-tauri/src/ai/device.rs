@@ -28,11 +28,11 @@ pub fn select_device() -> Device {
 mod tests {
     use super::*;
 
+    #[cfg(not(feature = "cuda"))]
     #[test]
     fn default_build_selects_cpu() {
         // Default (non-cuda) feature set must resolve to CPU — the shipping
         // default that runs on any machine.
-        #[cfg(not(feature = "cuda"))]
         assert!(matches!(select_device(), Device::Cpu));
     }
 }
