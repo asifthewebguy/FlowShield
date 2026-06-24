@@ -107,4 +107,17 @@ mod tests {
         let unique: std::collections::HashSet<&&str> = names.iter().collect();
         assert_eq!(names.len(), unique.len(), "duplicate local_filename in registry");
     }
+
+    #[test]
+    fn all_registry_files_have_sha256() {
+        // verify_sha256 fails closed on an empty hash; this guards against
+        // shipping a registry entry that would be rejected at download time.
+        for f in all_files() {
+            assert!(
+                !f.sha256.is_empty(),
+                "missing sha256 for {}",
+                f.local_filename
+            );
+        }
+    }
 }

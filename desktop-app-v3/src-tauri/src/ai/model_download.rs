@@ -102,14 +102,15 @@ pub async fn sha256_file(path: &Path) -> Result<String, AiError> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-/// Verify a downloaded file against an expected hash. Empty-string `expected`
-/// is treated as "skip verification" — used during Plans 1.3/1.4 development
-/// when real hashes haven't been published yet. Production callers should
-/// refuse to mark a file usable when the registry hash is empty.
+/// Verify a downloaded file against an expected hash. Fails closed: an empty
+/// `expected` is rejected rather than skipped, so a missing registry hash can
+/// never let an unverified (potentially tampered) model file be used. Every
+/// `registry` entry carries a real hash — see `all_registry_files_have_sha256`.
 pub async fn verify_sha256(path: &Path, expected: &str) -> Result<(), AiError> {
     if expected.is_empty() {
-        tracing::warn!(?path, "sha256 verify skipped: empty expected hash (placeholder)");
-        return Ok(());
+        return Err(AiError::ModelDownload(format!(
+            "refusing to use {path:?}: registry has no sha256 to verify against"
+        )));
     }
     let actual = sha256_file(path).await?;
     if actual.eq_ignore_ascii_case(expected) {
@@ -454,9 +455,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn verify_sha256_skips_when_expected_empty() {
+    async fn verify_sha256_fails_closed_when_expected_empty() {
+        // Fail-closed: a missing registry hash must reject the file, not skip.
         let f = write_temp_file(b"hello world");
-        verify_sha256(f.path(), "").await.unwrap();
+        assert!(verify_sha256(f.path(), "").await.is_err());
     }
 
     #[tokio::test]

@@ -81,6 +81,12 @@ fn open_update_url(app: &AppHandle) {
         tracing::warn!("update menu clicked but no UpdateInfo cached — ignoring");
         return;
     };
+    // Defense-in-depth: only ever hand an https URL to the OS opener, even
+    // though release_url comes from our own GitHub releases API over TLS.
+    if !url.starts_with("https://") {
+        tracing::warn!(%url, "refusing to open non-https update URL");
+        return;
+    }
     if let Err(e) = app.opener().open_url(&url, None::<&str>) {
         tracing::warn!(error = %e, %url, "failed to open update URL");
     }
