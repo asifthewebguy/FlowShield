@@ -53,11 +53,15 @@ impl CandleEmbedder {
     pub fn get_or_load(
         slot: &std::sync::OnceLock<std::sync::Arc<CandleEmbedder>>,
         model_dir: &std::path::Path,
+        prefer_gpu: bool,
     ) -> Result<std::sync::Arc<CandleEmbedder>, crate::error::AiError> {
         if let Some(e) = slot.get() {
             return Ok(e.clone());
         }
-        let loaded = std::sync::Arc::new(CandleEmbedder::load(&model_dir.join("bge-small-en-v1.5"))?);
+        let loaded = std::sync::Arc::new(CandleEmbedder::load(
+            &model_dir.join("bge-small-en-v1.5"),
+            prefer_gpu,
+        )?);
         let _ = slot.set(loaded.clone());
         Ok(slot.get().cloned().unwrap_or(loaded))
     }
@@ -66,8 +70,8 @@ impl CandleEmbedder {
     /// `tokenizer.json`, and `config.json`. Returns `AiError::ModelLoad` if
     /// any file is missing, the safetensors fails to parse, or the tensor
     /// names don't match what `BertModel` expects.
-    pub fn load(model_dir: &Path) -> Result<Self, AiError> {
-        let device = crate::ai::device::select_device();
+    pub fn load(model_dir: &Path, prefer_gpu: bool) -> Result<Self, AiError> {
+        let device = crate::ai::device::select_device(prefer_gpu);
 
         let config_path = model_dir.join(CONFIG_FILE);
         let config_bytes = std::fs::read(&config_path)
@@ -215,7 +219,7 @@ mod tests {
         let tmp = tempdir().expect("tempdir");
         let bogus = PathBuf::from(tmp.path()).join("does-not-exist");
 
-        match CandleEmbedder::load(&bogus) {
+        match CandleEmbedder::load(&bogus, true) {
             Err(AiError::ModelLoad(msg)) => {
                 assert!(
                     msg.to_lowercase().contains("config")
@@ -237,7 +241,7 @@ mod tests {
         std::fs::write(dir.join(CONFIG_FILE), "not valid json").expect("write config");
         // tokenizer.json + safetensors intentionally missing.
 
-        match CandleEmbedder::load(dir) {
+        match CandleEmbedder::load(dir, true) {
             Err(AiError::ModelLoad(_)) => {} // success
             Err(other) => panic!("expected ModelLoad, got {other:?}"),
             Ok(_) => panic!("expected error from invalid config"),
@@ -284,7 +288,7 @@ mod tests {
             .build()
             .expect("rt");
 
-        let embedder = CandleEmbedder::load(&model_dir).expect("load BGE-small");
+        let embedder = CandleEmbedder::load(&model_dir, true).expect("load BGE-small");
 
         // Two semantically related sentences should have higher cosine
         // similarity than two unrelated ones.

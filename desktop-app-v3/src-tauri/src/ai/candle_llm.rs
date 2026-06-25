@@ -73,8 +73,8 @@ impl CandleLlmRuntime {
     /// Load Phi-3-mini Q4 from a directory containing the GGUF weights and
     /// `tokenizer.json` under `phi-3-mini-4k-instruct/`. Returns
     /// `AiError::ModelLoad` for any IO/parse/missing-file failure — never panics.
-    pub fn load(model_dir: &Path) -> Result<Self, AiError> {
-        let device = crate::ai::device::select_device();
+    pub fn load(model_dir: &Path, prefer_gpu: bool) -> Result<Self, AiError> {
+        let device = crate::ai::device::select_device(prefer_gpu);
 
         let gguf_path = model_dir.join(GGUF_FILE);
         let mut file = std::fs::File::open(&gguf_path)
@@ -274,7 +274,7 @@ mod tests {
         let tmp = tempdir().expect("tempdir");
         let bogus = PathBuf::from(tmp.path()).join("does-not-exist");
 
-        match CandleLlmRuntime::load(&bogus) {
+        match CandleLlmRuntime::load(&bogus, true) {
             Err(AiError::ModelLoad(msg)) => {
                 assert!(
                     msg.to_lowercase().contains("open")
@@ -296,7 +296,7 @@ mod tests {
         std::fs::create_dir_all(gguf_full.parent().unwrap()).expect("mkdir");
         std::fs::write(&gguf_full, b"not a real gguf").expect("write stub");
 
-        match CandleLlmRuntime::load(dir) {
+        match CandleLlmRuntime::load(dir, true) {
             Err(AiError::ModelLoad(_)) => {} // success
             Err(other) => panic!("expected ModelLoad, got {other:?}"),
             Ok(_) => panic!("expected error from invalid GGUF"),
@@ -328,7 +328,7 @@ mod tests {
             .build()
             .expect("rt");
 
-        let runtime = CandleLlmRuntime::load(&base).expect("load Phi-3-mini");
+        let runtime = CandleLlmRuntime::load(&base, true).expect("load Phi-3-mini");
 
         let prompt = "Briefly say hello in one short sentence.";
         let out = rt

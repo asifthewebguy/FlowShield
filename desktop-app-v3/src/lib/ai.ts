@@ -36,11 +36,15 @@ interface AiStore {
   reflection: ReflectionState;
   settings: AiSettings | null;
   downloadProgress: DownloadProgress | null;
+  preferGpu: boolean;
+  gpuAvailable: boolean;
   refreshBriefing: () => Promise<void>;
   generateBriefing: () => Promise<void>;
   deleteBriefing: () => Promise<void>;
   refreshSettings: () => Promise<void>;
   setLabsEnabled: (enabled: boolean) => Promise<void>;
+  refreshDevicePrefs: () => Promise<void>;
+  setPreferGpu: (enabled: boolean) => Promise<void>;
   refreshReflection: () => Promise<void>;
   submitReflectionAnswer: (answer: string) => Promise<void>;
   bootstrap: () => Promise<UnlistenFn>;
@@ -51,6 +55,8 @@ export const useAIStore = create<AiStore>((set, get) => ({
   reflection: { status: 'hidden' },
   settings: null,
   downloadProgress: null,
+  preferGpu: true,
+  gpuAvailable: false,
 
   refreshBriefing: async () => {
     try {
@@ -94,6 +100,26 @@ export const useAIStore = create<AiStore>((set, get) => ({
     await invoke('ai_labs_set_enabled', { enabled });
     await get().refreshSettings();
     await get().refreshBriefing();
+  },
+
+  refreshDevicePrefs: async () => {
+    try {
+      const [preferGpu, gpuAvailable] = await Promise.all([
+        invoke<boolean>('ai_device_get_prefer_gpu'),
+        invoke<boolean>('ai_gpu_available'),
+      ]);
+      set({ preferGpu, gpuAvailable });
+    } catch (e) {
+      console.error('refreshDevicePrefs failed:', e);
+    }
+  },
+  setPreferGpu: async (enabled) => {
+    try {
+      await invoke('ai_device_set_prefer_gpu', { enabled });
+      set({ preferGpu: enabled });
+    } catch (e) {
+      console.error('setPreferGpu failed:', e);
+    }
   },
 
   refreshReflection: async () => {

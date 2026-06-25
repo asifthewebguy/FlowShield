@@ -66,6 +66,7 @@ pub async fn generate_and_store_question(
     in_flight: &AtomicBool,
     model_dir: &std::path::Path,
     today: chrono::NaiveDate,
+    prefer_gpu: bool,
 ) -> Result<bool, AppError> {
     let today_s = today.to_string();
 
@@ -121,7 +122,7 @@ pub async fn generate_and_store_question(
     let _guard = InFlightGuard(in_flight); // released on drop (even on panic/error)
 
     // Load model, generate question, drop runtime before touching the db again.
-    let runtime = CandleLlmRuntime::load(&model_dir.join("phi-3-mini-4k-instruct"))?;
+    let runtime = CandleLlmRuntime::load(&model_dir.join("phi-3-mini-4k-instruct"), prefer_gpu)?;
     let question = build_question(&runtime, &texts).await?; // await while _guard held, no MutexGuard held
     drop(runtime);
 
