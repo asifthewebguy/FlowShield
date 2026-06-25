@@ -245,7 +245,7 @@ jobs:
 
   sign-and-release:
     name: Sign + publish to GitHub Releases
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-macos, build-linux-cuda]
     runs-on: ubuntu-22.04
     steps:
       - name: Download Linux bundles
@@ -258,6 +258,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: macos-bundles
+          path: release-artifacts
+
+      - name: Download cuda bundle (best-effort)
+        uses: actions/download-artifact@v4
+        # The cuda job is non-blocking; if it failed/skipped, its artifact won't
+        # exist. warn (not error) so the release still ships the CPU bundles.
+        continue-on-error: true
+        with:
+          name: linux-cuda-bundle
           path: release-artifacts
 
       - name: Generate SHA256SUMS
