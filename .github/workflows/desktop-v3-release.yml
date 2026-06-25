@@ -142,6 +142,107 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  build-linux-cuda:
+    name: Build CUDA Linux AppImage
+    # Non-blocking: a failure here (fragile GPU toolchain) must never block the
+    # CPU release. The release ships without the cuda asset instead.
+    runs-on: ubuntu-22.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libxss-dev \
+            patchelf \
+            file
+
+      - name: Install CUDA toolkit 12.6
+        # Network method installs only the sub-packages we need (nvcc to compile
+        # candle-kernels; cudart/cublas/curand + their -dev headers/symlinks that
+        # candle-core's cuda backend links). Exports CUDA_PATH as an env var (not a step
+        # output), so reference $CUDA_PATH at the shell level.
+        uses: Jimver/cuda-toolkit@v0.2.19
+        id: cuda-toolkit
+        with:
+          cuda: '12.6.2'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart", "cudart-dev", "cublas", "cublas-dev", "curand", "curand-dev"]'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-app-v3/src-tauri
+          # Distinct key so the cuda build's artifacts don't trample the CPU cache.
+          key: linux-cuda
+
+      - name: Install JS deps
+        working-directory: desktop-app-v3
+        run: npm ci || npm install
+
+      - name: Build CUDA AppImage
+        working-directory: desktop-app-v3
+        env:
+          CUDA_COMPUTE_CAP: '75'
+        # linuxdeploy bundles the binary's NEEDED libs; point the loader at the
+        # toolkit lib dir so libcudart/libcublas/libcurand get pulled into the
+        # AppImage. The Jimver action exports CUDA_PATH as an env var (not a step
+        # output), so reference $CUDA_PATH at the shell level.
+        run: |
+          export LD_LIBRARY_PATH="$CUDA_PATH/lib64:${LD_LIBRARY_PATH:-}"
+          npm run tauri:build -- --features cuda --bundles appimage
+
+      - name: Stage + rename cuda AppImage
+        run: |
+          set -euo pipefail
+          SRC=$(ls desktop-app-v3/src-tauri/target/release/bundle/appimage/FlowShield_*_amd64.AppImage)
+          mkdir -p release-artifacts
+          BASE=$(basename "${SRC%_amd64.AppImage}")
+          DEST="release-artifacts/${BASE}_amd64-cuda.AppImage"
+          mv "$SRC" "$DEST"
+          echo "--- staged ---"
+          ls -la release-artifacts/
+
+      - name: Assert CUDA runtime libs are bundled
+        # The one novel risk: a "cuda" AppImage that silently bundled no CUDA
+        # runtime would fall back to CPU on the user's machine. Extract the
+        # AppImage (no FUSE needed) and fail THIS job (not the release) if
+        # libcudart isn't inside it.
+        run: |
+          set -euo pipefail
+          APPIMAGE=$(ls release-artifacts/FlowShield_*_amd64-cuda.AppImage)
+          chmod +x "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract >/dev/null
+          if ls squashfs-root/usr/lib/libcudart.so* >/dev/null 2>&1; then
+            echo "::notice::libcudart bundled: $(ls squashfs-root/usr/lib/libcudart.so*)"
+          else
+            echo "::error::libcudart.so not bundled in the cuda AppImage — aborting cuda job."
+            exit 1
+          fi
+          rm -rf squashfs-root
+
+      - name: Upload cuda artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-cuda-bundle
+          path: release-artifacts/FlowShield_*_amd64-cuda.AppImage
+          if-no-files-found: error
+          retention-days: 7
+
   sign-and-release:
     name: Sign + publish to GitHub Releases
     needs: [build-linux, build-macos]
