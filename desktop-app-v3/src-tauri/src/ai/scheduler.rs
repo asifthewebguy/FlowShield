@@ -50,7 +50,8 @@ pub fn spawn(
                     }
                 };
                 if crate::ai::indexer::should_roll_up(labs, status.clone(), already) {
-                    match crate::ai::indexer::run_day_rollup(&db, &embedder_slot, &model_dir, yesterday).await {
+                    let prefer = crate::commands::ai::prefer_gpu(&app_handle);
+                    match crate::ai::indexer::run_day_rollup(&db, &embedder_slot, &model_dir, yesterday, prefer).await {
                         Ok(true) => tracing::info!(date = %yesterday, "indexed day rollup chunk"),
                         Ok(false) => {} // no sessions that day
                         Err(e) => tracing::warn!(?e, date = %yesterday, "day rollup failed"),
@@ -70,7 +71,8 @@ pub fn spawn(
                     }
                 };
                 if crate::ai::reflection::should_generate_reflection(labs, status.clone(), now.hour(), already) {
-                    match crate::ai::reflection::generate_and_store_question(&db, &in_flight, &model_dir, today).await {
+                    let prefer = crate::commands::ai::prefer_gpu(&app_handle);
+                    match crate::ai::reflection::generate_and_store_question(&db, &in_flight, &model_dir, today, prefer).await {
                         Ok(true) => {
                             tracing::info!(date = %today, "generated reflection question");
                             let _ = app_handle.emit("ai-reflection-ready", today.to_string());

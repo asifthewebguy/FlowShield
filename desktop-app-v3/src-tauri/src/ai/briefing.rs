@@ -162,10 +162,11 @@ pub async fn generate_with_real_models(
     embedder_slot: &std::sync::OnceLock<Arc<CandleEmbedder>>,
     model_dir: &Path,
     today: chrono::NaiveDate,
+    prefer_gpu: bool,
 ) -> Result<(), AppError> {
-    let embedder = CandleEmbedder::get_or_load(embedder_slot, model_dir)?;
+    let embedder = CandleEmbedder::get_or_load(embedder_slot, model_dir, prefer_gpu)?;
 
-    let runtime = CandleLlmRuntime::load(&model_dir.join("phi-3-mini-4k-instruct"))?;
+    let runtime = CandleLlmRuntime::load(&model_dir.join("phi-3-mini-4k-instruct"), prefer_gpu)?;
 
     let result = generate(db, in_flight, embedder.as_ref(), &runtime, today).await;
     drop(runtime);
@@ -317,7 +318,7 @@ mod tests {
         let today = chrono::Local::now().date_naive();
 
         rt.block_on(async {
-            super::generate_with_real_models(&db, &in_flight, &embedder_slot, &base, today)
+            super::generate_with_real_models(&db, &in_flight, &embedder_slot, &base, today, true)
                 .await
                 .expect("generate");
         });

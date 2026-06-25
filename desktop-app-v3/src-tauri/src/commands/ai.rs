@@ -219,9 +219,10 @@ pub async fn ai_briefing_generate(
         .app_data_dir()
         .map_err(|e| format!("app_data_dir: {e}"))?;
     let model_dir = app_data_dir.join("models");
+    let prefer = prefer_gpu(&app);
 
     tauri::async_runtime::spawn(async move {
-        match briefing::generate_with_real_models(&db_clone, &in_flight, &embedder, &model_dir, today).await {
+        match briefing::generate_with_real_models(&db_clone, &in_flight, &embedder, &model_dir, today, prefer).await {
             Ok(()) => {
                 let _ = app_handle.emit("ai-briefing-ready", today.to_string());
             }
@@ -265,6 +266,36 @@ pub async fn ai_labs_set_enabled(enabled: bool, app: AppHandle) -> Result<(), St
 #[tauri::command]
 pub async fn ai_labs_get_enabled(app: AppHandle) -> Result<bool, String> {
     Ok(labs_enabled(&app))
+}
+
+#[tauri::command]
+pub async fn ai_device_get_prefer_gpu(app: AppHandle) -> Result<bool, String> {
+    Ok(prefer_gpu(&app))
+}
+
+#[tauri::command]
+pub async fn ai_device_set_prefer_gpu(enabled: bool, app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store("settings.json").map_err(|e| e.to_string())?;
+    store.set("ai.device.prefer_gpu", serde_json::Value::Bool(enabled));
+    store.save().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Whether a GPU is usable on THIS build + machine right now. `false` on a
+/// non-cuda build; on a cuda build, probes CUDA device 0.
+#[tauri::command]
+pub async fn ai_gpu_available() -> Result<bool, String> {
+    #[cfg(feature = "cuda")]
+    {
+        Ok(candle_core::Device::cuda_if_available(0)
+            .map(|d| d.is_cuda())
+            .unwrap_or(false))
+    }
+    #[cfg(not(feature = "cuda"))]
+    {
+        Ok(false)
+    }
 }
 
 #[derive(Serialize, Debug)]
@@ -326,6 +357,19 @@ pub(crate) fn labs_enabled(app: &AppHandle) -> bool {
             .and_then(|v| v.as_bool())
             .unwrap_or(false),
         Err(_) => false,
+    }
+}
+
+/// Read the persisted GPU preference. Defaults to `true` (GPU-preferred) when
+/// the store is missing/unreadable or the key is unset.
+pub(crate) fn prefer_gpu(app: &AppHandle) -> bool {
+    use tauri_plugin_store::StoreExt;
+    match app.store("settings.json") {
+        Ok(store) => store
+            .get("ai.device.prefer_gpu")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true),
+        Err(_) => true,
     }
 }
 
@@ -437,6 +481,7 @@ pub async fn ai_reflection_answer(
         let db2 = db.clone();
         let date_for_chunk = today;
         let today_for_chunk = today_s.clone();
+        let prefer = prefer_gpu(&app);
         tauri::async_runtime::spawn(async move {
             let input = crate::ai::corpus::ReflectionChunkInput {
                 date: date_for_chunk,
@@ -447,6 +492,7 @@ pub async fn ai_reflection_answer(
             match crate::ai::candle_embedder::CandleEmbedder::get_or_load(
                 &embedder_slot,
                 &model_dir,
+                prefer,
             ) {
                 Ok(embedder) => {
                     if let Err(e) = crate::ai::indexer::index_chunk(

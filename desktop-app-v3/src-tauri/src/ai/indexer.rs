@@ -169,7 +169,8 @@ pub fn index_session_background(
             }
         }
 
-        let embedder = match CandleEmbedder::get_or_load(&embedder_slot, &model_dir) {
+        let prefer = crate::commands::ai::prefer_gpu(&app);
+        let embedder = match CandleEmbedder::get_or_load(&embedder_slot, &model_dir, prefer) {
             Ok(e) => e,
             Err(e) => {
                 tracing::warn!(?e, "session index skipped: embedder load failed");
@@ -309,6 +310,7 @@ pub async fn run_day_rollup(
     embedder_slot: &OnceLock<Arc<CandleEmbedder>>,
     model_dir: &std::path::Path,
     date: chrono::NaiveDate,
+    prefer_gpu: bool,
 ) -> Result<bool, AppError> {
     let date_str = date.to_string();
     let facts = {
@@ -321,7 +323,7 @@ pub async fn run_day_rollup(
         return Ok(false);
     };
 
-    let embedder = CandleEmbedder::get_or_load(embedder_slot, model_dir)?;
+    let embedder = CandleEmbedder::get_or_load(embedder_slot, model_dir, prefer_gpu)?;
     let text = crate::ai::corpus::render_day_chunk(&day_input);
     let created_at = format!("{date_str}T23:59:59Z");
     index_chunk(
