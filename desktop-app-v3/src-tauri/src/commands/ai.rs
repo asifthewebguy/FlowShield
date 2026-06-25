@@ -131,6 +131,33 @@ pub(crate) fn briefing_state(
     BriefingState::Idle
 }
 
+/// Compute the current `BriefingState` from the DB + labs/model status. Shared
+/// by `ai_briefing_today` and `ai_briefing_delete` so the state machine lives
+/// in one place.
+pub(crate) fn current_briefing_state(
+    db: &crate::store::Db,
+    app: &AppHandle,
+) -> Result<BriefingState, String> {
+    let today_s = chrono::Local::now().date_naive().to_string();
+    let cached = {
+        let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
+        store_ai::get_briefing_for(&conn, &today_s, crate::ai::registry::LLM_ID)
+            .ok()
+            .flatten()
+    };
+    let labs = labs_enabled(app);
+    let model_ready = {
+        let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
+        matches!(
+            store_ai::get_model_state(&conn).ok().flatten().map(|s| s.status),
+            Some(store_ai::ModelStatus::Ready)
+        )
+    };
+    let sessions = crate::ai::empty_state::session_chunk_count_last_7d(db);
+    let needed = crate::ai::empty_state::MIN_SESSION_CHUNKS_LAST_7D;
+    Ok(briefing_state(cached, labs, model_ready, sessions, needed))
+}
+
 #[tauri::command]
 pub async fn ai_briefing_today(
     state: State<'_, crate::AppState>,
@@ -140,26 +167,7 @@ pub async fn ai_briefing_today(
         Some(d) => d.clone(),
         None => return Ok(BriefingState::Hidden),
     };
-    let today_s = chrono::Local::now().date_naive().to_string();
-
-    let cached = {
-        let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
-        store_ai::get_briefing_for(&conn, &today_s, crate::ai::registry::LLM_ID)
-            .ok()
-            .flatten()
-    };
-    let labs = labs_enabled(&app);
-    let model_ready = {
-        let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
-        matches!(
-            store_ai::get_model_state(&conn).ok().flatten().map(|s| s.status),
-            Some(store_ai::ModelStatus::Ready)
-        )
-    };
-    let sessions = crate::ai::empty_state::session_chunk_count_last_7d(&db);
-    let needed = crate::ai::empty_state::MIN_SESSION_CHUNKS_LAST_7D;
-
-    Ok(briefing_state(cached, labs, model_ready, sessions, needed))
+    current_briefing_state(&db, &app)
 }
 
 /// User-initiated briefing generation. Re-checks eligibility; if eligible
@@ -224,6 +232,25 @@ pub async fn ai_briefing_generate(
     });
 
     Ok(BriefingState::Generating)
+}
+
+/// Delete today's cached briefing and return the recomputed state (resolves to
+/// `Idle` when eligible). Lets the user clear the card and regenerate at will.
+#[tauri::command]
+pub async fn ai_briefing_delete(
+    state: State<'_, crate::AppState>,
+    app: AppHandle,
+) -> Result<BriefingState, String> {
+    let db = match state.db.get() {
+        Some(d) => d.clone(),
+        None => return Ok(BriefingState::Hidden),
+    };
+    let today_s = chrono::Local::now().date_naive().to_string();
+    {
+        let conn = db.lock().map_err(|_| "db lock poisoned".to_string())?;
+        store_ai::delete_briefing_for(&conn, &today_s).map_err(|e| e.to_string())?;
+    }
+    current_briefing_state(&db, &app)
 }
 
 #[tauri::command]

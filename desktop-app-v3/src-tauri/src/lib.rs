@@ -279,6 +279,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::ai::ai_briefing_today,
             commands::ai::ai_briefing_generate,
+            commands::ai::ai_briefing_delete,
             commands::ai::ai_data_delete,
             commands::ai::ai_labs_get_enabled,
             commands::ai::ai_labs_set_enabled,
