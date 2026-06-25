@@ -100,12 +100,14 @@ export function BriefingCard() {
         <div className="flex items-center gap-1">
           <button
             className="rounded px-2 py-0.5 text-xs text-primary-600 dark:text-primary-400 hover:bg-primary-500/20"
-            onClick={() => void generate()}
+            // Generation is gated on the Idle state, so a Ready card must first
+            // clear today's row (-> Idle) before generate will actually run.
+            onClick={() => void deleteBriefing().then(() => generate())}
           >
             Regenerate
           </button>
           <button
-            aria-label="Dismiss briefing"
+            aria-label="Delete briefing"
             className="rounded px-1.5 py-0.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-primary-500/20"
             onClick={() => void deleteBriefing()}
           >
