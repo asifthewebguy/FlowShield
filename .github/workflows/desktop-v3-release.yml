@@ -166,16 +166,19 @@ jobs:
             file
 
       - name: Install CUDA toolkit 12.6
-        # Network method installs only the sub-packages we need (nvcc to compile
-        # candle-kernels; cudart/cublas/curand + their -dev headers/symlinks that
-        # candle-core's cuda backend links). Exports CUDA_PATH as an env var (not a step
-        # output), so reference $CUDA_PATH at the shell level.
+        # Installs only what candle's cuda backend needs: nvcc (compile
+        # candle-kernels) + cudart. cublas/curand are named libcublas-/libcurand-
+        # in NVIDIA's apt repo (not cuda-*), so they go in non-cuda-sub-packages —
+        # Jimver maps sub-packages -> cuda-<name>-12-6 and
+        # non-cuda-sub-packages -> <name>-12-6. Exports CUDA_PATH as an env var
+        # (not a step output), so reference $CUDA_PATH at the shell level.
         uses: Jimver/cuda-toolkit@v0.2.19
         id: cuda-toolkit
         with:
           cuda: '12.6.2'
           method: 'network'
-          sub-packages: '["nvcc", "cudart", "cudart-dev", "cublas", "cublas-dev", "curand", "curand-dev"]'
+          sub-packages: '["nvcc", "cudart", "cudart-dev"]'
+          non-cuda-sub-packages: '["libcublas", "libcublas-dev", "libcurand", "libcurand-dev"]'
 
       - uses: actions/setup-node@v4
         with:
