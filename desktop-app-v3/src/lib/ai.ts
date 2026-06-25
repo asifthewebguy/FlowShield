@@ -38,6 +38,7 @@ interface AiStore {
   downloadProgress: DownloadProgress | null;
   refreshBriefing: () => Promise<void>;
   generateBriefing: () => Promise<void>;
+  deleteBriefing: () => Promise<void>;
   refreshSettings: () => Promise<void>;
   setLabsEnabled: (enabled: boolean) => Promise<void>;
   refreshReflection: () => Promise<void>;
@@ -66,6 +67,15 @@ export const useAIStore = create<AiStore>((set, get) => ({
     set({ briefing: { status: 'generating' } });
     try {
       await invoke('ai_briefing_generate');
+    } catch (e) {
+      set({ briefing: { status: 'error', message: String(e) } });
+    }
+  },
+
+  deleteBriefing: async () => {
+    try {
+      const state = await invoke<BriefingState>('ai_briefing_delete');
+      set({ briefing: state });
     } catch (e) {
       set({ briefing: { status: 'error', message: String(e) } });
     }

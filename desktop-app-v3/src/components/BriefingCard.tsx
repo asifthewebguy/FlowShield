@@ -12,6 +12,7 @@ export function BriefingCard() {
   const visible = useAIStore(selectBriefingVisible);
   const refresh = useAIStore((s) => s.refreshBriefing);
   const generate = useAIStore((s) => s.generateBriefing);
+  const deleteBriefing = useAIStore((s) => s.deleteBriefing);
 
   useEffect(() => {
     void refresh();
@@ -92,8 +93,25 @@ export function BriefingCard() {
 
   return (
     <div className="rounded-lg border border-primary-500/30 bg-primary-500/10 p-4 mb-4">
-      <div className="text-xs text-primary-600 dark:text-primary-400 mb-1">
-        ✨ Today's briefing{generatedAtLabel}
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-xs text-primary-600 dark:text-primary-400">
+          ✨ Today's briefing{generatedAtLabel}
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            className="rounded px-2 py-0.5 text-xs text-primary-600 dark:text-primary-400 hover:bg-primary-500/20"
+            onClick={() => void generate()}
+          >
+            Regenerate
+          </button>
+          <button
+            aria-label="Dismiss briefing"
+            className="rounded px-1.5 py-0.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-primary-500/20"
+            onClick={() => void deleteBriefing()}
+          >
+            ✕
+          </button>
+        </div>
       </div>
       <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{briefing.text}</p>
     </div>
