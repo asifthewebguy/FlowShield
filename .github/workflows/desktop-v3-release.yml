@@ -225,13 +225,12 @@ jobs:
           ./app.AppImage --appimage-extract >/dev/null
           export LD_LIBRARY_PATH="$CUDA_PATH/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
           # usr/bin also holds helper scripts (e.g. xdg-open from the opener
-          # plugin); target the app binary by name, falling back to the ELF that
-          # actually links libcudart.
+          # plugin); target the app binary by name, falling back to the first ELF
+          # executable.
           BIN=squashfs-root/usr/bin/flowshield-desktop
           if [ ! -x "$BIN" ]; then
             BIN=$(for f in squashfs-root/usr/bin/*; do
-              file -b "$f" 2>/dev/null | grep -q 'ELF .*executable' \
-                && ldd "$f" 2>/dev/null | grep -q libcudart && { echo "$f"; break; }
+              file -b "$f" 2>/dev/null | grep -q 'ELF .*executable' && { echo "$f"; break; }
             done)
           fi
           echo "main binary: $BIN"
@@ -239,20 +238,30 @@ jobs:
             echo "::error::could not locate the cuda app binary in usr/bin — aborting cuda job."
             exit 1
           fi
-          # Resolve + copy the CUDA libs the binary needs. libcuda is skipped
-          # (driver-provided, and absent on the GPU-less runner anyway).
+          # Copy the CUDA runtime libs deterministically from the toolkit paths
+          # (cudart/nvrtc under $CUDA_PATH/lib64; cublas/cublasLt/curand under the
+          # system multiarch dir). ldd of the top-level binary doesn't surface them
+          # — they're NEEDED by the bundled rust .so, not the binary — so resolve
+          # by known name instead. libcuda (the driver) is never bundled.
           mkdir -p squashfs-root/usr/lib
           COPIED=0
-          while read -r lib; do
-            case "$(basename "$lib")" in libcuda.so*) continue ;; esac
-            cp -Lv "$lib" squashfs-root/usr/lib/
-            COPIED=$((COPIED+1))
-          done < <(ldd "$BIN" | awk '/=> \//{print $3}' | grep -E '/(libcudart|libcublas|libcublasLt|libcurand|libnvrtc)\.so')
+          for soname in libcudart libcublas libcublasLt libcurand libnvrtc; do
+            for f in "$CUDA_PATH"/lib64/"$soname".so.* /usr/lib/x86_64-linux-gnu/"$soname".so.*; do
+              [ -e "$f" ] || continue
+              cp -Lv "$f" "squashfs-root/usr/lib/$(basename "$f")"
+              COPIED=$((COPIED+1))
+            done
+          done
           if [ "$COPIED" -eq 0 ]; then
-            echo "::error::no CUDA runtime libs resolved from the binary — aborting cuda job."
+            echo "::error::no CUDA runtime libs found under the toolkit paths — aborting cuda job."
             exit 1
           fi
-          patchelf --set-rpath '$ORIGIN/../lib' "$BIN"
+          # Make the binary (and the bundled rust .so, if present) find the CUDA
+          # libs at runtime via the AppDir lib dir.
+          patchelf --set-rpath '$ORIGIN/../lib' "$BIN" || true
+          if [ -e squashfs-root/usr/lib/libflowshield_desktop_lib.so ]; then
+            patchelf --set-rpath '$ORIGIN' squashfs-root/usr/lib/libflowshield_desktop_lib.so || true
+          fi
           # Repackage (CI runners have no FUSE -> --appimage-extract-and-run).
           wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
           chmod +x appimagetool
