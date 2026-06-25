@@ -102,7 +102,7 @@ export function SettingsAiPage() {
           <span className="text-sm text-gray-700">
             Use GPU when available —{' '}
             {gpuAvailable
-              ? 'Runs AI on your NVIDIA GPU. Applies to your next briefing.'
+              ? 'Runs AI on your NVIDIA GPU. Applies to your next briefing (full effect after restart).'
               : 'Requires the CUDA GPU build and an available NVIDIA GPU.'}
           </span>
         </label>
