@@ -322,6 +322,12 @@ pub fn delete_all_briefings(conn: &Connection) -> Result<(), AppError> {
     Ok(())
 }
 
+pub fn delete_briefing_for(conn: &Connection, date: &str) -> Result<(), AppError> {
+    conn.execute("DELETE FROM ai_briefings WHERE date = ?", params![date])
+        .map_err(|e| AppError::Storage(format!("delete_briefing_for: {e}")))?;
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelStatus {
@@ -708,6 +714,18 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM ai_briefings", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn delete_briefing_for_removes_only_that_date() {
+        let conn = fresh_conn();
+        upsert_briefing(&conn, &sample_briefing("2026-05-05", "gemma-2-2b")).unwrap();
+        upsert_briefing(&conn, &sample_briefing("2026-05-06", "gemma-2-2b")).unwrap();
+        delete_briefing_for(&conn, "2026-05-05").unwrap();
+        assert!(get_briefing_for(&conn, "2026-05-05", "gemma-2-2b").unwrap().is_none());
+        assert!(get_briefing_for(&conn, "2026-05-06", "gemma-2-2b").unwrap().is_some());
+        // idempotent: deleting a missing row is Ok (0 rows affected)
+        delete_briefing_for(&conn, "2026-05-05").unwrap();
     }
 
     fn sample_model_state(status: ModelStatus) -> ModelState {
