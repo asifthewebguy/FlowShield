@@ -114,8 +114,12 @@ export const useAIStore = create<AiStore>((set, get) => ({
     }
   },
   setPreferGpu: async (enabled) => {
-    await invoke('ai_device_set_prefer_gpu', { enabled });
-    set({ preferGpu: enabled });
+    try {
+      await invoke('ai_device_set_prefer_gpu', { enabled });
+      set({ preferGpu: enabled });
+    } catch (e) {
+      console.error('setPreferGpu failed:', e);
+    }
   },
 
   refreshReflection: async () => {

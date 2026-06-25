@@ -88,7 +88,11 @@ export function SettingsAiPage() {
             Enable Local AI (Beta) — runs Phi-3-mini + BGE-small entirely on this device
           </span>
         </label>
-        <label className="flex items-center gap-2">
+        <label
+          className={`flex items-center gap-2${
+            gpuAvailable ? '' : ' cursor-not-allowed opacity-50'
+          }`}
+        >
           <input
             type="checkbox"
             checked={gpuAvailable ? preferGpu : false}
