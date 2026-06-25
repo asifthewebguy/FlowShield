@@ -227,8 +227,12 @@ jobs:
           APPIMAGE=$(ls release-artifacts/FlowShield_*_amd64-cuda.AppImage)
           chmod +x "$APPIMAGE"
           "$APPIMAGE" --appimage-extract >/dev/null
-          if ls squashfs-root/usr/lib/libcudart.so* >/dev/null 2>&1; then
-            echo "::notice::libcudart bundled: $(ls squashfs-root/usr/lib/libcudart.so*)"
+          # linuxdeploy may place the lib under usr/lib/ OR the multiarch
+          # usr/lib/x86_64-linux-gnu/ — search the whole tree so a bundled lib
+          # in either location isn't a false-negative.
+          FOUND=$(find squashfs-root -name 'libcudart.so*' | head -1)
+          if [ -n "$FOUND" ]; then
+            echo "::notice::libcudart bundled: $FOUND"
           else
             echo "::error::libcudart.so not bundled in the cuda AppImage — aborting cuda job."
             exit 1
