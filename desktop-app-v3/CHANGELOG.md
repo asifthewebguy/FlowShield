@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.10.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.9.1-alpha.0...v3.10.0-alpha.0) (2026-06-25)
+
+
+### Features
+
+* **desktop-v3:** device-agnostic AI inference + off-by-default cuda feature (GPU Phase A) ([#94](https://github.com/asifthewebguy/FlowShield/issues/94)) ([bb6d27c](https://github.com/asifthewebguy/FlowShield/commit/bb6d27c594be6b4771983336cba297bde8a57737))
+
 ## [3.9.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.9.0-alpha.0...v3.9.1-alpha.0) (2026-06-24)
 
 
