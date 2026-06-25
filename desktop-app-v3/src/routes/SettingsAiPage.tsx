@@ -16,6 +16,10 @@ export function SettingsAiPage() {
   const downloadProgress = useAIStore((s) => s.downloadProgress);
   const refreshSettings = useAIStore((s) => s.refreshSettings);
   const setLabsEnabled = useAIStore((s) => s.setLabsEnabled);
+  const preferGpu = useAIStore((s) => s.preferGpu);
+  const gpuAvailable = useAIStore((s) => s.gpuAvailable);
+  const setPreferGpu = useAIStore((s) => s.setPreferGpu);
+  const refreshDevicePrefs = useAIStore((s) => s.refreshDevicePrefs);
 
   const [busy, setBusy] = useState<null | 'redownload' | 'delete'>(null);
   const [busyMessage, setBusyMessage] = useState<string>('');
@@ -23,6 +27,10 @@ export function SettingsAiPage() {
   useEffect(() => {
     void refreshSettings();
   }, [refreshSettings]);
+
+  useEffect(() => {
+    void refreshDevicePrefs();
+  }, [refreshDevicePrefs]);
 
   if (!settings) {
     return <div className="p-6 text-gray-500">Loading…</div>;
@@ -78,6 +86,20 @@ export function SettingsAiPage() {
           />
           <span className="text-sm text-gray-700">
             Enable Local AI (Beta) — runs Phi-3-mini + BGE-small entirely on this device
+          </span>
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={gpuAvailable ? preferGpu : false}
+            disabled={!gpuAvailable}
+            onChange={(e) => void setPreferGpu(e.target.checked)}
+          />
+          <span className="text-sm text-gray-700">
+            Use GPU when available —{' '}
+            {gpuAvailable
+              ? 'Runs AI on your NVIDIA GPU. Applies to your next briefing.'
+              : 'Requires the CUDA GPU build and an available NVIDIA GPU.'}
           </span>
         </label>
       </section>
