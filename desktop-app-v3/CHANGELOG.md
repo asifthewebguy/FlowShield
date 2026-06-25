@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.11.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.10.0-alpha.0...v3.11.0-alpha.0) (2026-06-25)
+
+
+### Features
+
+* **desktop-v3:** briefing card delete + regenerate controls ([#102](https://github.com/asifthewebguy/FlowShield/issues/102)) ([217328a](https://github.com/asifthewebguy/FlowShield/commit/217328a0d81d0cf5630eb09815d1fc6855583106))
+* **desktop-v3:** CPU/GPU selector toggle (GPU Phase C) ([#105](https://github.com/asifthewebguy/FlowShield/issues/105)) ([cef1712](https://github.com/asifthewebguy/FlowShield/commit/cef171203d80ffc9622b4fd83f459d2d297cc7f1))
+
+
+### Bug Fixes
+
+* **desktop-v3:** wrap LLM prompt in Phi-3 chat template (stop ramble/leak) ([#104](https://github.com/asifthewebguy/FlowShield/issues/104)) ([380c48c](https://github.com/asifthewebguy/FlowShield/commit/380c48c3339381d29107eb74943284a502a0a4dd))
+
 ## [3.10.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.9.1-alpha.0...v3.10.0-alpha.0) (2026-06-25)
 
 
