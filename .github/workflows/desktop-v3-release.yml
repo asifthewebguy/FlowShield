@@ -201,46 +201,59 @@ jobs:
         working-directory: desktop-app-v3
         env:
           CUDA_COMPUTE_CAP: '75'
-        # linuxdeploy bundles the binary's NEEDED libs; point the loader at the
-        # toolkit lib dir so libcudart/libcublas/libcurand get pulled into the
-        # AppImage. The Jimver action exports CUDA_PATH as an env var (not a step
-        # output), so reference $CUDA_PATH at the shell level.
-        run: |
-          export LD_LIBRARY_PATH="$CUDA_PATH/lib64:${LD_LIBRARY_PATH:-}"
-          npm run tauri:build -- --features cuda --bundles appimage
+        # Produces a CUDA-linked AppImage. Tauri's linuxdeploy does NOT bundle the
+        # CUDA runtime (the libs live outside its search paths), so the next step
+        # injects them — this just builds the binary + base AppImage.
+        run: npm run tauri:build -- --features cuda --bundles appimage
 
-      - name: Stage + rename cuda AppImage
+      - name: Bundle CUDA runtime + repackage AppImage
+        # linuxdeploy leaves the CUDA runtime out, so post-process: extract the
+        # AppImage, copy the CUDA .so's the binary links (cudart/cublas/cublasLt/
+        # curand/nvrtc) into the AppDir lib dir, set RUNPATH so they resolve at
+        # runtime, then repackage. libcuda (the driver) is intentionally NOT
+        # bundled — it comes from the user's NVIDIA driver. Result is a
+        # self-contained GPU AppImage (~300-400 MB; libcublas alone is ~250 MB).
+        env:
+          ARCH: x86_64
         run: |
           set -euo pipefail
           SRC=$(ls desktop-app-v3/src-tauri/target/release/bundle/appimage/FlowShield_*_amd64.AppImage)
-          mkdir -p release-artifacts
           BASE=$(basename "${SRC%_amd64.AppImage}")
-          DEST="release-artifacts/${BASE}_amd64-cuda.AppImage"
-          mv "$SRC" "$DEST"
-          echo "--- staged ---"
-          ls -la release-artifacts/
-
-      - name: Assert CUDA runtime libs are bundled
-        # The one novel risk: a "cuda" AppImage that silently bundled no CUDA
-        # runtime would fall back to CPU on the user's machine. Extract the
-        # AppImage (no FUSE needed) and fail THIS job (not the release) if
-        # libcudart isn't inside it.
-        run: |
-          set -euo pipefail
-          APPIMAGE=$(ls release-artifacts/FlowShield_*_amd64-cuda.AppImage)
-          chmod +x "$APPIMAGE"
-          "$APPIMAGE" --appimage-extract >/dev/null
-          # linuxdeploy may place the lib under usr/lib/ OR the multiarch
-          # usr/lib/x86_64-linux-gnu/ — search the whole tree so a bundled lib
-          # in either location isn't a false-negative.
-          FOUND=$(find squashfs-root -name 'libcudart.so*' | head -1)
-          if [ -n "$FOUND" ]; then
-            echo "::notice::libcudart bundled: $FOUND"
-          else
-            echo "::error::libcudart.so not bundled in the cuda AppImage — aborting cuda job."
+          DEST="$GITHUB_WORKSPACE/release-artifacts/${BASE}_amd64-cuda.AppImage"
+          mkdir -p "$GITHUB_WORKSPACE/release-artifacts"
+          WORK=$(mktemp -d); cp "$SRC" "$WORK/app.AppImage"; cd "$WORK"
+          ./app.AppImage --appimage-extract >/dev/null
+          BIN=$(find squashfs-root/usr/bin -maxdepth 1 -type f -executable | head -1)
+          echo "main binary: $BIN"
+          # Resolve + copy the CUDA libs the binary needs. libcuda is skipped
+          # (driver-provided, and absent on the GPU-less runner anyway).
+          export LD_LIBRARY_PATH="$CUDA_PATH/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+          mkdir -p squashfs-root/usr/lib
+          COPIED=0
+          while read -r lib; do
+            case "$(basename "$lib")" in libcuda.so*) continue ;; esac
+            cp -Lv "$lib" squashfs-root/usr/lib/
+            COPIED=$((COPIED+1))
+          done < <(ldd "$BIN" | awk '/=> \//{print $3}' | grep -E '/(libcudart|libcublas|libcublasLt|libcurand|libnvrtc)\.so')
+          if [ "$COPIED" -eq 0 ]; then
+            echo "::error::no CUDA runtime libs resolved from the binary — aborting cuda job."
             exit 1
           fi
-          rm -rf squashfs-root
+          patchelf --set-rpath '$ORIGIN/../lib' "$BIN"
+          # Repackage (CI runners have no FUSE -> --appimage-extract-and-run).
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract-and-run squashfs-root "$DEST"
+          # Verify libcudart actually landed inside the repackaged AppImage.
+          cd "$GITHUB_WORKSPACE"; rm -rf verify; mkdir verify; cd verify
+          "$DEST" --appimage-extract >/dev/null
+          if find squashfs-root -name 'libcudart.so*' | grep -q .; then
+            echo "::notice::self-contained CUDA libs: $(find squashfs-root \( -name 'libcu*.so*' -o -name 'libnvrtc*' \) -exec basename {} \; | sort -u | tr '\n' ' ')"
+          else
+            echo "::error::libcudart.so still missing after bundling — aborting cuda job."
+            exit 1
+          fi
+          cd "$GITHUB_WORKSPACE"; ls -la release-artifacts/
 
       - name: Upload cuda artifact
         uses: actions/upload-artifact@v4
