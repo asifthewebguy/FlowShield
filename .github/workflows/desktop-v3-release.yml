@@ -223,11 +223,24 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/release-artifacts"
           WORK=$(mktemp -d); cp "$SRC" "$WORK/app.AppImage"; cd "$WORK"
           ./app.AppImage --appimage-extract >/dev/null
-          BIN=$(find squashfs-root/usr/bin -maxdepth 1 -type f -executable | head -1)
+          export LD_LIBRARY_PATH="$CUDA_PATH/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+          # usr/bin also holds helper scripts (e.g. xdg-open from the opener
+          # plugin); target the app binary by name, falling back to the ELF that
+          # actually links libcudart.
+          BIN=squashfs-root/usr/bin/flowshield-desktop
+          if [ ! -x "$BIN" ]; then
+            BIN=$(for f in squashfs-root/usr/bin/*; do
+              file -b "$f" 2>/dev/null | grep -q 'ELF .*executable' \
+                && ldd "$f" 2>/dev/null | grep -q libcudart && { echo "$f"; break; }
+            done)
+          fi
           echo "main binary: $BIN"
+          if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
+            echo "::error::could not locate the cuda app binary in usr/bin — aborting cuda job."
+            exit 1
+          fi
           # Resolve + copy the CUDA libs the binary needs. libcuda is skipped
           # (driver-provided, and absent on the GPU-less runner anyway).
-          export LD_LIBRARY_PATH="$CUDA_PATH/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
           mkdir -p squashfs-root/usr/lib
           COPIED=0
           while read -r lib; do
