@@ -136,9 +136,12 @@ impl CandleLlmRuntime {
             ));
         }
 
+        // Wrap in the Phi-3 instruct chat template so the model answers as the
+        // assistant and stops at <|end|> (raw prompts ramble — see phi3_chat_wrap).
+        let wrapped = phi3_chat_wrap(prompt);
         let encoding = self
             .tokenizer
-            .encode(prompt, true)
+            .encode(wrapped, true)
             .map_err(|e| AiError::Tokenize(format!("encode prompt: {e}")))?;
 
         let mut tokens: Vec<u32> = encoding.get_ids().to_vec();
@@ -221,11 +224,33 @@ fn simple_hash_u64(s: &str) -> u64 {
     h
 }
 
+/// Wrap a raw prompt in the Phi-3 instruct chat template. Phi-3-mini-4k is an
+/// instruct model trained on `<|user|>…<|end|>\n<|assistant|>`; fed a raw
+/// completion prompt it never enters an assistant turn, so it never emits the
+/// `<|end|>` stop token and rambles past the answer (hallucinating extra
+/// instruction blocks). Wrapping makes it answer as the assistant and stop
+/// cleanly at `<|end|>`. The `<|…|>` markers are Phi-3 special tokens, encoded
+/// to their special-token IDs by the tokenizer.
+fn phi3_chat_wrap(prompt: &str) -> String {
+    format!("<|user|>\n{prompt}<|end|>\n<|assistant|>\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
     use tempfile::tempdir;
+
+    #[test]
+    fn phi3_chat_wrap_uses_instruct_template() {
+        // The instruct model must receive the prompt inside its chat template
+        // so it answers as the assistant and emits <|end|> (instead of running
+        // in completion mode and rambling past the answer).
+        assert_eq!(
+            phi3_chat_wrap("Summarize my day."),
+            "<|user|>\nSummarize my day.<|end|>\n<|assistant|>\n"
+        );
+    }
 
     #[test]
     fn model_id_matches_registry() {
