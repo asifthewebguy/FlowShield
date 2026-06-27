@@ -13,13 +13,14 @@ export async function GET() {
       database: 'connected',
       timestamp: new Date().toISOString(),
     });
-  } catch (error: any) {
+  } catch (error) {
+    // Log full detail server-side; never return error.message to the client
+    // (it can leak DB host / connection-string details).
     logger.error('Health check failed', error);
     return NextResponse.json(
       {
         status: 'error',
         database: 'disconnected',
-        error: error.message || 'Unknown error',
         timestamp: new Date().toISOString(),
       },
       { status: 500 }

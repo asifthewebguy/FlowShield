@@ -6,12 +6,11 @@
 [build.environment]
   NODE_VERSION = "20"
   SECRETS_SCAN_OMIT_PATHS = "DEPLOYMENT.md,.env.production.example"
-  SECRETS_SCAN_OMIT_KEYS = "NEXTAUTH_URL"
+  SECRETS_SCAN_OMIT_KEYS = "NEXTAUTH_URL,PUSHER_KEY"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+# No catch-all SPA redirect: @netlify/plugin-nextjs owns App Router routing.
+# A `/* -> /index.html 200` rule would shadow API routes (return the HTML shell
+# with 200 instead of JSON), silently breaking auth/error handling.

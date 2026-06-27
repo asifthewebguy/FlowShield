@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
+import { redis } from '@/lib/redis';
 
 export async function GET() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -11,6 +13,9 @@ export async function GET() {
   const redirectUri = `${appUrl}/api/auth/google/callback`;
   const scope = 'openid email profile';
 
+  const state = randomBytes(16).toString('hex');
+  await redis.set('oauth-state:' + state, '1', { ex: 600 });
+
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -18,6 +23,7 @@ export async function GET() {
     scope,
     access_type: 'offline',
     prompt: 'select_account',
+    state,
   });
 
   return NextResponse.redirect(

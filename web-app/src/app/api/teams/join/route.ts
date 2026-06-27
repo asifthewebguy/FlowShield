@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const ip = getClientIp(request);
-    const rl = rateLimit(`team-join:${ip}`, 5, 60 * 60 * 1000);
+    const rl = await rateLimit(`team-join:${ip}`, 5, 60 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'Too many join attempts. Please try again later.' },

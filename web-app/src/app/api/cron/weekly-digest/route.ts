@@ -4,6 +4,7 @@ import { sendEmail } from '@/lib/email';
 import { logger } from '@/lib/logger';
 import { generateInsights } from '@/lib/insights';
 import { getSettings } from '@/lib/settings';
+import { safeEqual } from '@/lib/timing-safe';
 
 /**
  * GET /api/cron/weekly-digest
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
   // Validate the cron secret. Header-only — query string would leak the
   // secret into server access logs and CDN logs.
   const secret = request.headers.get('x-cron-secret');
-  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+  if (!process.env.CRON_SECRET || !safeEqual(secret, process.env.CRON_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

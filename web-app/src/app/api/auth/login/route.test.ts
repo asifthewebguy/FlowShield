@@ -88,7 +88,23 @@ describe('POST /api/auth/login — email-verified gate', () => {
     delete process.env.REQUIRE_EMAIL_VERIFICATION;
   });
 
-  it('allows unverified users when REQUIRE_EMAIL_VERIFICATION is unset (default off)', async () => {
+  it('blocks unverified users by default when REQUIRE_EMAIL_VERIFICATION is unset (default ON)', async () => {
+    mocks.findUnique.mockResolvedValueOnce({
+      id: 'user-1',
+      email: 'user@example.com',
+      role: 'USER',
+      hashedPassword: 'hashed',
+      emailVerified: null,
+      preferences: null,
+    });
+    const res = await POST(makeRequest({ email: 'user@example.com', password: 'password123' }));
+    expect(res.status).toBe(403);
+    const data = await res.json();
+    expect(data.code).toBe('EMAIL_NOT_VERIFIED');
+  });
+
+  it('allows unverified users only when verification is explicitly disabled (=false)', async () => {
+    process.env.REQUIRE_EMAIL_VERIFICATION = 'false';
     mocks.findUnique.mockResolvedValueOnce({
       id: 'user-1',
       email: 'user@example.com',

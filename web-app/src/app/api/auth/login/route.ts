@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   try {
     // Rate limit: 10 attempts per 15 minutes per IP
     const ip = getClientIp(request);
-    const rl = rateLimit(`login:${ip}`, 10, 15 * 60 * 1000);
+    const rl = await rateLimit(`login:${ip}`, 10, 15 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'Too many login attempts. Please try again later.' },
@@ -29,10 +29,19 @@ export async function POST(request: NextRequest) {
     }
     const { email, password, rememberMe } = parsed.data;
 
-    // Find user
+    // Find user — explicit select to avoid leaking token/reset fields
     const user = await prisma.user.findUnique({
       where: { email },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        hashedPassword: true,
+        name: true,
+        timezone: true,
+        role: true,
+        createdAt: true,
+        emailVerified: true,
+        subscriptionTier: true,
         preferences: true,
       },
     });
@@ -54,9 +63,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Email-verified gate (off by default until mobile + desktop clients
-    // ship error-code handling). Set REQUIRE_EMAIL_VERIFICATION=true to enable.
-    if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true' && !user.emailVerified) {
+    // Email-verified gate (ON by default). Set REQUIRE_EMAIL_VERIFICATION=false to disable.
+    if (process.env.REQUIRE_EMAIL_VERIFICATION !== 'false' && !user.emailVerified) {
       return NextResponse.json(
         {
           error: 'Please verify your email before signing in.',
@@ -70,7 +78,7 @@ export async function POST(request: NextRequest) {
     const token = sign(
       { userId: user.id, email: user.email, role: user.role },
       getJwtSecret(),
-      { expiresIn: rememberMe ? '30d' : '7d' } // 30 days if rememberMe is true, else 7 days
+      { expiresIn: rememberMe ? '30d' : '7d', algorithm: 'HS256' } // 30 days if rememberMe is true, else 7 days
     );
 
     // Return user data (excluding password) and token

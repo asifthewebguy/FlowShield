@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const rl = rateLimit(`change-password:${userId}`, 10, 60 * 60 * 1000);
+    const rl = await rateLimit(`change-password:${userId}`, 10, 60 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'Too many password-change attempts. Please try again later.' },

@@ -1,9 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
 import { resolveCategory } from '@/lib/activity-sync';
+import { rateLimit } from '@/lib/rate-limit';
+
+const MAX_STRING = 2048;
+const MAX_DURATION = 86400; // 1 day in seconds
+
+const activityItemSchema = z.object({
+  timestamp: z.string().refine((v) => {
+    const d = new Date(v);
+    return !isNaN(d.getTime());
+  }, { message: 'timestamp must be a valid date string' }),
+  windowTitle: z.string().max(MAX_STRING).optional(),
+  processName: z.string().max(MAX_STRING).optional(),
+  applicationName: z.string().max(MAX_STRING).optional(),
+  domain: z.string().max(MAX_STRING).optional(),
+  url: z.string().max(MAX_STRING).optional(),
+  category: z.string().max(MAX_STRING).optional(),
+  durationSeconds: z
+    .number()
+    .int()
+    .finite()
+    .min(0)
+    .transform((v) => Math.min(v, MAX_DURATION)),
+  activityLevel: z.number().min(0).max(100).optional(),
+  sessionId: z.string().max(MAX_STRING).optional().nullable(),
+});
+
+const syncBodySchema = z.object({
+  activities: z.array(activityItemSchema).min(1).max(500),
+  source: z.string().max(64).optional(),
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,18 +47,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { activities } = body;
-
-    if (!Array.isArray(activities) || activities.length === 0) {
+    // Per-user rate limit: 120 requests per minute
+    const rl = await rateLimit('activity-sync:' + userId, 120, 60 * 1000);
+    if (!rl.allowed) {
       return NextResponse.json(
-        { error: 'No activities provided' },
+        { error: 'Rate limit exceeded' },
+        { status: 429 }
+      );
+    }
+
+    const raw = await request.json();
+    const parsed = syncBodySchema.safeParse(raw);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? 'Invalid request body' },
         { status: 400 }
       );
     }
 
+    const { activities, source: rawSource } = parsed.data;
     // Source identifies the client sending data: desktop | browser | mobile
-    const source: string = (body.source as string) || 'desktop';
+    const source: string = rawSource || 'desktop';
 
     // Load CategoryRules once for the whole batch (browser source only)
     const categoryRules = source === 'browser'
@@ -38,7 +79,7 @@ export async function POST(request: NextRequest) {
       : [];
 
     // Store activities in database
-    const activityLogs = activities.map((activity: any) => ({
+    const activityLogs = activities.map((activity) => ({
       userId,
       timestamp: new Date(activity.timestamp),
       windowTitle: activity.windowTitle || activity.url || 'Unknown',

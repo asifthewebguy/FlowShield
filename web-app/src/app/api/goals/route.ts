@@ -20,7 +20,11 @@ export async function GET(req: NextRequest) {
       active: true,
     };
 
+    const VALID_GOAL_TYPES = ['DAILY_TIME', 'WEEKLY_TIME', 'STREAK', 'PRODUCTIVITY_SCORE'] as const;
     if (type) {
+      if (!VALID_GOAL_TYPES.includes(type as typeof VALID_GOAL_TYPES[number])) {
+        return NextResponse.json({ error: 'Invalid goal type' }, { status: 400 });
+      }
       whereClause.goalType = type;
     }
 

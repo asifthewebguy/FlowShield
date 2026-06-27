@@ -59,6 +59,12 @@ export async function POST(request: NextRequest) {
 
     let device;
     if (existingDevice) {
+      if (existingDevice.userId !== userId) {
+        return NextResponse.json(
+          { error: 'Device not found' },
+          { status: 404 }
+        );
+      }
       // Update existing device
       device = await prisma.deviceConnection.update({
         where: { deviceId },

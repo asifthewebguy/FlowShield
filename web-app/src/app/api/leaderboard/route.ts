@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         const cached = await redis.get<RawLeaderboardEntry[]>(cacheKey);
         if (cached) {
             return NextResponse.json({
-                leaderboard: cached.map(e => ({ ...e, isCurrentUser: e.userId === userId })),
+                leaderboard: cached.map(({ userId: uid, ...rest }) => ({ ...rest, isCurrentUser: uid === userId })),
             });
         }
 
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         await redis.set(cacheKey, rawEntries, { ex: CACHE_TTL });
 
         return NextResponse.json({
-            leaderboard: rawEntries.map(e => ({ ...e, isCurrentUser: e.userId === userId })),
+            leaderboard: rawEntries.map(({ userId: uid, ...rest }) => ({ ...rest, isCurrentUser: uid === userId })),
         });
 
     } catch (error) {

@@ -3,6 +3,18 @@ import { prisma } from '@/lib/prisma';
 import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 
+/**
+ * RFC-4180-safe CSV cell: doubles internal quotes, wraps in quotes, and
+ * prefixes with a single quote if the value starts with a formula trigger
+ * character (= + - @ TAB CR) to prevent CSV injection in spreadsheet apps.
+ */
+function csvCell(value: unknown): string {
+  const str = String(value ?? '');
+  const escaped = str.replace(/"/g, '""');
+  const needsPrefix = /^[=+\-@\t\r]/.test(str);
+  return needsPrefix ? `"'${escaped}"` : `"${escaped}"`;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const userId = getUserIdFromToken(request);
@@ -71,7 +83,7 @@ export async function GET(request: NextRequest) {
 
       const csvContent = [
         headers.join(','),
-        ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
+        ...rows.map((row) => row.map(csvCell).join(',')),
       ].join('\n');
 
       return new NextResponse(csvContent, {

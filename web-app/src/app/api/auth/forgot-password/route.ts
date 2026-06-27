@@ -18,7 +18,7 @@ const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 export async function POST(request: NextRequest) {
   try {
     const ip = getClientIp(request);
-    const rl = rateLimit(`forgot-password:${ip}`, 3, 60 * 60 * 1000);
+    const rl = await rateLimit(`forgot-password:${ip}`, 3, 60 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'Too many password-reset requests. Please try again later.' },

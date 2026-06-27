@@ -1,3 +1,4 @@
+import sanitizeHtml from 'sanitize-html';
 import { prisma } from './prisma';
 import { buildWelcomeEmail } from './email-templates';
 
@@ -37,6 +38,42 @@ const DEFAULTS: AppSettings = {
   },
 };
 
+// Email-safe sanitize-html allowlist. Used when persisting admin-controlled
+// email body fields so that stored HTML is clean before it ever reaches users.
+const EMAIL_SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
+  allowedTags: [
+    'h1', 'h2', 'h3', 'h4', 'p', 'a', 'b', 'i', 'strong', 'em',
+    'ul', 'ol', 'li', 'br', 'span', 'div', 'img', 'hr',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td',
+  ],
+  allowedAttributes: {
+    'a': ['href'],
+    'img': ['src', 'alt', 'width', 'height'],
+  },
+  allowedSchemes: ['http', 'https', 'mailto'],
+  allowedSchemesByTag: {
+    img: ['http', 'https'],
+  },
+};
+
+// HTML-escape a plain-text value before interpolating it into an HTML template.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Normalise a plain-text string for use as an email subject.
+ * Strips CR/LF (SMTP header injection) and any angle-bracket tags (stray markup).
+ */
+function plainText(s: string): string {
+  return s.replace(/[\r\n]+/g, ' ').replace(/<[^>]*>/g, '');
+}
+
 /**
  * Load all app settings from the DB, falling back to defaults for missing keys.
  */
@@ -74,13 +111,33 @@ export async function getSettings(): Promise<AppSettings> {
 
 /**
  * Save a flat map of key→value pairs to the DB (upsert).
+ * Email body fields are sanitized with an email-safe allowlist before persistence
+ * so admin-controlled HTML never reaches users unsanitized.
  */
 export async function saveSettings(
   updates: Record<string, unknown>,
   updatedBy: string
 ): Promise<void> {
+  const sanitized = Object.fromEntries(
+    Object.entries(updates).map(([key, value]) => {
+      if (
+        (key === 'email.welcome.body' || key === 'email.digest.body') &&
+        typeof value === 'string'
+      ) {
+        return [key, sanitizeHtml(value, EMAIL_SANITIZE_OPTIONS)];
+      }
+      if (
+        (key === 'email.welcome.subject' || key === 'email.verification.subject' || key === 'email.digest.subject') &&
+        typeof value === 'string'
+      ) {
+        return [key, plainText(value)];
+      }
+      return [key, value];
+    })
+  );
+
   await Promise.all(
-    Object.entries(updates).map(([key, value]) =>
+    Object.entries(sanitized).map(([key, value]) =>
       prisma.appSetting.upsert({
         where: { key },
         update: { value: value as never, updatedBy },
@@ -93,8 +150,23 @@ export async function saveSettings(
 /**
  * Apply template variables to an email body string.
  * Replaces {{name}}, {{appUrl}}, etc.
+ * Variable VALUES are HTML-escaped to prevent injection from user-controlled data.
  */
 export function applyTemplate(
+  template: string,
+  vars: Record<string, string>
+): string {
+  return Object.entries(vars).reduce(
+    (str, [k, v]) => str.replaceAll(`{{${k}}}`, escapeHtml(v)),
+    template
+  );
+}
+
+/**
+ * Apply template variables to a plain-text string (e.g. email subjects).
+ * Unlike applyTemplate, values are NOT HTML-escaped so subjects render correctly.
+ */
+export function applyTemplatePlain(
   template: string,
   vars: Record<string, string>
 ): string {

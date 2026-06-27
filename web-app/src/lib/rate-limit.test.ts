@@ -1,93 +1,76 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Mock Redis client so no real connection is attempted.
+vi.mock('@/lib/redis', () => ({ redis: {}, CACHE_TTL: 300 }));
+vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
+
+// Shared mock for Ratelimit#limit; every instance delegates to it.
+const limitMock = vi.fn();
+vi.mock('@upstash/ratelimit', () => {
+  class Ratelimit {
+    static slidingWindow() {
+      return {};
+    }
+    limit = limitMock;
+  }
+  return { Ratelimit };
+});
+
 import { rateLimit, getClientIp } from './rate-limit';
 
-// The rate limiter uses a module-level Map. We need to ensure tests don't
-// bleed into each other via shared state, so we use unique keys per test.
-let testId = 0;
-function uniqueKey(prefix = 'test') {
-  return `${prefix}:${++testId}:${Date.now()}`;
-}
+describe('rateLimit (Redis-backed)', () => {
+  beforeEach(() => {
+    limitMock.mockReset();
+  });
 
-describe('rateLimit', () => {
-  it('allows the first request under the limit', () => {
-    const result = rateLimit(uniqueKey(), 5, 60_000);
+  it('passes through an allowed result', async () => {
+    limitMock.mockResolvedValue({ success: true, remaining: 4, reset: Date.now() + 60_000 });
+    const result = await rateLimit('login:1.2.3.4', 5, 60_000);
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBe(4);
+    expect(result.resetInMs).toBeGreaterThan(0);
   });
 
-  it('tracks remaining count correctly', () => {
-    const key = uniqueKey();
-    rateLimit(key, 5, 60_000);
-    rateLimit(key, 5, 60_000);
-    const result = rateLimit(key, 5, 60_000);
+  it('passes through a blocked result', async () => {
+    limitMock.mockResolvedValue({ success: false, remaining: 0, reset: Date.now() + 30_000 });
+    const result = await rateLimit('login:1.2.3.4', 5, 60_000);
+    expect(result.allowed).toBe(false);
+    expect(result.remaining).toBe(0);
+  });
+
+  it('clamps resetInMs to >= 0 when reset is in the past', async () => {
+    limitMock.mockResolvedValue({ success: false, remaining: 0, reset: Date.now() - 5_000 });
+    const result = await rateLimit('login:1.2.3.4', 5, 60_000);
+    expect(result.resetInMs).toBe(0);
+  });
+
+  it('fails open (allowed) when Redis throws', async () => {
+    limitMock.mockRejectedValue(new Error('redis down'));
+    const result = await rateLimit('login:1.2.3.4', 5, 60_000);
     expect(result.allowed).toBe(true);
-    expect(result.remaining).toBe(2);
-  });
-
-  it('blocks requests at the limit', () => {
-    const key = uniqueKey();
-    for (let i = 0; i < 3; i++) rateLimit(key, 3, 60_000);
-    const blocked = rateLimit(key, 3, 60_000);
-    expect(blocked.allowed).toBe(false);
-    expect(blocked.remaining).toBe(0);
-  });
-
-  it('returns resetInMs close to windowMs when blocked', () => {
-    const key = uniqueKey();
-    const windowMs = 60_000;
-    for (let i = 0; i < 2; i++) rateLimit(key, 2, windowMs);
-    const blocked = rateLimit(key, 2, windowMs);
-    expect(blocked.allowed).toBe(false);
-    // resetInMs should be approximately windowMs (within 100ms tolerance)
-    expect(blocked.resetInMs).toBeGreaterThan(windowMs - 200);
-    expect(blocked.resetInMs).toBeLessThanOrEqual(windowMs);
-  });
-
-  it('allows new requests after the window expires', async () => {
-    const key = uniqueKey();
-    const windowMs = 50; // 50ms window
-    rateLimit(key, 1, windowMs);
-    // First request fills the limit
-    expect(rateLimit(key, 1, windowMs).allowed).toBe(false);
-
-    // Wait for window to expire
-    await new Promise((r) => setTimeout(r, 60));
-    expect(rateLimit(key, 1, windowMs).allowed).toBe(true);
-  });
-
-  it('treats different keys independently', () => {
-    const key1 = uniqueKey('a');
-    const key2 = uniqueKey('b');
-    for (let i = 0; i < 3; i++) rateLimit(key1, 3, 60_000);
-    // key1 is at limit; key2 should still be fresh
-    expect(rateLimit(key1, 3, 60_000).allowed).toBe(false);
-    expect(rateLimit(key2, 3, 60_000).allowed).toBe(true);
-  });
-
-  it('allows a limit of 1 (single-request window)', () => {
-    const key = uniqueKey();
-    expect(rateLimit(key, 1, 60_000).allowed).toBe(true);
-    expect(rateLimit(key, 1, 60_000).allowed).toBe(false);
-  });
-
-  it('remaining is 0 when exactly at limit', () => {
-    const key = uniqueKey();
-    rateLimit(key, 2, 60_000);
-    const last = rateLimit(key, 2, 60_000);
-    expect(last.allowed).toBe(true);
-    expect(last.remaining).toBe(0);
+    expect(result.remaining).toBe(5);
   });
 });
 
 describe('getClientIp', () => {
-  it('extracts IP from x-forwarded-for header', () => {
+  it('prefers Netlify x-nf-client-connection-ip (unspoofable edge IP)', () => {
     const req = new Request('https://example.com', {
-      headers: { 'x-forwarded-for': '192.168.1.1, 10.0.0.1' },
+      headers: {
+        'x-nf-client-connection-ip': '203.0.113.9',
+        'x-forwarded-for': '1.2.3.4, 203.0.113.9',
+      },
     });
-    expect(getClientIp(req)).toBe('192.168.1.1');
+    expect(getClientIp(req)).toBe('203.0.113.9');
   });
 
-  it('falls back to x-real-ip when x-forwarded-for is absent', () => {
+  it('uses the LAST x-forwarded-for element (closest to trusted edge)', () => {
+    const req = new Request('https://example.com', {
+      headers: { 'x-forwarded-for': '1.2.3.4, 203.0.113.9' },
+    });
+    expect(getClientIp(req)).toBe('203.0.113.9');
+  });
+
+  it('falls back to x-real-ip when no forwarded headers exist', () => {
     const req = new Request('https://example.com', {
       headers: { 'x-real-ip': '10.0.0.5' },
     });
@@ -99,9 +82,9 @@ describe('getClientIp', () => {
     expect(getClientIp(req)).toBe('unknown');
   });
 
-  it('trims whitespace from x-forwarded-for', () => {
+  it('trims whitespace from forwarded values', () => {
     const req = new Request('https://example.com', {
-      headers: { 'x-forwarded-for': '  203.0.113.5  , 10.0.0.1' },
+      headers: { 'x-forwarded-for': '  1.2.3.4 ,  203.0.113.5  ' },
     });
     expect(getClientIp(req)).toBe('203.0.113.5');
   });
