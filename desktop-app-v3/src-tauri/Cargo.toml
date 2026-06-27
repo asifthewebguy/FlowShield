@@ -1,6 +1,6 @@
 [package]
 name = "flowshield-desktop"
-version = "3.11.0-alpha.0"
+version = "3.11.1-alpha.0"
 description = "FlowShield desktop client"
 authors = ["FlowShield"]
 edition = "2021"

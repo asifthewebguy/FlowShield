@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.11.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.11.0-alpha.0...v3.11.1-alpha.0) (2026-06-27)
+
+
+### Bug Fixes
+
+* **desktop-v3:** sanitize reflection question output too ([#108](https://github.com/asifthewebguy/FlowShield/issues/108)) ([e6a30eb](https://github.com/asifthewebguy/FlowShield/commit/e6a30eb75af8952b81aef99e219453230ef2abbc))
+* **desktop-v3:** strip appended sections from briefing output ([#106](https://github.com/asifthewebguy/FlowShield/issues/106)) ([532a659](https://github.com/asifthewebguy/FlowShield/commit/532a659686b1f0593a6de55be1148680231a670d))
+
 ## [3.11.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.10.0-alpha.0...v3.11.0-alpha.0) (2026-06-25)
 
 
