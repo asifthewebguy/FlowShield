@@ -69,9 +69,60 @@ pub fn render_reflection_prompt(ctx: &ReflectionContext<'_>) -> String {
     REFLECTION_TEMPLATE.replace("{chunks}", &chunks_block)
 }
 
+/// Keep only the first paragraph of an LLM completion. Phi-3-mini-q4 reliably
+/// produces the intended answer first (a 2-3 sentence briefing, or a single
+/// reflection question), then under thin/sparse data sometimes appends extra
+/// sections after a blank line — an "Explanation:" list, a restated "USER
+/// DATA:" echo of the prompt chunks, a "Solution N:" follow-up. Return the text
+/// before the first blank line; as a guard, also cut at any leaked
+/// prompt-structure marker in case an echo isn't preceded by a blank line. A
+/// real answer never contains these markers.
+pub(crate) fn first_paragraph(text: &str) -> &str {
+    let t = text.trim_start();
+    let mut end = t.find("\n\n").unwrap_or(t.len());
+    for marker in [
+        "USER DATA",
+        "YESTERDAY'S REFLECTION",
+        "TODAY'S DATA",
+        "TODAY:",
+        "BRIEFING:",
+        "QUESTION:",
+        "[Session]",
+        "[Day]",
+        "[Reflection]",
+    ] {
+        if let Some(i) = t.find(marker) {
+            end = end.min(i);
+        }
+    }
+    t[..end].trim_end()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn first_paragraph_strips_appended_sections() {
+        // Real GPU briefing leak: an "Explanation:" list after a blank line.
+        let leaked = "In the past week you had 5 sessions. Today, limit app usage.\n\n\nExplanation:\n- focus time decreased";
+        assert_eq!(
+            first_paragraph(leaked),
+            "In the past week you had 5 sessions. Today, limit app usage."
+        );
+        // Real reflection leak: question then a "Solution 1:" follow-up.
+        let q = "What caused the Thursday session to end 25 minutes early?\n\n\nSolution 1:\nWhat led to the 15-minute session ending early?";
+        assert_eq!(
+            first_paragraph(q),
+            "What caused the Thursday session to end 25 minutes early?"
+        );
+        // Inline chunk echo with no blank line (defense-in-depth guard).
+        let inline = "Focus dropped this week. [Session] Sat 10:00-10:15 echo.";
+        assert_eq!(first_paragraph(inline), "Focus dropped this week.");
+        // Clean single-paragraph output is unchanged.
+        let clean = "You had 5 sessions averaging 10 minutes. Today, take a break.";
+        assert_eq!(first_paragraph(clean), clean);
+    }
 
     #[test]
     fn briefing_template_substitutes_all_placeholders() {

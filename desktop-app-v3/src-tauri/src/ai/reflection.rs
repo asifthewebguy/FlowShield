@@ -3,7 +3,7 @@
 //! pending ai_reflections row (answer = "") for the user to answer.
 
 use crate::ai::candle_llm::CandleLlmRuntime;
-use crate::ai::prompts::{render_reflection_prompt, ReflectionContext};
+use crate::ai::prompts::{first_paragraph, render_reflection_prompt, ReflectionContext};
 use crate::ai::runtime::LlmRuntime;
 use crate::error::{AiError, AppError};
 use crate::store::ai::{self as store_ai, ChunkSource, ModelStatus, Reflection};
@@ -35,7 +35,9 @@ pub async fn build_question<L: LlmRuntime + ?Sized>(
 ) -> Result<String, AiError> {
     let prompt = render_reflection_prompt(&ReflectionContext { chunks: session_texts });
     let raw = llm.generate(&prompt, REFLECTION_MAX_TOKENS).await?;
-    Ok(raw.trim().to_string())
+    // Keep only the question — the model sometimes appends a "Solution N:"
+    // follow-up after a blank line (see first_paragraph).
+    Ok(first_paragraph(&raw).to_string())
 }
 
 /// Build a *pending* reflection row (answer empty) for `date`.
@@ -157,6 +159,19 @@ mod tests {
         let texts = vec!["[Session] Tue 2026-06-23 09:00-09:20 (60min planned, 20min actual).".to_string()];
         let q = build_question(&llm, &texts).await.unwrap();
         assert_eq!(q, "What blocked your 9am session?");
+    }
+
+    #[tokio::test]
+    async fn build_question_strips_appended_solution_block() {
+        // The model sometimes appends a "Solution N:" follow-up after the
+        // question — first_paragraph keeps only the question.
+        let llm = MockLlmRuntime {
+            canned_response: "What caused the early finish?\n\n\nSolution 1:\nWhat led to it?".to_string(),
+            id: "mock-llm-v0",
+        };
+        let texts = vec!["[Session] Tue 2026-06-23 09:00-09:20 (60min planned, 20min actual).".to_string()];
+        let q = build_question(&llm, &texts).await.unwrap();
+        assert_eq!(q, "What caused the early finish?");
     }
 
     #[test]
