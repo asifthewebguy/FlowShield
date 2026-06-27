@@ -171,7 +171,10 @@ namespace FlowShield.Desktop.UI
                 }
                 else
                 {
-                    _statusLabel.Text = "Invalid email or password";
+                    _statusLabel.Text = _apiClient.LastLoginErrorCode == "EMAIL_NOT_VERIFIED"
+                        ? (_apiClient.LastLoginErrorMessage
+                            ?? "Please verify your email. Check your inbox for the verification link.")
+                        : "Invalid email or password";
                     _loginButton.Enabled = true;
                     _loginButton.Text = "Login";
                 }
