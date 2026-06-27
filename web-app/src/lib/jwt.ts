@@ -38,7 +38,9 @@ export function getUserIdFromToken(request: NextRequest): string | null {
     }
 
     const token = authHeader.substring(7);
-    const decoded = verify(token, getJwtSecret()) as { userId: string };
+    // Pin the algorithm — without this, jsonwebtoken accepts whatever `alg` the
+    // token header declares (alg-confusion / alg:none risk on any lib change).
+    const decoded = verify(token, getJwtSecret(), { algorithms: ['HS256'] }) as { userId: string };
     return decoded.userId;
   } catch (error) {
     return null;
@@ -58,7 +60,7 @@ export function getAdminFromToken(request: NextRequest): string | null {
     }
 
     const token = authHeader.substring(7);
-    const decoded = verify(token, getJwtSecret()) as { userId: string; role?: string };
+    const decoded = verify(token, getJwtSecret(), { algorithms: ['HS256'] }) as { userId: string; role?: string };
     if (decoded.role !== 'ADMIN') {
       return null;
     }

@@ -16,15 +16,15 @@ export async function POST(
         const { id } = await params;
         const { action } = await request.json(); // 'pause' or 'resume'
 
-        const session = await prisma.session.findUnique({
-            where: { id },
-        });
-
-        if (!session || session.userId !== userId) {
-            return NextResponse.json({ error: 'Session not found' }, { status: 404 });
-        }
-
         if (action === 'pause') {
+            const session = await prisma.session.findUnique({
+                where: { id },
+            });
+
+            if (!session || session.userId !== userId) {
+                return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+            }
+
             if (session.isPaused) {
                 return NextResponse.json({ message: 'Session already paused' });
             }
@@ -37,32 +37,39 @@ export async function POST(
                 },
             });
         } else if (action === 'resume') {
-            if (!session.isPaused || !session.pausedAt) {
-                return NextResponse.json({ message: 'Session is not paused' });
-            }
+            const updatedSession = await prisma.$transaction(async (tx) => {
+                const session = await tx.session.findUnique({
+                    where: { id },
+                });
 
-            // Calculate how long it was paused
-            const now = new Date();
-            const pausedDurationMs = now.getTime() - new Date(session.pausedAt).getTime();
+                if (!session || session.userId !== userId) {
+                    throw Object.assign(new Error('Session not found'), { status: 404 });
+                }
 
-            // We need to push the startTime (or endTime if it existed?)
-            // Actually, simplest logic for a deadline-based timer:
-            // If we have a 'startTime' and 'plannedDuration', the 'endTime' is implied.
-            // If we pause, we stop the clock. When we resume, we must shift the 'startTime' forward by the pause duration
-            // so that (now - startTime) reflects only active time? 
-            // OR better: shift the implied end time.
-            // Let's shift the startTime forward, effectively "ignoring" the paused block.
+                if (!session.isPaused || !session.pausedAt) {
+                    throw Object.assign(new Error('Session is not paused'), { status: 409 });
+                }
 
-            const newStartTime = new Date(session.startTime.getTime() + pausedDurationMs);
+                // Calculate how long it was paused
+                const now = new Date();
+                const pausedDurationMs = now.getTime() - new Date(session.pausedAt).getTime();
 
-            await prisma.session.update({
-                where: { id },
-                data: {
-                    isPaused: false,
-                    pausedAt: null, // Clear it
-                    startTime: newStartTime,
-                },
+                // Shift startTime forward by the paused duration so the implied
+                // end time (startTime + plannedDuration) stays correct and only
+                // active time is counted.
+                const newStartTime = new Date(session.startTime.getTime() + pausedDurationMs);
+
+                return tx.session.update({
+                    where: { id },
+                    data: {
+                        isPaused: false,
+                        pausedAt: null,
+                        startTime: newStartTime,
+                    },
+                });
             });
+
+            return NextResponse.json({ session: updatedSession });
         } else {
             return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
         }
@@ -70,7 +77,13 @@ export async function POST(
         const updatedSession = await prisma.session.findUnique({ where: { id } });
         return NextResponse.json({ session: updatedSession });
 
-    } catch (error) {
+    } catch (error: any) {
+        if (error?.status === 404) {
+            return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+        }
+        if (error?.status === 409) {
+            return NextResponse.json({ message: 'Session is not paused' }, { status: 409 });
+        }
         logger.error('Toggle pause error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }

@@ -14,7 +14,7 @@ import { ResetPasswordSchema } from '@/lib/schemas';
 export async function POST(request: NextRequest) {
   try {
     const ip = getClientIp(request);
-    const rl = rateLimit(`reset-password:${ip}`, 10, 60 * 60 * 1000);
+    const rl = await rateLimit(`reset-password:${ip}`, 3, 60 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },

@@ -17,7 +17,15 @@ export async function GET(request: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        timezone: true,
+        role: true,
+        createdAt: true,
+        emailVerified: true,
+        subscriptionTier: true,
         preferences: true,
       },
     });
@@ -71,7 +79,15 @@ export async function PUT(request: NextRequest) {
           },
         }),
       },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        timezone: true,
+        role: true,
+        createdAt: true,
+        emailVerified: true,
+        subscriptionTier: true,
         preferences: true,
       },
     });

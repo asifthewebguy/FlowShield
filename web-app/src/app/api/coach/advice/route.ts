@@ -1,31 +1,16 @@
 import { NextRequest } from 'next/server';
-import { verify } from 'jsonwebtoken';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken, getJwtSecret } from '@/lib/jwt';
+import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { redis } from '@/lib/redis';
+import { rateLimit } from '@/lib/rate-limit';
 import {
   coachCacheKey,
   coachCacheTtl,
   freeTierCanCall,
   nextFreeTierResetAt,
 } from '@/lib/coach-quota';
-
-// EventSource cannot set Authorization headers, so the client can pass the JWT
-// as ?token=... on this SSE endpoint. Fall back to that when the header is absent.
-function getUserIdFromRequestOrQuery(request: NextRequest): string | null {
-  const fromHeader = getUserIdFromToken(request);
-  if (fromHeader) return fromHeader;
-  const queryToken = new URL(request.url).searchParams.get('token');
-  if (!queryToken) return null;
-  try {
-    const decoded = verify(queryToken, getJwtSecret()) as { userId: string };
-    return decoded.userId;
-  } catch {
-    return null;
-  }
-}
 
 async function readCache(userId: string, tier: string): Promise<string | null> {
   try {
@@ -56,6 +41,13 @@ async function writeCache(userId: string, tier: string, text: string): Promise<v
  * Quota for FREE tier is durable: enforced via `User.lastCoachCallAt` in the
  * database, so a Redis outage cannot grant unlimited calls. Cache is purely a
  * perf layer.
+ *
+ * Auth: Authorization: Bearer <jwt> header only. Both web and desktop clients
+ * use fetch/HttpClient with the Authorization header — no ?token= fallback.
+ *
+ * Concurrency: a per-user Redis lock (coach-lock:<userId>, 60s TTL) prevents N
+ * concurrent requests from all passing freeTierCanCall and opening N Gemini streams.
+ * Per-user rate limit: 5 requests/min.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -69,7 +61,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const userId = getUserIdFromRequestOrQuery(request);
+    const userId = getUserIdFromToken(request);
 
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -135,6 +127,16 @@ export async function GET(request: NextRequest) {
 
     if (cacheOnly) {
       return new Response(null, { status: 204 });
+    }
+
+    // Per-user rate limit: 5 requests/min to prevent burst abuse before we
+    // open a Gemini stream.
+    const rl = await rateLimit('coach:' + userId, 5, 60 * 1000);
+    if (!rl.allowed) {
+      return new Response(
+        JSON.stringify({ error: 'Too many requests' }),
+        { status: 429, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     // Gather last 7 days of activity context
@@ -222,16 +224,29 @@ Keep your response to 150–250 words. Do not include a greeting like "Hi [name]
 
 Based on this data, give ${userName} 2–3 specific, actionable coaching tips to improve their productivity this week. Reference their actual numbers.`;
 
+    // Distributed lock: prevents concurrent requests from opening N Gemini streams.
+    // Lock auto-expires in 60s if the stream never completes (e.g. client disconnect).
+    const lockKey = 'coach-lock:' + userId;
+    const locked = await redis.set(lockKey, '1', { nx: true, ex: 60 });
+    if (!locked) {
+      return new Response(
+        JSON.stringify({ error: 'A coaching request is already in progress' }),
+        { status: 429, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Stream Gemini's response as SSE + accumulate for cache write.
     // We persist to cache + stamp lastCoachCallAt ONLY on a clean stream
     // completion, never on a mid-stream error — partial advice would burn
     // the FREE user's monthly call without giving them usable text.
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-    const encoder = new TextEncoder();
-    let fullText = '';
+    let stream: ReadableStream;
+    try {
+      const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
+      const encoder = new TextEncoder();
+      let fullText = '';
 
-    const stream = new ReadableStream({
-      async start(controller) {
+      stream = new ReadableStream({
+        async start(controller) {
         let streamErrored = false;
         try {
           const model = genAI.getGenerativeModel({
@@ -256,6 +271,7 @@ Based on this data, give ${userName} 2–3 specific, actionable coaching tips to
         } catch (err) {
           streamErrored = true;
           logger.error('Coach stream error:', err);
+          await redis.del(lockKey);
           const errData = JSON.stringify({ error: 'Stream failed' });
           controller.enqueue(encoder.encode(`data: ${errData}\n\n`));
           controller.close();
@@ -275,10 +291,16 @@ Based on this data, give ${userName} 2–3 specific, actionable coaching tips to
           }
         }
 
+        await redis.del(lockKey);
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       },
     });
+
+    } catch (err) {
+      await redis.del(lockKey);
+      throw err;
+    }
 
     return new Response(stream, {
       headers: {

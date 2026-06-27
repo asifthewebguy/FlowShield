@@ -18,6 +18,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${appUrl}/auth/login?error=oauth_cancelled`);
   }
 
+  const state = searchParams.get('state');
+  if (!state) {
+    return NextResponse.redirect(`${appUrl}/auth/login?error=oauth_invalid_state`);
+  }
+
   try {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -27,6 +32,13 @@ export async function GET(request: NextRequest) {
       logger.error('Google OAuth env vars missing');
       return NextResponse.redirect(`${appUrl}/auth/login?error=oauth_config`);
     }
+
+    // Validate and consume OAuth state (CSRF protection)
+    const storedState = await redis.get('oauth-state:' + state);
+    if (!storedState) {
+      return NextResponse.redirect(`${appUrl}/auth/login?error=oauth_invalid_state`);
+    }
+    await redis.del('oauth-state:' + state);
 
     // Exchange code for tokens
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -101,7 +113,7 @@ export async function GET(request: NextRequest) {
     const jwtToken = sign(
       { userId: user.id, email: user.email, role: user.role },
       getJwtSecret(),
-      { expiresIn: '7d' }
+      { expiresIn: '7d', algorithm: 'HS256' }
     );
 
     const isNewUser = !user.preferences?.workStyle;

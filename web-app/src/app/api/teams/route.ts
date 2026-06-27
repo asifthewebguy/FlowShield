@@ -55,6 +55,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Team name must be at least 2 characters' }, { status: 400 });
     }
 
+    const owned = await prisma.team.count({ where: { ownerId: userId } });
+    if (owned >= 5) {
+      return NextResponse.json({ error: 'Team limit reached (max 5)' }, { status: 429 });
+    }
+
     const team = await prisma.team.create({
       data: {
         name: name.trim(),

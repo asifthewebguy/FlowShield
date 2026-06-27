@@ -6,13 +6,23 @@ import crypto from 'crypto';
 import { sendEmail } from '@/lib/email';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { SignupSchema } from '@/lib/schemas';
-import { getSettings, applyTemplate } from '@/lib/settings';
+import { getSettings, applyTemplate, applyTemplatePlain } from '@/lib/settings';
+
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 export async function POST(request: NextRequest) {
   try {
     // Rate limit: 5 signups per hour per IP
     const ip = getClientIp(request);
-    const rl = rateLimit(`signup:${ip}`, 5, 60 * 60 * 1000);
+    const rl = await rateLimit(`signup:${ip}`, 5, 60 * 60 * 1000);
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'Too many signup attempts. Please try again later.' },
@@ -37,8 +47,8 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: 'User with this email already exists' },
-        { status: 409 }
+        { message: 'If that email can be registered, check your inbox to continue.' },
+        { status: 200 }
       );
     }
 
@@ -90,7 +100,7 @@ export async function POST(request: NextRequest) {
     if (emailSettings.email.welcome.enabled) {
       await sendEmail({
         to: email,
-        subject: applyTemplate(emailSettings.email.welcome.subject, vars),
+        subject: applyTemplatePlain(emailSettings.email.welcome.subject, vars),
         html: applyTemplate(emailSettings.email.welcome.body, vars),
       });
     }
@@ -101,8 +111,8 @@ export async function POST(request: NextRequest) {
         subject: 'New User Registration - FlowShield',
         html: `
           <h1>New User Registered</h1>
-          <p>Email: ${email}</p>
-          <p>Name: ${name || 'N/A'}</p>
+          <p>Email: ${escapeHtml(email)}</p>
+          <p>Name: ${escapeHtml(name || 'N/A')}</p>
           <p>Time: ${new Date().toLocaleString()}</p>
         `,
       });

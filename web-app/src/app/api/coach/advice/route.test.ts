@@ -6,23 +6,27 @@ process.env.GOOGLE_AI_API_KEY = 'test-gemini-key';
 const mocks = vi.hoisted(() => ({
   redisGet: vi.fn(),
   redisSetex: vi.fn(async (_key: string, _ttl: number, _text: string) => 'OK'),
+  redisSet: vi.fn(async () => 'OK' as 'OK' | null),
+  redisDel: vi.fn(async () => 1),
   generateContentStream: vi.fn(),
   userFindUnique: vi.fn(),
   sessionFindMany: vi.fn(),
   dailyStatsFindMany: vi.fn(),
   activityLogFindMany: vi.fn(),
+  rateLimitFn: vi.fn(async () => ({ allowed: true, remaining: 4, resetInMs: 0 })),
 }));
 
 vi.mock('@/lib/redis', () => ({
   redis: {
     get: mocks.redisGet,
     setex: mocks.redisSetex,
+    set: mocks.redisSet,
+    del: mocks.redisDel,
   },
 }));
 
 vi.mock('@/lib/jwt', () => ({
   getUserIdFromToken: vi.fn(() => 'user-1'),
-  getJwtSecret: vi.fn(() => 'test-secret'),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -45,6 +49,10 @@ vi.mock('@google/generative-ai', () => {
     },
   };
 });
+
+vi.mock('@/lib/rate-limit', () => ({
+  rateLimit: mocks.rateLimitFn,
+}));
 
 const { redisGet, redisSetex, generateContentStream } = mocks;
 
@@ -83,6 +91,9 @@ describe('GET /api/coach/advice', () => {
     vi.clearAllMocks();
     redisGet.mockReset();
     redisSetex.mockClear();
+    mocks.redisSet.mockClear();
+    mocks.redisDel.mockClear();
+    mocks.rateLimitFn.mockClear();
     generateContentStream.mockReset();
   });
 
@@ -204,5 +215,31 @@ describe('GET /api/coach/advice', () => {
     expect(key).toMatch(/^coach:user-1:\d{4}-\d{2}-\d{2}$/);
     expect(ttl).toBe(DAILY_TTL_SECONDS);
     expect(payload).toBe('Pro advice here.');
+  });
+
+  it('returns 429 when per-user rate limit is exceeded', async () => {
+    mockUser('FREE');
+    redisGet.mockResolvedValueOnce(null);
+    mocks.rateLimitFn.mockResolvedValueOnce({ allowed: false, remaining: 0, resetInMs: 60000 });
+    const res = await GET(makeRequest('/api/coach/advice'));
+    expect(res.status).toBe(429);
+    const data = await res.json();
+    expect(data.error).toBe('Too many requests');
+    expect(generateContentStream).not.toHaveBeenCalled();
+    expect(mocks.redisSet).not.toHaveBeenCalled();
+  });
+
+  it('returns 429 when a coaching request is already in progress (lock held)', async () => {
+    redisGet.mockResolvedValueOnce(null);
+    const now = new Date();
+    primePrisma({
+      sessions: [{ startTime: now, actualDuration: 45, completed: true }],
+    });
+    mocks.redisSet.mockResolvedValueOnce(null); // lock already held
+    const res = await GET(makeRequest('/api/coach/advice'));
+    expect(res.status).toBe(429);
+    const data = await res.json();
+    expect(data.error).toBe('A coaching request is already in progress');
+    expect(generateContentStream).not.toHaveBeenCalled();
   });
 });

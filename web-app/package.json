@@ -13,6 +13,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@sentry/nextjs": "^10.42.0",
+    "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.36.3",
     "bcryptjs": "^2.4.3",
     "date-fns": "^3.0.0",
@@ -26,6 +27,7 @@
     "react-dom": "^19.2.3",
     "recharts": "^2.10.3",
     "resend": "^6.6.0",
+    "sanitize-html": "^2.17.5",
     "swr": "^2.3.7",
     "web-push": "^3.6.7",
     "zod": "^4.3.6",
@@ -40,6 +42,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/sanitize-html": "^2.16.1",
     "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.16",

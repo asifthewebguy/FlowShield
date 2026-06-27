@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { invalidateUserTierCache } from '@/lib/subscription';
+import { safeEqual } from '@/lib/timing-safe';
 
 /**
  * POST /api/cron/expire-subscriptions
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (provided !== expected) {
+  if (!safeEqual(provided, expected)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

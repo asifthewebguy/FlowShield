@@ -4,6 +4,7 @@ import { getUserIdFromToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
 import { invalidateAnalyticsCache } from '@/lib/analytics-cache';
+import { CreateSessionSchema } from '@/lib/schemas';
 
 // Create a new session
 export async function POST(request: NextRequest) {
@@ -15,14 +16,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { plannedDuration, sessionType = 'WORK', projectId } = body;
-
-    if (!plannedDuration) {
+    const parsed = CreateSessionSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'plannedDuration is required' },
+        { error: 'Invalid input', details: parsed.error.flatten() },
         { status: 400 }
       );
     }
+    const { plannedDuration, sessionType, projectId } = parsed.data;
 
     // Race check: refuse to create a second active session for the same user.
     // A session is "active" when it hasn't been marked completed and has no
@@ -80,8 +81,12 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50') || 50, 1), 200);
     const date = searchParams.get('date'); // YYYY-MM-DD format
+
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json({ error: 'Invalid date format, expected YYYY-MM-DD' }, { status: 400 });
+    }
 
     let where: any = { userId };
 
