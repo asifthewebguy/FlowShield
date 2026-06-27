@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long-xyz';
 
 const mocks = vi.hoisted(() => ({
-  getUserIdFromToken: vi.fn(),
+  getAuthUserId: vi.fn(),
   projectFindFirst: vi.fn(),
   projectDelete: vi.fn(),
   projectUpdate: vi.fn(),
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/jwt', () => ({
-  getUserIdFromToken: mocks.getUserIdFromToken,
+  getAuthUserId: mocks.getAuthUserId,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -53,14 +53,14 @@ describe('DELETE /api/projects/[id]', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    mocks.getUserIdFromToken.mockReturnValue(null);
+    mocks.getAuthUserId.mockResolvedValue(null);
     const res = await DELETE(makeRequest(), makeParams('p1'));
     expect(res.status).toBe(401);
     expect(mocks.projectDelete).not.toHaveBeenCalled();
   });
 
   it('returns 404 when the project does not exist', async () => {
-    mocks.getUserIdFromToken.mockReturnValue('user-1');
+    mocks.getAuthUserId.mockResolvedValue('user-1');
     mocks.projectFindFirst.mockResolvedValueOnce(null);
     const res = await DELETE(makeRequest(), makeParams('does-not-exist'));
     expect(res.status).toBe(404);
@@ -68,7 +68,7 @@ describe('DELETE /api/projects/[id]', () => {
   });
 
   it('returns 404 when the project belongs to another user', async () => {
-    mocks.getUserIdFromToken.mockReturnValue('user-1');
+    mocks.getAuthUserId.mockResolvedValue('user-1');
     // findFirst is scoped by { id, userId } — another user's project returns null
     mocks.projectFindFirst.mockResolvedValueOnce(null);
     const res = await DELETE(makeRequest(), makeParams('someone-elses-project'));
@@ -80,7 +80,7 @@ describe('DELETE /api/projects/[id]', () => {
   });
 
   it('deletes the project and returns ok on success', async () => {
-    mocks.getUserIdFromToken.mockReturnValue('user-1');
+    mocks.getAuthUserId.mockResolvedValue('user-1');
     mocks.projectFindFirst.mockResolvedValueOnce({
       id: 'p1',
       userId: 'user-1',

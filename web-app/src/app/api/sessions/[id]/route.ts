@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
 import { bustCoachCacheIfPaid } from '@/lib/coach-quota';
@@ -17,7 +17,7 @@ export async function PATCH(
   context: RouteContext
 ) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -153,7 +153,7 @@ export async function DELETE(
   context: RouteContext
 ) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

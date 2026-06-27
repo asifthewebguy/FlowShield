@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { UpdatePreferencesSchema } from '@/lib/schemas';
 import { bustCoachCacheIfPaid } from '@/lib/coach-quota';
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json(
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json(

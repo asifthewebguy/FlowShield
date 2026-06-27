@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { rateLimit } from '@/lib/rate-limit';
 
@@ -43,7 +43,7 @@ function isAllowedPushEndpoint(url: string): boolean {
 
 export async function POST(req: NextRequest) {
     try {
-        const userId = getUserIdFromToken(req);
+        const userId = await getAuthUserId(req);
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }

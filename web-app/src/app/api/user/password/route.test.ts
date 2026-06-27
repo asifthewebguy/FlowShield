@@ -20,7 +20,8 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 vi.mock('@/lib/jwt', () => ({
-  getUserIdFromToken: vi.fn(() => 'user-1'),
+  getAuthUserId: vi.fn(async () => 'user-1'),
+  revokeUserTokens: vi.fn(async () => {}),
 }));
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -76,7 +77,7 @@ describe('POST /api/user/password', () => {
     expect(mocks.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'user-1' },
-        data: { hashedPassword: `hashed:${VALID_NEW}` },
+        data: { hashedPassword: `hashed:${VALID_NEW}`, tokenVersion: { increment: 1 } },
       })
     );
   });

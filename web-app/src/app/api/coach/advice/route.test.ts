@@ -26,7 +26,7 @@ vi.mock('@/lib/redis', () => ({
 }));
 
 vi.mock('@/lib/jwt', () => ({
-  getUserIdFromToken: vi.fn(() => 'user-1'),
+  getAuthUserId: vi.fn(async () => 'user-1'),
 }));
 
 vi.mock('@/lib/prisma', () => ({

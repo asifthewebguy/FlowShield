@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 
 // GET - List all connected devices for the user
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json(
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 // POST - Register or update a device connection
 export async function POST(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json(
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
 // PATCH - Update device (rename, deactivate)
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json(
@@ -157,7 +157,7 @@ export async function PATCH(request: NextRequest) {
 // DELETE - Disconnect/remove a device
 export async function DELETE(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json(

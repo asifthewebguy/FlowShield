@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyPassword } from '@/lib/auth';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId, revokeUserTokens } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { DeleteAccountSchema } from '@/lib/schemas';
 
@@ -15,7 +15,7 @@ import { DeleteAccountSchema } from '@/lib/schemas';
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -63,6 +63,7 @@ export async function DELETE(request: NextRequest) {
     // sessions, activityLogs, goals, dailyStats, devices,
     // pushSubscriptions, projects, preferences
     await prisma.user.delete({ where: { id: userId } });
+    await revokeUserTokens(userId); // clear the tv cache — user row is already gone
 
     logger.info(`User account deleted: ${userId}`);
 

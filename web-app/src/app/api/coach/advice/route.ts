@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { redis } from '@/lib/redis';
 import { rateLimit } from '@/lib/rate-limit';
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {

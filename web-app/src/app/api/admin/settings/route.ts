@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFromToken } from '@/lib/jwt';
+import { getAuthAdminId } from '@/lib/jwt';
 import { getSettings, saveSettings } from '@/lib/settings';
 
 export async function GET(request: NextRequest) {
-  const adminId = getAdminFromToken(request);
+  const adminId = await getAuthAdminId(request);
   if (!adminId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const adminId = getAdminFromToken(request);
+  const adminId = await getAuthAdminId(request);
   if (!adminId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

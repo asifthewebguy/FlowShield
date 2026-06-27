@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAdminFromToken } from '@/lib/jwt';
+import { getAuthAdminId } from '@/lib/jwt';
 import { invalidateUserTierCache } from '@/lib/subscription';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const adminId = getAdminFromToken(request);
+  const adminId = await getAuthAdminId(request);
   if (!adminId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -68,7 +68,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const adminId = getAdminFromToken(request);
+  const adminId = await getAuthAdminId(request);
   if (!adminId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -124,7 +124,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const adminId = getAdminFromToken(request);
+  const adminId = await getAuthAdminId(request);
   if (!adminId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
