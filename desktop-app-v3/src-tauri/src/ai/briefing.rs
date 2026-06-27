@@ -32,6 +32,32 @@ const RETRIEVAL_K: usize = 15;
 const RETRIEVAL_WINDOW_DAYS: i64 = 7;
 const MIN_OUTPUT_LEN: usize = 5;
 
+/// Keep only the briefing itself. Phi-3-mini-q4 reliably writes the 2-3
+/// sentence briefing first, then under thin/sparse data sometimes appends
+/// extra sections after a blank line — an "Explanation:" list, a restated
+/// "USER DATA:" echo of the prompt, a "Suggested action:" block. Return the
+/// first paragraph (everything before the first blank line); as a guard,
+/// also cut at any leaked prompt-structure marker in case an echo isn't
+/// preceded by a blank line. A real briefing never contains these markers.
+fn first_paragraph(text: &str) -> &str {
+    let t = text.trim_start();
+    let mut end = t.find("\n\n").unwrap_or(t.len());
+    for marker in [
+        "USER DATA",
+        "YESTERDAY'S REFLECTION",
+        "TODAY:",
+        "BRIEFING:",
+        "[Session]",
+        "[Day]",
+        "[Reflection]",
+    ] {
+        if let Some(i) = t.find(marker) {
+            end = end.min(i);
+        }
+    }
+    t[..end].trim_end()
+}
+
 /// RAII guard that flips the `in_flight` flag back to `false` on drop —
 /// even if the orchestrator panics.
 struct InFlightGuard<'a>(&'a AtomicBool);
@@ -120,9 +146,11 @@ where
         local_time: &local_time,
     });
 
-    // Phase 2: run the LLM (no lock held).
+    // Phase 2: run the LLM (no lock held). Keep only the first paragraph —
+    // the model sometimes appends an "Explanation:"/"USER DATA:" echo section
+    // after the briefing (see first_paragraph).
     let text = runtime.generate(&prompt, BRIEFING_MAX_TOKENS).await?;
-    let trimmed = text.trim();
+    let trimmed = first_paragraph(&text);
 
     if trimmed.len() < MIN_OUTPUT_LEN {
         tracing::warn!(
@@ -190,6 +218,31 @@ mod tests {
         let db = store::open(&path).expect("open db");
         std::mem::forget(tmp);
         db
+    }
+
+    #[test]
+    fn first_paragraph_strips_appended_sections() {
+        // Real GPU leak: briefing, then an "Explanation:" list after a blank line.
+        let leaked = "In the past week you had 5 sessions. Today, limit app usage.\n\n\nExplanation:\n- focus time decreased\n- app usage increased";
+        assert_eq!(
+            first_paragraph(leaked),
+            "In the past week you had 5 sessions. Today, limit app usage."
+        );
+
+        // Real screenshot leak: briefing, then a "User Data:" echo of the chunks.
+        let leaked2 = "Your focus time decreased. Today, set a timer.\n\nUser Data:\n[Day] Sat. 3 sessions.";
+        assert_eq!(
+            first_paragraph(leaked2),
+            "Your focus time decreased. Today, set a timer."
+        );
+
+        // Defense-in-depth: an inline chunk echo with no blank line before it.
+        let leaked3 = "Focus dropped this week. [Session] Sat 10:00-10:15 echo.";
+        assert_eq!(first_paragraph(leaked3), "Focus dropped this week.");
+
+        // A clean single-paragraph briefing is returned unchanged.
+        let clean = "You had 5 sessions averaging 10 minutes. Today, take a break between blocks.";
+        assert_eq!(first_paragraph(clean), clean);
     }
 
     #[tokio::test]
