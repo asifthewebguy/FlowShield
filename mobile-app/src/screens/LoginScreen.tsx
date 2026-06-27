@@ -29,7 +29,11 @@ export default function LoginScreen() {
     try {
       await login(email.trim(), password);
     } catch (err: any) {
-      Alert.alert('Login Failed', err.message || 'Invalid email or password');
+      if (err.code === 'EMAIL_NOT_VERIFIED') {
+        Alert.alert('Verify your email', err.message || 'Check your inbox for the verification link.');
+      } else {
+        Alert.alert('Login Failed', err.message || 'Invalid email or password');
+      }
     } finally {
       setLoading(false);
     }

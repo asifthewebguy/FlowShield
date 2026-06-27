@@ -94,7 +94,9 @@ formLogin.addEventListener('submit', async (e) => {
     const data = await res.json();
 
     if (!res.ok) {
-      showError(data.error || 'Login failed');
+      showError(data.code === 'EMAIL_NOT_VERIFIED'
+        ? 'Please verify your email. Check your inbox for the verification link.'
+        : (data.error || 'Login failed'));
       return;
     }
 
