@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showResend, setShowResend] = useState(false);
 
   useEffect(() => {
     if (searchParams.get('registered') === 'true') {
@@ -30,10 +31,35 @@ export default function LoginPage() {
     }
   }, [searchParams]);
 
+  const handleResend = async () => {
+    setError('');
+    setSuccess('');
+    setLoading(true);
+    try {
+      const response = await fetch('/api/auth/request-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setShowResend(false);
+        setSuccess(data.message || 'Verification email sent. Check your inbox.');
+      } else {
+        setError(data.error || 'Could not resend verification email.');
+      }
+    } catch {
+      setError('An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setShowResend(false);
     setLoading(true);
 
     try {
@@ -48,8 +74,10 @@ export default function LoginPage() {
       if (!response.ok) {
         if (data.code === 'EMAIL_NOT_VERIFIED') {
           setError('Please verify your email before signing in. Check your inbox for the verification link.');
+          setShowResend(true);
         } else {
           setError(data.error || 'Login failed');
+          setShowResend(false);
         }
         return;
       }
@@ -89,6 +117,16 @@ export default function LoginPage() {
           {error && (
             <div className="bg-danger-50 dark:bg-danger-500/10 border border-danger-200 dark:border-danger-500/20 text-danger-600 dark:text-danger-400 px-4 py-3 rounded-xl text-sm">
               {error}
+              {showResend && (
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={loading || !formData.email}
+                  className="mt-2 block font-medium text-primary-600 dark:text-primary-400 hover:underline disabled:opacity-50"
+                >
+                  Resend verification email
+                </button>
+              )}
             </div>
           )}
 
