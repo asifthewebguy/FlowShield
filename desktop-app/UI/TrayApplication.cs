@@ -438,10 +438,11 @@ namespace FlowShield.Desktop.UI
                 // one, leaking a timer. Rely on LoginForm's Start() call instead.
                 _ = _sessionManager.InitializeAsync();
 
-                // Recover from an expired-session period: resync session state and
-                // reconnect Pusher so real-time events resume with the fresh UserId.
+                // Recover from an expired-session period: resync session state so a
+                // session that changed while logged out is picked up. Pusher is
+                // reconnected by RegisterDeviceAndLoadPreferencesAsync above (it calls
+                // ConnectPusherAsync after prefs load), so no direct call is needed here.
                 _ = _sessionManager.TriggerResyncAsync();
-                ConnectPusherAsync();
             }
         }
 
