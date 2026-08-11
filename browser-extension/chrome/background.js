@@ -15,6 +15,24 @@ let pendingLogs    = [];    // buffered before next sync
 let activeSession  = null;  // { id, plannedDuration, startTime, sessionType }
 let distractions   = [];    // from user preferences
 
+// ─── Persistence helpers ──────────────────────────────────────────────────────
+
+const MAX_PENDING_LOGS = 500; // matches desktop's offline-queue bound
+
+async function persistPendingLogs() {
+  if (pendingLogs.length > MAX_PENDING_LOGS) {
+    pendingLogs = pendingLogs.slice(-MAX_PENDING_LOGS); // keep newest
+  }
+  await chrome.storage.local.set({ pendingLogs });
+}
+
+async function restorePendingLogs() {
+  const { pendingLogs: stored } = await chrome.storage.local.get('pendingLogs');
+  if (Array.isArray(stored) && stored.length) {
+    pendingLogs = [...stored, ...pendingLogs];
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function getToken() {
@@ -114,9 +132,10 @@ async function syncActivities() {
       body:    JSON.stringify({ source: 'browser', activities: logsToSend }),
     });
     if (res.status === 401) {
-      // Stale token — clear it so popup shows login screen
+      // Token expired/revoked — clear it so popup shows login, but KEEP the
+      // logs: they sync after re-login (TOKEN_UPDATED triggers a replay).
       await chrome.storage.local.remove('token');
-      pendingLogs = []; // discard; user must re-auth
+      pendingLogs = [...logsToSend, ...pendingLogs];
     } else if (!res.ok) {
       // Transient error — put logs back for next sync
       pendingLogs = [...logsToSend, ...pendingLogs];
@@ -124,6 +143,9 @@ async function syncActivities() {
   } catch {
     pendingLogs = [...logsToSend, ...pendingLogs];
   }
+
+  // Persist survivors so an MV3 worker restart doesn't lose them.
+  await persistPendingLogs();
 }
 
 async function fetchActiveSession() {
@@ -233,9 +255,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (msg.token
       ? chrome.storage.local.set({ token: msg.token })
       : Promise.resolve()
-    ).then(() => {
-      fetchActiveSession();
-      fetchUserPreferences();
+    ).then(async () => {
+      await fetchActiveSession();
+      await fetchUserPreferences();
+      await syncActivities(); // replay logs preserved across the logged-out period
     });
     sendResponse({ ok: true });
     return true;
@@ -246,6 +269,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       updateBadge();
     });
     sendResponse({ ok: true });
+    return true;
+  }
+  if (msg.type === 'LOGOUT') {
+    (async () => {
+      // Explicit logout: last-chance sync while the token still works,
+      // then clear all auth + buffered state.
+      flushCurrentTab();
+      await syncActivities();
+      pendingLogs = [];
+      await chrome.storage.local.remove(['token', 'user', 'pendingLogs']);
+      activeSession = null;
+      updateBadge();
+      sendResponse({ ok: true });
+    })();
     return true;
   }
   if (msg.type === 'FORCE_SYNC') {
@@ -268,6 +305,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 (async () => {
+  await restorePendingLogs();
   const stored = await chrome.storage.local.get(['distractions']);
   distractions = stored.distractions || [];
   await fetchActiveSession();

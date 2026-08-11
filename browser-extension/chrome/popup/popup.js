@@ -114,7 +114,9 @@ formLogin.addEventListener('submit', async (e) => {
 });
 
 btnLogout.addEventListener('click', async () => {
-  await chrome.storage.local.remove(['token', 'user']);
+  await new Promise(resolve =>
+    chrome.runtime.sendMessage({ type: 'LOGOUT' }, resolve)
+  );
   showScreen('auth');
 });
 
