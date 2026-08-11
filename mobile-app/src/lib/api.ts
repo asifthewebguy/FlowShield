@@ -25,6 +25,25 @@ export class AuthError extends Error {
   }
 }
 
+/** Non-auth API error that preserves HTTP status and the API's error code. */
+export class ApiError extends Error {
+  code?: string;
+  status: number;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+// Fired when any authenticated call gets a 401 (token expired or revoked).
+// AuthProvider registers a handler that flags the session as expired.
+let onUnauthorized: (() => void) | null = null;
+export function setOnUnauthorized(handler: () => void): void {
+  onUnauthorized = handler;
+}
+
 export interface Session {
   id: string;
   startTime: string;
@@ -87,10 +106,16 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  return fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+
+  // 401 on an authenticated call = token expired or revoked. Login itself
+  // returns 401 for bad credentials — that's not a session expiry.
+  if (res.status === 401 && token && !path.startsWith('/api/auth/login')) {
+    await removeToken();
+    onUnauthorized?.();
+  }
+
+  return res;
 }
 
 export const api = {
@@ -123,19 +148,36 @@ export const api = {
     await removeStoredUser();
   },
 
+  async logoutAll(): Promise<void> {
+    const res = await apiFetch('/api/auth/logout-all', { method: 'POST' });
+    // 401 means the token was already dead — that's still "logged out everywhere".
+    if (!res.ok && res.status !== 401) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data.error || 'Failed to log out of all devices', res.status, data.code);
+    }
+    await removeToken();
+    await removeStoredUser();
+  },
+
   async getAnalytics(period: 'week' | 'month' = 'week'): Promise<{
     summary: AnalyticsSummary;
     dailyStats: DailyStat[];
     peakTimes: { peakPeriod: string };
   }> {
     const res = await apiFetch(`/api/analytics?period=${period}`);
-    if (!res.ok) throw new Error('Failed to fetch analytics');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data.error || 'Failed to fetch analytics', res.status, data.code);
+    }
     return res.json();
   },
 
   async getSessions(limit = 20): Promise<Session[]> {
     const res = await apiFetch(`/api/sessions?limit=${limit}`);
-    if (!res.ok) throw new Error('Failed to fetch sessions');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data.error || 'Failed to fetch sessions', res.status, data.code);
+    }
     const data = await res.json();
     return data.sessions || data;
   },
@@ -151,7 +193,7 @@ export const api = {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'Failed to start session');
+      throw new ApiError(data.error || 'Failed to start session', res.status, data.code);
     }
     return res.json();
   },
@@ -165,7 +207,10 @@ export const api = {
         completed: true,
       }),
     });
-    if (!res.ok) throw new Error('Failed to end session');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data.error || 'Failed to end session', res.status, data.code);
+    }
     return res.json();
   },
 
@@ -177,7 +222,10 @@ export const api = {
         completed: false,
       }),
     });
-    if (!res.ok) throw new Error('Failed to cancel session');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data.error || 'Failed to cancel session', res.status, data.code);
+    }
     return res.json();
   },
 
@@ -194,7 +242,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ activities, source: 'mobile' }),
     });
-    if (!res.ok) throw new Error('Failed to sync activity');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data.error || 'Failed to sync activity', res.status, data.code);
+    }
   },
 
   async registerPushToken(pushToken: string): Promise<void> {
