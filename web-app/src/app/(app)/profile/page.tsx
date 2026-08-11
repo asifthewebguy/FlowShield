@@ -3,10 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import NotificationManager from '@/components/common/NotificationManager';
 import { getToken, removeToken, removeUserData, setUserData } from '@/lib/auth-token';
-
-// ... (inside the component's JSX, likely in a "Settings" or "Preferences" section)
-// I need to see the file content first to know where to insert it.
-// Wait, I am viewing it in parallel. I'll do a separate tool call to edit after viewing.
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -838,11 +834,13 @@ function AccountAndPrivacyCard({
   };
 
   const handleLogoutAll = async () => {
+    const token = getToken();
+    if (!token) return;
     setLogoutAllBusy(true);
     try {
       const res = await fetch('/api/auth/logout-all', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
