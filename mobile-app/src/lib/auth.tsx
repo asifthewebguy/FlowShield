@@ -59,8 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logoutAll = async () => {
     await api.logoutAll();
-    setUser(null);
     setSessionExpired(false);
+    setUser(null);
   };
 
   return (

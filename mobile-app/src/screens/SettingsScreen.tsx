@@ -27,7 +27,16 @@ export default function SettingsScreen() {
         {
           text: 'Log out everywhere',
           style: 'destructive',
-          onPress: () => { logoutAll(); },
+          onPress: async () => {
+            try {
+              await logoutAll();
+            } catch {
+              Alert.alert(
+                'Error',
+                'Could not log out of all devices. Check your connection and try again.'
+              );
+            }
+          },
         },
       ]
     );
