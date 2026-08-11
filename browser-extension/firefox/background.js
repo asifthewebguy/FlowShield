@@ -15,6 +15,24 @@ let pendingLogs   = [];
 let activeSession = null;
 let distractions  = [];
 
+// ─── Persistence helpers ──────────────────────────────────────────────────────
+
+const MAX_PENDING_LOGS = 500; // matches desktop's offline-queue bound
+
+async function persistPendingLogs() {
+  if (pendingLogs.length > MAX_PENDING_LOGS) {
+    pendingLogs = pendingLogs.slice(-MAX_PENDING_LOGS); // keep newest
+  }
+  await browser.storage.local.set({ pendingLogs });
+}
+
+async function restorePendingLogs() {
+  const { pendingLogs: stored } = await browser.storage.local.get('pendingLogs');
+  if (Array.isArray(stored) && stored.length) {
+    pendingLogs = [...stored, ...pendingLogs];
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function getToken() {
@@ -106,13 +124,20 @@ async function syncActivities() {
       body:    JSON.stringify({ source: 'browser', activities: logsToSend }),
     });
     if (res.status === 401) {
+      // Token expired/revoked — clear it so popup shows login, but KEEP the
+      // logs: they sync after re-login (TOKEN_UPDATED triggers a replay).
       await browser.storage.local.remove('token');
+      pendingLogs = [...logsToSend, ...pendingLogs];
     } else if (!res.ok) {
+      // Transient error — put logs back for next sync
       pendingLogs = [...logsToSend, ...pendingLogs];
     }
   } catch {
     pendingLogs = [...logsToSend, ...pendingLogs];
   }
+
+  // Persist survivors so an event-page restart doesn't lose them.
+  await persistPendingLogs();
 }
 
 async function fetchActiveSession() {
@@ -197,14 +222,30 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
   if (msg.type === 'TOKEN_UPDATED') {
-    fetchActiveSession();
-    fetchUserPreferences();
-    sendResponse({ ok: true });
+    (async () => {
+      await fetchActiveSession();
+      await fetchUserPreferences();
+      await syncActivities(); // replay logs preserved across the logged-out period
+    })().then(() => sendResponse({ ok: true }));
     return true;
   }
   if (msg.type === 'TOKEN_CLEARED') {
     browser.storage.local.remove('token').then(() => { activeSession = null; updateBadge(); });
     sendResponse({ ok: true });
+    return true;
+  }
+  if (msg.type === 'LOGOUT') {
+    (async () => {
+      // Explicit logout: last-chance sync while the token still works,
+      // then clear all auth + buffered state.
+      flushCurrentTab();
+      await syncActivities();
+      pendingLogs = [];
+      await browser.storage.local.remove(['token', 'user', 'pendingLogs']);
+      activeSession = null;
+      updateBadge();
+      sendResponse({ ok: true });
+    })();
     return true;
   }
   if (msg.type === 'FORCE_SYNC') {
@@ -225,6 +266,7 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 (async () => {
+  await restorePendingLogs();
   const stored = await browser.storage.local.get(['distractions']);
   distractions = stored.distractions || [];
   await fetchActiveSession();
