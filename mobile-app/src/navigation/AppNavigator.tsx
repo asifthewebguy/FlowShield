@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, View, Text } from 'react-native';
+import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -90,7 +90,7 @@ function TabIcon({ label }: { label: string; color: string }) {
 }
 
 export default function AppNavigator() {
-  const { user, loading } = useAuth();
+  const { user, loading, sessionExpired, logout } = useAuth();
 
   if (loading) {
     return (
@@ -101,26 +101,49 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
-      {user ? (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Main" component={MainTabs} />
-          <Stack.Screen
-            name="Settings"
-            component={SettingsScreen}
-            options={{
-              headerShown: true,
-              headerTitle: 'Settings',
-              headerStyle: { backgroundColor: colors.card },
-              headerTintColor: colors.text,
-            }}
-          />
-        </Stack.Navigator>
-      ) : (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Login" component={LoginScreen} />
-        </Stack.Navigator>
+    <View style={styles.root}>
+      {sessionExpired && user && (
+        <TouchableOpacity style={styles.expiredBanner} onPress={() => { logout(); }}>
+          <Text style={styles.expiredBannerText}>
+            Session expired — tap to log in again
+          </Text>
+        </TouchableOpacity>
       )}
-    </NavigationContainer>
+      <NavigationContainer>
+        {user ? (
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen
+              name="Settings"
+              component={SettingsScreen}
+              options={{
+                headerShown: true,
+                headerTitle: 'Settings',
+                headerStyle: { backgroundColor: colors.card },
+                headerTintColor: colors.text,
+              }}
+            />
+          </Stack.Navigator>
+        ) : (
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Login" component={LoginScreen} />
+          </Stack.Navigator>
+        )}
+      </NavigationContainer>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  expiredBanner: {
+    backgroundColor: colors.warning,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  expiredBannerText: {
+    color: '#fff',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+});

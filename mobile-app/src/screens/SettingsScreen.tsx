@@ -11,10 +11,27 @@ import {
 } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { colors, spacing, fontSize } from '../lib/theme';
+import { useAuth } from '../lib/auth';
 
 export default function SettingsScreen() {
   const [sessionReminders, setSessionReminders] = useState(true);
   const [completionAlerts, setCompletionAlerts] = useState(true);
+  const { logoutAll } = useAuth();
+
+  const handleLogoutAll = () => {
+    Alert.alert(
+      'Log out of all devices',
+      'This will revoke all active sessions, including this device. You will need to log in again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log out everywhere',
+          style: 'destructive',
+          onPress: () => { logoutAll(); },
+        },
+      ]
+    );
+  };
 
   const handleNotificationToggle = async (
     key: 'reminders' | 'completion',
@@ -122,6 +139,20 @@ export default function SettingsScreen() {
           onPress={() => Linking.openURL('https://flowshield.app')}
         >
           <Text style={styles.settingTitle}>FlowShield Website</Text>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Account */}
+      <Text style={styles.sectionHeader}>Account</Text>
+      <View style={styles.card}>
+        <TouchableOpacity
+          style={[styles.settingRow, { borderBottomWidth: 0 }]}
+          onPress={handleLogoutAll}
+        >
+          <Text style={[styles.settingTitle, { color: colors.danger }]}>
+            Log out of all devices
+          </Text>
           <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
       </View>
