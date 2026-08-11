@@ -431,8 +431,17 @@ namespace FlowShield.Desktop.UI
                 // Register device and load preferences after successful login
                 RegisterDeviceAndLoadPreferencesAsync();
 
-                // Start background session polling and pick up any active session
+                // Start background session polling and pick up any active session.
+                // NOTE: _syncService.Start() is intentionally omitted here — LoginForm
+                // already calls it on successful login (LoginForm.cs LoginButton_Click).
+                // Calling it again would overwrite _syncTimer without disposing the old
+                // one, leaking a timer. Rely on LoginForm's Start() call instead.
                 _ = _sessionManager.InitializeAsync();
+
+                // Recover from an expired-session period: resync session state and
+                // reconnect Pusher so real-time events resume with the fresh UserId.
+                _ = _sessionManager.TriggerResyncAsync();
+                ConnectPusherAsync();
             }
         }
 
@@ -642,9 +651,21 @@ namespace FlowShield.Desktop.UI
         private void OnSessionExpired(object? sender, EventArgs e)
         {
             _syncService.Stop();
-            _notificationService.NotifyLogout(); // Or a specific session expired notification
+            _notificationService.NotifyLogout();
             BuildContextMenu();
             _trayIcon.ContextMenuStrip = _contextMenu;
+
+            // Prompt re-login via balloon. Handler is detached on fire so a later
+            // unrelated balloon (e.g. sync notification) does not open the login dialog.
+            _trayIcon.BalloonTipClicked += OnSessionExpiredBalloonClicked;
+            _trayIcon.ShowBalloonTip(10000, "FlowShield",
+                "Session expired — click here to log in again.", ToolTipIcon.Warning);
+        }
+
+        private void OnSessionExpiredBalloonClicked(object? sender, EventArgs e)
+        {
+            _trayIcon.BalloonTipClicked -= OnSessionExpiredBalloonClicked;
+            ShowLoginDialog();
         }
 
         private async void ConnectPusherAsync()
