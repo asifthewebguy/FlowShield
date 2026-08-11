@@ -699,4 +699,16 @@ public class SessionManagerTests
             Assert.Null(sm.CurrentSession);
         });
     }
+
+    [Fact]
+    public async Task TriggerResync_WhenUnauthenticated_DoesNotCallApiOrTouchSession()
+    {
+        var (sm, api, _, _, _, _) = Build();
+        api.Setup(a => a.IsAuthenticated()).Returns(false);
+
+        await sm.TriggerResyncAsync();
+
+        // A revoked/missing token must never be misread as a remote session stop.
+        api.Verify(a => a.GetActiveSessionAsync(), Times.Never);
+    }
 }
