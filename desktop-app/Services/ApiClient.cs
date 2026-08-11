@@ -183,6 +183,7 @@ namespace FlowShield.Desktop.Services
                 // Fallback used: Fetch latest session and check if it's active
                 // This works even if /api/sessions/active endpoint is missing on server
                 var response = await _httpClient.GetAsync("/api/sessions?limit=1");
+                if (HandleUnauthorized(response)) return null;
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -288,6 +289,7 @@ namespace FlowShield.Desktop.Services
                 };
 
                 var response = await _httpClient.SendAsync(request);
+                if (HandleUnauthorized(response)) return false;
                 return response.IsSuccessStatusCode;
             }
             catch
@@ -358,6 +360,7 @@ namespace FlowShield.Desktop.Services
                     return null;
 
                 var response = await _httpClient.GetAsync("/api/user/preferences");
+                if (HandleUnauthorized(response)) return null;
                 if (response.IsSuccessStatusCode)
                 {
                     var responseData = await response.Content.ReadAsStringAsync();
@@ -401,6 +404,7 @@ namespace FlowShield.Desktop.Services
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await _httpClient.PostAsync("/api/devices", content);
+                if (HandleUnauthorized(response)) return false;
                 if (response.IsSuccessStatusCode)
                 {
                     _dbService.SaveSetting("DeviceId", deviceId);
@@ -457,6 +461,7 @@ namespace FlowShield.Desktop.Services
             {
                 if (string.IsNullOrEmpty(_authToken)) return null;
                 var response = await _httpClient.GetAsync($"/api/analytics?period={period}");
+                if (HandleUnauthorized(response)) return null;
                 if (!response.IsSuccessStatusCode) return null;
                 var data = await response.Content.ReadAsStringAsync();
                 return JsonConvert.DeserializeObject<AnalyticsData>(data);
@@ -470,6 +475,7 @@ namespace FlowShield.Desktop.Services
             {
                 if (string.IsNullOrEmpty(_authToken)) return null;
                 var response = await _httpClient.GetAsync($"/api/sessions?limit={limit}");
+                if (HandleUnauthorized(response)) return null;
                 if (!response.IsSuccessStatusCode) return null;
                 var data = await response.Content.ReadAsStringAsync();
                 var result = JsonConvert.DeserializeObject<SessionListResponse>(data);
@@ -484,6 +490,7 @@ namespace FlowShield.Desktop.Services
             {
                 if (string.IsNullOrEmpty(_authToken)) return null;
                 var response = await _httpClient.GetAsync("/api/goals");
+                if (HandleUnauthorized(response)) return null;
                 if (!response.IsSuccessStatusCode) return null;
                 var data = await response.Content.ReadAsStringAsync();
                 var result = JsonConvert.DeserializeObject<GoalListResponse>(data);
@@ -523,6 +530,7 @@ namespace FlowShield.Desktop.Services
             {
                 if (string.IsNullOrEmpty(_authToken)) return null;
                 var response = await _httpClient.GetAsync("/api/projects");
+                if (HandleUnauthorized(response)) return null;
                 if (!response.IsSuccessStatusCode) return null;
                 var data = await response.Content.ReadAsStringAsync();
                 // Projects API returns a direct array, not a wrapped object
@@ -572,7 +580,7 @@ namespace FlowShield.Desktop.Services
                     Content = content
                 };
                 var response = await _httpClient.SendAsync(request);
-
+                if (HandleUnauthorized(response)) return null;
                 if (!response.IsSuccessStatusCode) return null;
                 var data = await response.Content.ReadAsStringAsync();
                 var result = JsonConvert.DeserializeObject<PreferencesResponse>(data);
@@ -587,6 +595,7 @@ namespace FlowShield.Desktop.Services
             {
                 if (string.IsNullOrEmpty(_authToken)) return null;
                 var response = await _httpClient.GetAsync($"/api/leaderboard?period={period}");
+                if (HandleUnauthorized(response)) return null;
                 if (!response.IsSuccessStatusCode) return null;
                 var data = await response.Content.ReadAsStringAsync();
                 return JsonConvert.DeserializeObject<LeaderboardData>(data);
@@ -640,6 +649,7 @@ namespace FlowShield.Desktop.Services
             {
                 if (string.IsNullOrEmpty(_authToken)) return null;
                 var response = await _httpClient.GetAsync("/api/teams");
+                if (HandleUnauthorized(response)) return null;
                 if (!response.IsSuccessStatusCode) return null;
                 var data = await response.Content.ReadAsStringAsync();
                 var result = JsonConvert.DeserializeObject<TeamsResponse>(data);
@@ -712,6 +722,7 @@ namespace FlowShield.Desktop.Services
             {
                 if (string.IsNullOrEmpty(_authToken)) return null;
                 var response = await _httpClient.GetAsync("/api/categories");
+                if (HandleUnauthorized(response)) return null;
                 if (!response.IsSuccessStatusCode) return null;
                 var data = await response.Content.ReadAsStringAsync();
                 var result = JsonConvert.DeserializeObject<CategoryRulesResponse>(data);
@@ -728,12 +739,28 @@ namespace FlowShield.Desktop.Services
 
         public void Logout()
         {
+            // Idempotent: concurrent 401s from parallel requests must not re-fire
+            // SessionExpired or thrash the DB settings.
+            if (string.IsNullOrEmpty(_authToken)) return;
+
             _authToken = null;
             _httpClient.DefaultRequestHeaders.Remove("Authorization");
             _dbService.SaveSetting("AuthToken", string.Empty);
             _dbService.SaveSetting("UserId", string.Empty);
 
             SessionExpired?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Detects a 401 response, clears auth state, and raises SessionExpired
+        /// (once, via the idempotent Logout). Returns true when the response was
+        /// a 401 and has been handled.
+        /// </summary>
+        private bool HandleUnauthorized(HttpResponseMessage response)
+        {
+            if (response.StatusCode != HttpStatusCode.Unauthorized) return false;
+            Logout();
+            return true;
         }
     }
 
