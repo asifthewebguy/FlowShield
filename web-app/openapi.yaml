@@ -148,6 +148,21 @@ paths:
       responses:
         302: {description: Redirect after verification}
 
+  /api/auth/logout-all:
+    post:
+      tags: [Auth]
+      summary: Log out of all devices
+      description: Increments the user's tokenVersion, revoking every previously issued JWT.
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: All tokens revoked
+        "401":
+          description: Missing or invalid token
+        "429":
+          description: Rate limited (5/hour per user)
+
   /api/sessions:
     get:
       tags: [Sessions]
