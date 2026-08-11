@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 
 // Mapping of old distraction values to new ones
@@ -23,7 +23,7 @@ const distractionMapping: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json(

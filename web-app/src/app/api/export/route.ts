@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 
 /**
@@ -17,7 +17,7 @@ function csvCell(value: unknown): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

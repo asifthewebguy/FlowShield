@@ -992,6 +992,54 @@ public class ApiClientTests
         Assert.True(eventFired);
         db.Verify(d => d.SaveSetting("AuthToken", string.Empty), Times.Once);
     }
+
+    // ---------- Logout idempotency ----------
+
+    [Fact]
+    public void Logout_CalledTwice_RaisesSessionExpiredOnce()
+    {
+        var client = BuildClient(AuthenticatedDb(), new FakeHttpHandler());
+        var fired = 0;
+        client.SessionExpired += (_, _) => fired++;
+
+        client.Logout();
+        client.Logout();
+
+        Assert.Equal(1, fired);
+        Assert.False(client.IsAuthenticated());
+    }
+
+    // ---------- 401 → clear token + fire SessionExpired ----------
+
+    [Fact]
+    public async Task GetActiveSession_On401_ClearsTokenAndRaisesSessionExpired()
+    {
+        var handler = new FakeHttpHandler(HttpStatusCode.Unauthorized, "");
+        var client = BuildClient(AuthenticatedDb(), handler);
+        var fired = 0;
+        client.SessionExpired += (_, _) => fired++;
+
+        var result = await client.GetActiveSessionAsync();
+
+        Assert.Null(result);
+        Assert.False(client.IsAuthenticated());
+        Assert.Equal(1, fired);
+    }
+
+    [Fact]
+    public async Task GetUserPreferences_On401_ClearsTokenAndRaisesSessionExpired()
+    {
+        var handler = new FakeHttpHandler(HttpStatusCode.Unauthorized, "");
+        var client = BuildClient(AuthenticatedDb(), handler);
+        var fired = 0;
+        client.SessionExpired += (_, _) => fired++;
+
+        var result = await client.GetUserPreferencesAsync();
+
+        Assert.Null(result);
+        Assert.False(client.IsAuthenticated());
+        Assert.Equal(1, fired);
+    }
 }
 
 // ---------- FakeHttpHandler ----------

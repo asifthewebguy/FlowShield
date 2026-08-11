@@ -4,6 +4,7 @@ import { hashPassword } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { ResetPasswordSchema } from '@/lib/schemas';
+import { revokeUserTokens } from '@/lib/jwt';
 
 /**
  * POST /api/auth/reset-password
@@ -64,8 +65,10 @@ export async function POST(request: NextRequest) {
         hashedPassword: hashed,
         passwordResetToken: null,
         passwordResetExpires: null,
+        tokenVersion: { increment: 1 }, // revoke all existing tokens
       },
     });
+    await revokeUserTokens(user.id); // bust the token-version cache
 
     return NextResponse.json({
       message: 'Password reset successfully. You can now sign in with your new password.',

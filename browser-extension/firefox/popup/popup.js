@@ -145,7 +145,9 @@ formLogin.addEventListener('submit', async e => {
 });
 
 btnLogout.addEventListener('click', async () => {
-  await browser.storage.local.remove(['token', 'user']);
+  await new Promise(resolve =>
+    browser.runtime.sendMessage({ type: 'LOGOUT' }, resolve)
+  );
   showScreen('auth');
 });
 

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAdminFromToken } from '@/lib/jwt';
+import { getAuthAdminId } from '@/lib/jwt';
 
 export async function GET(request: NextRequest) {
-  const adminId = getAdminFromToken(request);
+  const adminId = await getAuthAdminId(request);
   if (!adminId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

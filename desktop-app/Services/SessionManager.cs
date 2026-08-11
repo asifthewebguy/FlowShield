@@ -204,6 +204,12 @@ namespace FlowShield.Desktop.Services
         /// </summary>
         public async Task TriggerResyncAsync()
         {
+            // A missing/revoked token makes GetActiveSessionAsync return null, which
+            // the logic below would misread as "session stopped on another device"
+            // and kill the local session + disengage blocking. Never resync while
+            // unauthenticated — the local session must survive token revocation.
+            if (!_apiClient.IsAuthenticated()) return;
+
             try
             {
                 var session = await _apiClient.GetActiveSessionAsync();

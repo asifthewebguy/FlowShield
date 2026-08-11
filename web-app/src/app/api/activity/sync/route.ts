@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
 import { resolveCategory } from '@/lib/activity-sync';
@@ -38,7 +38,7 @@ const syncBodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json(
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json(

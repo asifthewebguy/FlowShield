@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { CreateProjectSchema } from '@/lib/schemas';
 
 export async function GET(request: NextRequest) {
     try {
-        const userId = getUserIdFromToken(request);
+        const userId = await getAuthUserId(request);
 
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     try {
-        const userId = getUserIdFromToken(request);
+        const userId = await getAuthUserId(request);
 
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

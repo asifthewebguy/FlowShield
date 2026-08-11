@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 
 /**
@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;
@@ -92,7 +92,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;
@@ -128,7 +128,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
 import { bustCoachCacheIfPaid } from '@/lib/coach-quota';
@@ -23,7 +23,7 @@ const GRACE_MINUTES = 5;
  */
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

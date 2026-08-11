@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import sanitizeHtml from 'sanitize-html';
 import { prisma } from '@/lib/prisma';
-import { getAdminFromToken } from '@/lib/jwt';
+import { getAuthAdminId } from '@/lib/jwt';
 import { sendEmail } from '@/lib/email';
 
 const AnnounceSchema = z.object({
@@ -28,7 +28,7 @@ const EMAIL_SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
 };
 
 export async function POST(request: NextRequest) {
-  const adminId = getAdminFromToken(request);
+  const adminId = await getAuthAdminId(request);
   if (!adminId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

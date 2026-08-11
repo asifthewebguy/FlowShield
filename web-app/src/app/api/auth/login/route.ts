@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
         createdAt: true,
         emailVerified: true,
         subscriptionTier: true,
+        tokenVersion: true,
         preferences: true,
       },
     });
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     // Create JWT token
     const token = sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role, tv: user.tokenVersion },
       getJwtSecret(),
       { expiresIn: rememberMe ? '30d' : '7d', algorithm: 'HS256' } // 30 days if rememberMe is true, else 7 days
     );

@@ -109,9 +109,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Issue our standard JWT
+    // Issue our standard JWT.
+    // user.tokenVersion is present because every find/create/update path above
+    // uses `include` (not `select`), which returns all scalar fields. If any of
+    // those is changed to `select`, you MUST add tokenVersion or tv becomes
+    // undefined and revocation breaks for OAuth users.
     const jwtToken = sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role, tv: user.tokenVersion },
       getJwtSecret(),
       { expiresIn: '7d', algorithm: 'HS256' }
     );

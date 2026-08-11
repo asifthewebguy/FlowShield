@@ -96,7 +96,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
 
             var result = await sm.StartSessionAsync(25);
 
@@ -110,7 +110,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
 
             await sm.StartSessionAsync(25);
 
@@ -125,7 +125,7 @@ public class SessionManagerTests
         {
             var (sm, api, _, _, _, _) = Build();
             var session = MakeSession();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(session);
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(session);
 
             await sm.StartSessionAsync(25);
 
@@ -140,7 +140,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, tracker, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
 
             await sm.StartSessionAsync(25);
 
@@ -154,7 +154,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync((SessionInfo?)null);
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync((SessionInfo?)null);
 
             var result = await sm.StartSessionAsync(25);
 
@@ -169,7 +169,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(It.IsAny<int>(), It.IsAny<string>()))
+            api.Setup(a => a.StartSessionAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string?>()))
                .ThrowsAsync(new Exception("network error"));
 
             var result = await sm.StartSessionAsync(25);
@@ -185,7 +185,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, web, appB) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             sm.BlockingEnabled = true;
 
             await sm.StartSessionAsync(25);
@@ -201,7 +201,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, web, appB) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             // BlockingEnabled is false by default
 
             await sm.StartSessionAsync(25);
@@ -218,7 +218,7 @@ public class SessionManagerTests
         {
             var (sm, api, _, _, _, _) = Build();
             var session = MakeSession();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(session);
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(session);
 
             SessionInfo? fired = null;
             sm.SessionStarted += (_, s) => fired = s;
@@ -238,7 +238,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.EndSessionAsync(It.IsAny<string>())).ReturnsAsync(true);
 
             await sm.StartSessionAsync(25);
@@ -254,7 +254,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.EndSessionAsync(It.IsAny<string>())).ReturnsAsync(true);
 
             await sm.StartSessionAsync(25);
@@ -270,7 +270,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.EndSessionAsync("sess-1")).ReturnsAsync(true);
 
             await sm.StartSessionAsync(25);
@@ -286,7 +286,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, tracker, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.EndSessionAsync(It.IsAny<string>())).ReturnsAsync(true);
 
             await sm.StartSessionAsync(25);
@@ -302,7 +302,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, web, appB) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.EndSessionAsync(It.IsAny<string>())).ReturnsAsync(true);
             sm.BlockingEnabled = true;
 
@@ -320,7 +320,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.EndSessionAsync(It.IsAny<string>())).ReturnsAsync(true);
 
             var fired = false;
@@ -341,7 +341,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, web, appB) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
 
             await sm.StartSessionAsync(25);
             sm.BlockingEnabled = true;
@@ -357,7 +357,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, web, appB) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             sm.BlockingEnabled = true;
 
             await sm.StartSessionAsync(25);
@@ -454,7 +454,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "pause")).ReturnsAsync(MakeSession());
 
             await sm.StartSessionAsync(25);
@@ -471,7 +471,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, tracker, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "pause")).ReturnsAsync(MakeSession());
 
             await sm.StartSessionAsync(25);
@@ -487,7 +487,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "pause")).ReturnsAsync(MakeSession());
 
             var fired = false;
@@ -520,7 +520,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "pause")).ReturnsAsync(MakeSession());
 
             await sm.StartSessionAsync(25);
@@ -537,7 +537,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, web, appB) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "pause")).ReturnsAsync(MakeSession());
             sm.BlockingEnabled = true;
 
@@ -562,7 +562,7 @@ public class SessionManagerTests
                 Id = "sess-1", PlannedDuration = 25,
                 StartTime = DateTime.UtcNow.AddMinutes(-3), Completed = false, IsPaused = false,
             };
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "pause")).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "resume")).ReturnsAsync(resumedSession);
 
@@ -586,7 +586,7 @@ public class SessionManagerTests
                 Id = "sess-1", PlannedDuration = 25,
                 StartTime = DateTime.UtcNow.AddMinutes(-3), Completed = false, IsPaused = false,
             };
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "pause")).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "resume")).ReturnsAsync(resumedSession);
 
@@ -610,7 +610,7 @@ public class SessionManagerTests
                 Id = "sess-1", PlannedDuration = 25,
                 StartTime = DateTime.UtcNow.AddMinutes(-3), Completed = false, IsPaused = false,
             };
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "pause")).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "resume")).ReturnsAsync(resumedSession);
 
@@ -631,7 +631,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
 
             await sm.StartSessionAsync(25);
             var result = await sm.ResumeSessionAsync();
@@ -664,7 +664,7 @@ public class SessionManagerTests
                 Id = "sess-1", PlannedDuration = 25,
                 StartTime = DateTime.UtcNow.AddMinutes(-3), Completed = false, IsPaused = false,
             };
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "pause")).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "resume")).ReturnsAsync(resumedSession);
             sm.BlockingEnabled = true;
@@ -686,7 +686,7 @@ public class SessionManagerTests
         RunOnSTA(async () =>
         {
             var (sm, api, _, _, _, _) = Build();
-            api.Setup(a => a.StartSessionAsync(25, "WORK")).ReturnsAsync(MakeSession());
+            api.Setup(a => a.StartSessionAsync(25, "WORK", null)).ReturnsAsync(MakeSession());
             api.Setup(a => a.TogglePauseAsync("sess-1", "pause")).ReturnsAsync(MakeSession());
             api.Setup(a => a.EndSessionAsync(It.IsAny<string>())).ReturnsAsync(true);
 
@@ -698,5 +698,17 @@ public class SessionManagerTests
             Assert.False(sm.IsPaused);
             Assert.Null(sm.CurrentSession);
         });
+    }
+
+    [Fact]
+    public async Task TriggerResync_WhenUnauthenticated_DoesNotCallApiOrTouchSession()
+    {
+        var (sm, api, _, _, _, _) = Build();
+        api.Setup(a => a.IsAuthenticated()).Returns(false);
+
+        await sm.TriggerResyncAsync();
+
+        // A revoked/missing token must never be misread as a remote session stop.
+        api.Verify(a => a.GetActiveSessionAsync(), Times.Never);
     }
 }

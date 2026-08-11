@@ -2,11 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import NotificationManager from '@/components/common/NotificationManager';
-import { getToken, removeToken, setUserData } from '@/lib/auth-token';
-
-// ... (inside the component's JSX, likely in a "Settings" or "Preferences" section)
-// I need to see the file content first to know where to insert it.
-// Wait, I am viewing it in parallel. I'll do a separate tool call to edit after viewing.
+import { getToken, removeToken, removeUserData, setUserData } from '@/lib/auth-token';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -775,6 +771,8 @@ function AccountAndPrivacyCard({
   const [delConfirm, setDelConfirm] = useState(false);
   const [delSaving, setDelSaving] = useState(false);
 
+  const [logoutAllBusy, setLogoutAllBusy] = useState(false);
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     onMessage(null);
@@ -832,6 +830,28 @@ function AccountAndPrivacyCard({
       onMessage({ type: 'success', text: 'Your data has been downloaded.' });
     } catch {
       onMessage({ type: 'error', text: 'Failed to export your data.' });
+    }
+  };
+
+  const handleLogoutAll = async () => {
+    const token = getToken();
+    if (!token) return;
+    setLogoutAllBusy(true);
+    try {
+      const res = await fetch('/api/auth/logout-all', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        onMessage({ type: 'error', text: data.error || 'Failed to log out of all devices.' });
+        return;
+      }
+      removeToken();
+      removeUserData();
+      router.push('/auth/login');
+    } finally {
+      setLogoutAllBusy(false);
     }
   };
 
@@ -912,6 +932,24 @@ function AccountAndPrivacyCard({
         </p>
         <Button type="button" variant="secondary" size="sm" onClick={handleExport}>
           Download my data
+        </Button>
+      </Card>
+
+      <Card>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+          Security
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Signed in on another device you don&apos;t recognize? This signs you out everywhere, including this browser.
+        </p>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={handleLogoutAll}
+          disabled={logoutAllBusy}
+        >
+          {logoutAllBusy ? 'Logging out…' : 'Log out of all devices'}
         </Button>
       </Card>
 

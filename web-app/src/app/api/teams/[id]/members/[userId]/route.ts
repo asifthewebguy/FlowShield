@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 
 /**
@@ -16,7 +16,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; userId: string }> }
 ) {
   try {
-    const actingUserId = getUserIdFromToken(request);
+    const actingUserId = await getAuthUserId(request);
     if (!actingUserId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

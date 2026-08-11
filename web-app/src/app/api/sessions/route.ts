@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { triggerUserEvent } from '@/lib/pusher';
 import { invalidateAnalyticsCache } from '@/lib/analytics-cache';
@@ -9,7 +9,7 @@ import { CreateSessionSchema } from '@/lib/schemas';
 // Create a new session
 export async function POST(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 // Get user's sessions
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

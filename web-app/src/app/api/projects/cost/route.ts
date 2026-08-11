@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId } from '@/lib/jwt';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
@@ -25,7 +25,7 @@ function getPeriodRange(period: Period): { start: Date; end: Date } {
 }
 
 export async function GET(request: NextRequest) {
-  const userId = getUserIdFromToken(request);
+  const userId = await getAuthUserId(request);
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

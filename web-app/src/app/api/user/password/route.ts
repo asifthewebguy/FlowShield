@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hashPassword, verifyPassword } from '@/lib/auth';
-import { getUserIdFromToken } from '@/lib/jwt';
+import { getAuthUserId, revokeUserTokens } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { rateLimit } from '@/lib/rate-limit';
 import { ChangePasswordSchema } from '@/lib/schemas';
@@ -15,7 +15,7 @@ import { ChangePasswordSchema } from '@/lib/schemas';
  */
 export async function POST(request: NextRequest) {
   try {
-    const userId = getUserIdFromToken(request);
+    const userId = await getAuthUserId(request);
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -69,8 +69,9 @@ export async function POST(request: NextRequest) {
     const hashed = await hashPassword(newPassword);
     await prisma.user.update({
       where: { id: userId },
-      data: { hashedPassword: hashed },
+      data: { hashedPassword: hashed, tokenVersion: { increment: 1 } }, // revoke existing tokens
     });
+    await revokeUserTokens(userId); // bust the token-version cache
 
     return NextResponse.json({ message: 'Password updated successfully' });
   } catch (error) {
