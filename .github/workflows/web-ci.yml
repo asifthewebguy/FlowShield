@@ -72,3 +72,51 @@ jobs:
 
       - name: Run unit tests
         run: npm test
+
+  schema-drift:
+    name: Prisma Schema Drift
+    runs-on: ubuntu-latest
+
+    # Guards the failure mode behind the 2026-09-01 auth outage: a field was
+    # added to schema.prisma while its migration was never committed. Netlify's
+    # `prisma migrate deploy` then had nothing to apply and exited 0, so the
+    # build went green while every Prisma query on that model threw P2022 in
+    # production. Lint, typecheck, build and unit tests were all green too --
+    # nothing compares the migrations against the schema. This does.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Replays prisma/migrations into the shadow database and compares the
+      # result against schema.prisma. --exit-code returns 2 when they differ,
+      # failing the job. A schema change without its migration cannot merge.
+      - name: Migrations must reproduce schema.prisma
+        run: |
+          npx prisma migrate diff \
+            --from-migrations ./prisma/migrations \
+            --to-schema-datamodel ./prisma/schema.prisma \
+            --shadow-database-url "postgresql://postgres:postgres@localhost:5432/postgres" \
+            --exit-code

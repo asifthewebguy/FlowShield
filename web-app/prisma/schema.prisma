@@ -257,7 +257,7 @@ model CategoryRule {
 model AppSetting {
   key       String   @id
   value     Json
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
   updatedBy String?
 
   @@map("app_settings")
