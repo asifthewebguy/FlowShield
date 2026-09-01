@@ -16,6 +16,9 @@ jobs:
   load-test:
     name: k6 — POST /api/activity/sync
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -83,3 +86,27 @@ jobs:
           name: load-test-results
           path: load-test-results.json
           retention-days: 30
+
+      # A scheduled job that fails silently is worse than no job: this workflow
+      # failed on every weekly run and nobody noticed, so a real regression here
+      # would have gone unseen too. Open (or update) an issue so a failure is
+      # visible in the repo rather than only in the Actions tab.
+      - name: Report failure as an issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: Load Test is failing
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --state open --search "in:title \"$TITLE\"" \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Failed again on $(date -u +%Y-%m-%d): $RUN_URL"
+          else
+            gh issue create --title "$TITLE" \
+              --body "$(printf '%s\n\n%s\n\n%s' \
+                "The scheduled \`$TITLE\` workflow failed." \
+                "Run: $RUN_URL" \
+                "This issue is reopened/commented on by the workflow itself; close it once the run is green again.")"
+          fi

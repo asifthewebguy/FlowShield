@@ -94,6 +94,11 @@ export default function () {
   syncDuration.add(Date.now() - start);
 
   const ok = check(res, {
+    // Called out separately from the 200 check: every request here carries the
+    // same token, so they all share one `activity-sync:<userId>` bucket. If the
+    // pacing below ever drifts back over the cap, this names the cause instead
+    // of surfacing as an unexplained failure rate.
+    'not rate limited (429)': (r) => r.status !== 429,
     'status is 200':          (r) => r.status === 200,
     'returns count field':    (r) => {
       try { return JSON.parse(r.body).count !== undefined; }
@@ -103,6 +108,12 @@ export default function () {
 
   errorRate.add(!ok);
 
-  // Simulate a realistic client: sync every ~60s, jitter ±5s
-  sleep(1 + Math.random() * 0.5);
+  // Pacing is bounded by the endpoint's own limiter, not by what the service
+  // can serve: /api/activity/sync allows 120 req/min per user, and a single
+  // token means a single bucket. 10 VUs x ~5.5s per cycle ~= 110 req/min, just
+  // under it. Do NOT raise VUs or shorten this sleep to generate more load --
+  // that only measures the rate limiter. It previously ran at ~250 req/min and
+  // reported 52% failures on 429s while p95 latency was a healthy 947ms.
+  // Exceeding one user's quota needs multiple accounts, one token per VU.
+  sleep(5 + Math.random());
 }
