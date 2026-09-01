@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(async () => ({})),
   hashPassword: vi.fn(async (p: string) => `hashed:${p}`),
   rateLimit: vi.fn(() => ({ allowed: true, resetInMs: 0 })),
+  redisDel: vi.fn(async () => 1),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -12,6 +13,11 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 vi.mock('@/lib/auth', () => ({ hashPassword: mocks.hashPassword }));
+
+vi.mock('@/lib/redis', () => ({
+  redis: { get: vi.fn(), set: vi.fn(), del: mocks.redisDel },
+  CACHE_TTL: 300,
+}));
 
 vi.mock('@/lib/rate-limit', () => ({
   rateLimit: mocks.rateLimit,
@@ -84,9 +90,11 @@ describe('POST /api/auth/reset-password', () => {
           hashedPassword: `hashed:${VALID_PASSWORD}`,
           passwordResetToken: null,
           passwordResetExpires: null,
+          tokenVersion: { increment: 1 },
         }),
       })
     );
+    expect(mocks.redisDel).toHaveBeenCalledWith('tv:u-1');
   });
 
   it('returns 429 when rate-limited', async () => {

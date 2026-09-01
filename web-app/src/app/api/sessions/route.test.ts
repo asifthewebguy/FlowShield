@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   findFirst: vi.fn(),
   create: vi.fn(),
   triggerUserEvent: vi.fn(),
+  invalidateAnalyticsCache: vi.fn(async () => {}),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -18,6 +19,10 @@ vi.mock('@/lib/jwt', () => ({
 
 vi.mock('@/lib/pusher', () => ({
   triggerUserEvent: mocks.triggerUserEvent,
+}));
+
+vi.mock('@/lib/analytics-cache', () => ({
+  invalidateAnalyticsCache: mocks.invalidateAnalyticsCache,
 }));
 
 import { POST } from './route';

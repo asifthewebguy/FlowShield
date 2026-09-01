@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   triggerUserEvent: vi.fn(),
   sendSessionEndPush: vi.fn(async () => 1),
   autoClassifyIfNeeded: vi.fn(async (_id: string, _userId: string, session: any) => session),
+  invalidateAnalyticsCache: vi.fn(async () => {}),
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -42,6 +43,10 @@ vi.mock('@/lib/pushNotify', () => ({
 
 vi.mock('@/lib/auto-classify-helper', () => ({
   autoClassifyIfNeeded: mocks.autoClassifyIfNeeded,
+}));
+
+vi.mock('@/lib/analytics-cache', () => ({
+  invalidateAnalyticsCache: mocks.invalidateAnalyticsCache,
 }));
 
 const { sessionFindUnique, sessionUpdate, triggerUserEvent, bustCoachCacheIfPaid, sendSessionEndPush } = mocks;
