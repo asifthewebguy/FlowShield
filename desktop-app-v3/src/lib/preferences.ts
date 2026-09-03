@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 export interface Preferences {
   primaryDistractions: string[];
+  shareWindowDetails: boolean;
 }
 
 interface PrefsState {

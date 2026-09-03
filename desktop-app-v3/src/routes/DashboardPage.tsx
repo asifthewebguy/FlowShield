@@ -280,6 +280,9 @@ export function DashboardPage() {
           <Link to="/settings/ai" className="text-xs text-gray-500 hover:text-gray-700">
             AI Settings
           </Link>
+          <Link to="/settings/tracking" className="text-xs text-gray-500 hover:text-gray-700">
+            Tracking
+          </Link>
           <span className="text-sm text-gray-600 dark:text-gray-400">
             {user?.name ?? user?.email}
           </span>

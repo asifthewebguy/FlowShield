@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { LoginPage } from './routes/LoginPage';
 import { DashboardPage } from './routes/DashboardPage';
 import { SettingsAiPage } from './routes/SettingsAiPage';
+import SettingsTrackingPage from './routes/SettingsTrackingPage';
 import { useAuthStore } from './lib/auth';
 import { useUpdateStore } from './lib/update';
 import { useAIStore } from './lib/ai';
@@ -54,6 +55,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<DashboardPage />} />
       <Route path="/settings/ai" element={<SettingsAiPage />} />
+      <Route path="/settings/tracking" element={<SettingsTrackingPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
