@@ -43,7 +43,7 @@
 |---|---|
 | `api/preferences.rs` (modify) | `share_window_details` field, `set_share_window_details()` PATCH |
 | `api/activity.rs` (modify) | per-sample `session_id: Option<String>`; drop the `session_id` parameter |
-| `tracker/mod.rs` (rewrite) | `ActivitySample.session_id`, pure `step()`, `TrackerConfig`, always-on loop with DB persistence, `flush()` |
+| `tracker/mod.rs` (rewrite) | `ActivitySample.session_id`, pure `step()`, `TrackerConfig`, always-on loop with DB persistence, `flush()`; pure `IdleDetector` + `tracker-idle-started` / `tracker-idle-ended` events (Task 11) |
 | `store/activity_local.rs` (create) | table + CRUD for persisted buckets |
 | `store/mod.rs` (modify) | register migration, make `apply_migrations` `pub(crate)` |
 | `activity_upload.rs` (create) | `redact()`, `resolve_share_flag()`, `upload_once()` |
@@ -53,7 +53,7 @@
 | `commands/tracking.rs` (create) | `tracking_paused_get`, `tracking_set_paused` |
 | `commands/mod.rs` (modify) | `pub mod tracking;` |
 | `tray.rs` (modify) | `rebuild_menu()`, Pause/Resume item |
-| `lib.rs` (modify) | new `AppState` fields, spawn tracker at setup, register commands |
+| `lib.rs` (modify) | new `AppState` fields, spawn tracker at setup (passing `app.handle().clone()` into `TrackerConfig.app`), register commands |
 
 **Desktop frontend (`desktop-app-v3/src/`)**
 
@@ -61,8 +61,10 @@
 |---|---|
 | `lib/preferences.ts` (modify) | `shareWindowDetails` in the `Preferences` interface |
 | `routes/SettingsTrackingPage.tsx` (create) | Pause tracking + Share window details toggles |
-| `App.tsx` (modify) | route `/settings/tracking` |
+| `App.tsx` (modify) | route `/settings/tracking`; bootstrap the idle store and render `<IdlePrompt />` (Task 11) |
 | `routes/DashboardPage.tsx` (modify) | header link to the new page |
+| `lib/idle.ts` (create) | `useIdleStore`: listens to idle events, auto-pauses the active session, holds prompt state (Task 11) |
+| `components/IdlePrompt.tsx` (create) | "Welcome back" dialog: Resume / End session / Keep it paused (Task 11) |
 
 **Docs**
 
@@ -92,9 +94,16 @@ pub struct Observation { pub application_name: String, pub process_name: String,
 pub enum Poll { Window(Observation), Idle, Unavailable }
 pub enum Step { Nothing, Extended, Opened, Rotated(ActivitySample), Closed(ActivitySample) }
 pub fn step(current: &mut Option<ActivitySample>, poll: Poll, session_id: Option<&str>, now_iso: &str) -> Step;
-pub struct TrackerConfig { pub db: Db, pub active_session_id: Arc<tokio::sync::RwLock<Option<String>>>, pub paused: Arc<AtomicBool> }
+pub struct TrackerConfig { pub db: Db, pub active_session_id: Arc<tokio::sync::RwLock<Option<String>>>, pub paused: Arc<AtomicBool>, pub app: tauri::AppHandle /* Task 11 */ }
 pub struct TrackerHandle { /* private */ }
 impl TrackerHandle { pub fn spawn(cfg: TrackerConfig) -> Self; pub async fn flush(&self); }
+
+// tracker/mod.rs — idle detection (Task 11)
+pub struct IdlePayload { pub idle_seconds: u64 }           // serialised camelCase: { idleSeconds }
+pub enum IdleTransition { Started(IdlePayload), Ended(IdlePayload) }
+pub struct IdleDetector { /* private */ }
+impl IdleDetector { pub fn observe(&mut self, idle_secs: u64) -> Option<IdleTransition>; }
+// Tauri events emitted by the tracker loop: "tracker-idle-started", "tracker-idle-ended", payload IdlePayload
 
 // store/activity_local.rs
 pub struct LocalRow { pub id: i64, pub sample: ActivitySample }
@@ -2134,7 +2143,448 @@ git commit -m "feat(desktop): tracking and privacy settings page"
 
 ---
 
-### Task 11: Docs, rules, and full verification
+### Task 11: Desktop — idle detection: session auto-pause + "welcome back" prompt
+
+Added 2026-09-04 (roadmap amendment). The rubric item is "auto-pause/prompt when no activity detected". The tracker already computes OS idle seconds every tick; this task turns the threshold crossing into two Tauri events, auto-pauses a running focus session on the way out, and asks the user what to do on the way back.
+
+**Files:**
+- Modify: `desktop-app-v3/src-tauri/src/tracker/mod.rs` (add `IdlePayload`, `IdleTransition`, `IdleDetector`, split `poll_os` into `os_idle_secs` + `poll_window`, emit events from `run`)
+- Modify: `desktop-app-v3/src-tauri/src/lib.rs` (`TrackerConfig { app }` at setup)
+- Create: `desktop-app-v3/src/lib/idle.ts`
+- Create: `desktop-app-v3/src/components/IdlePrompt.tsx`
+- Modify: `desktop-app-v3/src/App.tsx`
+- Test: `desktop-app-v3/src-tauri/src/tracker/mod.rs` (`#[cfg(test)]` module from Task 5)
+
+**Interfaces:**
+- Consumes: `TrackerConfig`, `run()`, `IDLE_THRESHOLD_SECS` (Task 8); `useSessionStore.{current, togglePause, end}` (`desktop-app-v3/src/lib/sessions.ts`, exists); `Button` (`desktop-app-v3/src/components/Button.tsx`, exists).
+- Produces: `IdleDetector::observe(&mut self, idle_secs: u64) -> Option<IdleTransition>`; Tauri events `tracker-idle-started` and `tracker-idle-ended` with payload `{ idleSeconds: number }`; `useIdleStore` with `bootstrap(): Promise<UnlistenFn>`, `resume()`, `endSession()`, `dismiss()`; `selectShowIdlePrompt(state)`.
+
+**Behaviour:**
+1. Every tick the tracker reads OS idle seconds. Crossing `IDLE_THRESHOLD_SECS` upward emits `tracker-idle-started` once. Dropping back below emits `tracker-idle-ended` once, with the total away time.
+2. Frontend on `tracker-idle-started`: if a session is active, not completed, and not already paused, call `togglePause('pause')` and remember the session id. Sessions the user paused manually are left alone.
+3. Frontend on `tracker-idle-ended`: if we auto-paused something, show the prompt: "You were away for N minutes. Resume session / End session / Keep it paused".
+4. Idle detection runs even when tray "Pause tracking" is on. Pausing *tracking* is about privacy of window data; pausing a *session* is about time accounting. They are independent.
+
+- [ ] **Step 1: Write the failing detector tests**
+
+In `tracker/mod.rs`, inside the existing `#[cfg(test)] mod tests { ... }` block from Task 5, add:
+
+```rust
+    #[test]
+    fn idle_detector_is_silent_below_threshold() {
+        let mut d = IdleDetector::default();
+        assert_eq!(d.observe(0), None);
+        assert_eq!(d.observe(IDLE_THRESHOLD_SECS - 1), None);
+        assert_eq!(d.observe(0), None);
+    }
+
+    #[test]
+    fn idle_detector_fires_started_once_when_threshold_crossed() {
+        let mut d = IdleDetector::default();
+        assert_eq!(d.observe(IDLE_THRESHOLD_SECS - 1), None);
+        assert_eq!(
+            d.observe(IDLE_THRESHOLD_SECS),
+            Some(IdleTransition::Started(IdlePayload { idle_seconds: IDLE_THRESHOLD_SECS }))
+        );
+        // Still idle: no repeat.
+        assert_eq!(d.observe(IDLE_THRESHOLD_SECS + 1), None);
+        assert_eq!(d.observe(IDLE_THRESHOLD_SECS + 60), None);
+    }
+
+    #[test]
+    fn idle_detector_fires_ended_with_total_away_time() {
+        let mut d = IdleDetector::default();
+        d.observe(IDLE_THRESHOLD_SECS);
+        d.observe(IDLE_THRESHOLD_SECS + 120);
+        // User touches the keyboard: OS idle counter resets.
+        assert_eq!(
+            d.observe(0),
+            Some(IdleTransition::Ended(IdlePayload { idle_seconds: IDLE_THRESHOLD_SECS + 120 }))
+        );
+        // Back at work: silent again.
+        assert_eq!(d.observe(1), None);
+    }
+
+    #[test]
+    fn idle_payload_serialises_camel_case() {
+        let json = serde_json::to_string(&IdlePayload { idle_seconds: 7 }).unwrap();
+        assert_eq!(json, r#"{"idleSeconds":7}"#);
+    }
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `cd desktop-app-v3/src-tauri && cargo test --lib tracker::`
+Expected: compile error, `cannot find type IdleDetector in this scope`.
+
+- [ ] **Step 3: Add the detector types**
+
+In `tracker/mod.rs`, directly below the `CHECKPOINT_TICKS` constant (Task 8), add:
+
+```rust
+/// Payload of the `tracker-idle-started` / `tracker-idle-ended` events.
+/// For `started`, `idle_seconds` is the threshold that was just crossed.
+/// For `ended`, it is the whole stretch the user was away.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdlePayload {
+    pub idle_seconds: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IdleTransition {
+    Started(IdlePayload),
+    Ended(IdlePayload),
+}
+
+/// Pure edge detector over the OS idle counter. Fed once per tick; reports
+/// the tick the user crosses `IDLE_THRESHOLD_SECS` and the tick they come
+/// back. Owns no clock — the caller supplies `idle_secs`, so it is trivially
+/// unit-testable.
+#[derive(Debug, Default)]
+pub struct IdleDetector {
+    was_idle: bool,
+    last_idle_secs: u64,
+}
+
+impl IdleDetector {
+    pub fn observe(&mut self, idle_secs: u64) -> Option<IdleTransition> {
+        let is_idle = idle_secs >= IDLE_THRESHOLD_SECS;
+        let transition = match (self.was_idle, is_idle) {
+            (false, true) => Some(IdleTransition::Started(IdlePayload { idle_seconds: idle_secs })),
+            (true, false) => Some(IdleTransition::Ended(IdlePayload { idle_seconds: self.last_idle_secs })),
+            _ => None,
+        };
+        if is_idle {
+            self.last_idle_secs = idle_secs;
+        }
+        self.was_idle = is_idle;
+        transition
+    }
+}
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `cd desktop-app-v3/src-tauri && cargo test --lib tracker::`
+Expected: the four new tests PASS alongside the Task 5 `step()` tests.
+
+- [ ] **Step 5: Wire the detector into the tracker loop**
+
+In `tracker/mod.rs`:
+
+Add `use tauri::Emitter;` to the `use` block.
+
+Add `pub app: tauri::AppHandle,` as the last field of `pub struct TrackerConfig`.
+
+Replace the whole `fn poll_os() -> Poll { ... }` function (Task 8) with these two functions:
+
+```rust
+fn os_idle_secs() -> u64 {
+    user_idle::UserIdle::get_time()
+        .map(|t| t.as_seconds())
+        .unwrap_or(0)
+}
+
+fn poll_window() -> Poll {
+    match active_win_pos_rs::get_active_window() {
+        Ok(win) => {
+            let process_name = win
+                .process_path
+                .file_name()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let application_name = if win.app_name.is_empty() {
+                process_name.clone()
+            } else {
+                win.app_name.clone()
+            };
+            Poll::Window(Observation {
+                application_name,
+                process_name,
+                window_title: win.title,
+            })
+        }
+        Err(_) => Poll::Unavailable,
+    }
+}
+
+fn emit_idle(app: &tauri::AppHandle, transition: IdleTransition) {
+    let result = match transition {
+        IdleTransition::Started(payload) => {
+            tracing::info!(idle_seconds = payload.idle_seconds, "user went idle");
+            app.emit("tracker-idle-started", payload)
+        }
+        IdleTransition::Ended(payload) => {
+            tracing::info!(idle_seconds = payload.idle_seconds, "user came back");
+            app.emit("tracker-idle-ended", payload)
+        }
+    };
+    if let Err(err) = result {
+        tracing::warn!(?err, "idle event emit failed");
+    }
+}
+```
+
+In `async fn run(...)`, add `let mut idle = IdleDetector::default();` after `let mut ticks_since_checkpoint: u32 = 0;`.
+
+Replace the first line of the `_ = interval.tick() => { ... }` arm, which currently reads
+
+```rust
+                let poll = if cfg.paused.load(Ordering::Relaxed) { Poll::Idle } else { poll_os() };
+```
+
+with
+
+```rust
+                let idle_secs = os_idle_secs();
+                if let Some(transition) = idle.observe(idle_secs) {
+                    emit_idle(&cfg.app, transition);
+                }
+                let poll = if cfg.paused.load(Ordering::Relaxed) || idle_secs >= IDLE_THRESHOLD_SECS {
+                    Poll::Idle
+                } else {
+                    poll_window()
+                };
+```
+
+Everything after that line in the arm (the `session_id` read and the `match step(...)`) is unchanged.
+
+- [ ] **Step 6: Pass the app handle at setup**
+
+In `lib.rs` setup, in the `tracker::TrackerHandle::spawn(tracker::TrackerConfig { ... })` call from Task 8 Step 3, add the field:
+
+```rust
+                        app: app.handle().clone(),
+```
+
+- [ ] **Step 7: Build and run all Rust tests**
+
+Run: `cd desktop-app-v3/src-tauri && cargo build && cargo test --lib`
+Expected: build clean (no unused-import warning for `Emitter`), all tests PASS.
+
+- [ ] **Step 8: Create the frontend idle store**
+
+Create `desktop-app-v3/src/lib/idle.ts`:
+
+```ts
+import { create } from 'zustand';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { useSessionStore } from './sessions';
+
+/** Mirrors `IdlePayload` in src-tauri/src/tracker/mod.rs (serde camelCase). */
+export interface IdlePayload {
+  idleSeconds: number;
+}
+
+interface IdleState {
+  /** Session we auto-paused when the user went idle. Null = we paused nothing. */
+  autoPausedSessionId: string | null;
+  /** Total away time once the user returns; non-null drives the prompt. */
+  awaySeconds: number | null;
+
+  /** Subscribe to the tracker's idle events. App.tsx calls this once on
+   *  mount and stores the unlisten fn for cleanup. */
+  bootstrap: () => Promise<UnlistenFn>;
+  /** Prompt: "Resume session". */
+  resume: () => Promise<void>;
+  /** Prompt: "End session". */
+  endSession: () => Promise<void>;
+  /** Prompt: "Keep it paused" — close the dialog, leave the session paused. */
+  dismiss: () => void;
+}
+
+export const useIdleStore = create<IdleState>((set, get) => ({
+  autoPausedSessionId: null,
+  awaySeconds: null,
+
+  bootstrap: async () => {
+    const unlistenStarted = await listen<IdlePayload>('tracker-idle-started', async () => {
+      const session = useSessionStore.getState().current;
+      // Nothing running, or the user paused it themselves: leave it alone.
+      if (!session || session.completed || session.isPaused) return;
+      try {
+        await useSessionStore.getState().togglePause('pause');
+        set({ autoPausedSessionId: session.id, awaySeconds: null });
+      } catch (err) {
+        // Non-fatal: the session simply keeps running. Store already set `error`.
+        // eslint-disable-next-line no-console
+        console.warn('[idle] auto-pause failed', err);
+      }
+    });
+
+    const unlistenEnded = await listen<IdlePayload>('tracker-idle-ended', (event) => {
+      if (!get().autoPausedSessionId) return;
+      set({ awaySeconds: event.payload.idleSeconds });
+    });
+
+    return () => {
+      unlistenStarted();
+      unlistenEnded();
+    };
+  },
+
+  resume: async () => {
+    const { autoPausedSessionId } = get();
+    const session = useSessionStore.getState().current;
+    set({ autoPausedSessionId: null, awaySeconds: null });
+    // The session may have been ended or resumed from another device while
+    // we were away; only resume the exact session we paused, and only if it
+    // is still paused.
+    if (!session || session.id !== autoPausedSessionId || !session.isPaused) return;
+    await useSessionStore.getState().togglePause('resume');
+  },
+
+  endSession: async () => {
+    set({ autoPausedSessionId: null, awaySeconds: null });
+    await useSessionStore.getState().end();
+  },
+
+  dismiss: () => set({ autoPausedSessionId: null, awaySeconds: null }),
+}));
+
+/** Selector: should the "welcome back" dialog render right now? */
+export function selectShowIdlePrompt(state: IdleState): boolean {
+  return state.awaySeconds !== null && state.autoPausedSessionId !== null;
+}
+```
+
+- [ ] **Step 9: Create the prompt component**
+
+Create `desktop-app-v3/src/components/IdlePrompt.tsx`:
+
+```tsx
+import { Button } from './Button';
+import { useIdleStore, selectShowIdlePrompt } from '../lib/idle';
+
+function formatAway(seconds: number): string {
+  const mins = Math.max(1, Math.round(seconds / 60));
+  return mins === 1 ? '1 minute' : `${mins} minutes`;
+}
+
+/**
+ * Modal shown when the user returns after the tracker auto-paused their
+ * focus session for inactivity. Three exits: resume, end, or leave paused.
+ * Mounted once in App.tsx so it works on every route.
+ */
+export function IdlePrompt() {
+  const visible = useIdleStore(selectShowIdlePrompt);
+  const awaySeconds = useIdleStore((s) => s.awaySeconds);
+  const resume = useIdleStore((s) => s.resume);
+  const endSession = useIdleStore((s) => s.endSession);
+  const dismiss = useIdleStore((s) => s.dismiss);
+
+  if (!visible || awaySeconds === null) return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="idle-prompt-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    >
+      <div className="w-full max-w-sm rounded-xl border border-surface-3 bg-surface-1 p-6 shadow-lg">
+        <h2 id="idle-prompt-title" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Welcome back
+        </h2>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          You were away for {formatAway(awaySeconds)}. Your focus session was paused while you were gone.
+        </p>
+        <div className="mt-6 flex gap-2">
+          <Button variant="primary" className="flex-1" onClick={() => void resume()}>
+            Resume session
+          </Button>
+          <Button variant="secondary" className="flex-1" onClick={() => void endSession()}>
+            End session
+          </Button>
+        </div>
+        <button
+          type="button"
+          onClick={dismiss}
+          className="mt-3 w-full text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+        >
+          Keep it paused
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 10: Mount it in `App.tsx`**
+
+In `desktop-app-v3/src/App.tsx`:
+
+Add the imports:
+
+```tsx
+import { useIdleStore } from './lib/idle';
+import { IdlePrompt } from './components/IdlePrompt';
+```
+
+After the AI-substrate `useEffect` (the one calling `useAIStore.getState().bootstrap()`), add:
+
+```tsx
+  // Subscribe to tracker idle events: auto-pause the running session when
+  // the user walks away, prompt them when they come back.
+  useEffect(() => {
+    const unlistenPromise = useIdleStore.getState().bootstrap();
+    return () => {
+      void unlistenPromise.then((fn) => fn());
+    };
+  }, []);
+```
+
+Replace the final `return ( <Routes> ... </Routes> );` with:
+
+```tsx
+  return (
+    <>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/settings/ai" element={<SettingsAiPage />} />
+        <Route path="/settings/tracking" element={<SettingsTrackingPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <IdlePrompt />
+    </>
+  );
+```
+
+(The `/settings/tracking` route and `SettingsTrackingPage` import come from Task 10. If Task 10 has not been applied yet, omit that one `<Route>` line and add it when Task 10 runs.)
+
+- [ ] **Step 11: Typecheck**
+
+Run: `cd desktop-app-v3 && npm run typecheck`
+Expected: clean.
+
+- [ ] **Step 12: Manual smoke test**
+
+To avoid waiting 5 minutes per check, temporarily set `IDLE_THRESHOLD_SECS` to `15` in `tracker/mod.rs`, run `cd desktop-app-v3 && npm run tauri:dev`, and **revert the constant before committing**.
+
+1. Sign in, start a 25-minute session. Take hands off keyboard and mouse for 20 s. Expected: the timer shows the paused state (`⏸` in the tray label, Resume button on the dashboard). Terminal log shows `user went idle`.
+2. Move the mouse. Expected: the "Welcome back" dialog appears with "You were away for 1 minute". Terminal log shows `user came back`.
+3. Click "Resume session". Expected: dialog closes, timer resumes, the countdown has **not** lost the away time (server shifts `startTime` on resume).
+4. Repeat 1-2, click "End session". Expected: dialog closes, session ends, dashboard shows the start form.
+5. Repeat 1-2, click "Keep it paused". Expected: dialog closes, session stays paused; manual Resume still works.
+6. Start a session, pause it manually, go idle 20 s, come back. Expected: **no** dialog (we did not auto-pause).
+7. With no session running, go idle and come back. Expected: no dialog; log lines still appear.
+8. Hide the window to the tray (close button), start a session from the web dashboard, go idle, come back, then show the window. Expected: the dialog is waiting when the window reappears.
+
+Revert `IDLE_THRESHOLD_SECS` to `5 * 60`.
+
+- [ ] **Step 13: Commit**
+
+```bash
+cd desktop-app-v3
+git add src-tauri/src/tracker/mod.rs src-tauri/src/lib.rs src/lib/idle.ts src/components/IdlePrompt.tsx src/App.tsx
+git commit -m "feat(desktop): auto-pause the focus session on idle and prompt on return"
+```
+
+---
+
+### Task 12: Docs, rules, and full verification
 
 **Files:**
 - Modify: `.claude/rules/desktop-app-v3.md`, `.claude/rules/gotchas.md`, `.claude/rules/testing.md`, `.claude/rules/web-app.md`
@@ -2181,6 +2631,8 @@ Append:
 - **`shareWindowDetails` is enforced twice** — desktop strips titles/URLs in `activity_upload::redact`, and `/api/activity/sync` strips again from the user's preference row. Do not remove either side; old clients rely on the server side.
 
 - **`activity_local.closed = 0` rows are never uploaded** — a bucket becomes uploadable only on window change, idle, pause, flush, or the `close_all_open` sweep at next launch. If activity "never shows up", check for a long-lived open bucket first.
+
+- **Idle auto-pause is threshold-late** — the tracker emits `tracker-idle-started` only once OS idle reaches `IDLE_THRESHOLD_SECS` (5 min), and the frontend pauses the session via `/api/sessions/[id]/toggle-pause` at that moment. The first 5 minutes of an idle stretch therefore still count as session time. Backdating `pausedAt` needs an API change; deferred to Phase 4.
 ```
 
 - [ ] **Step 3: Update `.claude/rules/testing.md`**
@@ -2239,7 +2691,8 @@ git commit -m "docs: always-on tracker, activity privacy, desktop test command"
 | Uploaded by 60 s sync worker; 90-day retention | 7 |
 | Session tagging via `active_session_id` | 5, 8 |
 | Wayland unchanged | 8 (`Poll::Unavailable`) |
-| Exit criteria verified | 11 |
+| Idle auto-pause + return prompt (2026-09-04 amendment) | 11 |
+| Exit criteria verified | 12 |
 
 **Type consistency:** `ActivitySample.session_id: Option<String>` (Task 5) is what `activity_local` reads/writes (Task 6), what `redact` preserves (Task 7), and what `ActivityPayload.session_id: Option<String>` serialises (Task 7). `resolve_share_flag(http, token, &Arc<RwLock<Option<Preferences>>>)` matches `AppState.prefs_cache` (Task 4) and both call sites (Tasks 7, 8). `rebuild_menu(&AppHandle)` is used by `install`, `announce_update`, `handle_menu_event` (Task 9) and `tracking_set_paused` (Task 9). Frontend command names match the `generate_handler!` registrations in Tasks 4 and 9.
 
