@@ -18,6 +18,7 @@ use rusqlite::Connection;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+pub mod activity_local;
 pub mod ai;
 pub mod pending_sync;
 
@@ -46,7 +47,7 @@ pub fn open(path: &Path) -> AppResult<Db> {
     Ok(Arc::new(Mutex::new(conn)))
 }
 
-fn apply_migrations(conn: &Connection) -> AppResult<()> {
+pub(crate) fn apply_migrations(conn: &Connection) -> AppResult<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS pending_activity_sync (\n\
             id            INTEGER PRIMARY KEY AUTOINCREMENT,\n\
@@ -61,5 +62,6 @@ fn apply_migrations(conn: &Connection) -> AppResult<()> {
     )
     .map_err(|e| AppError::Storage(format!("migrate: {e}")))?;
     ai::migrate(conn)?;
+    activity_local::migrate(conn)?;
     Ok(())
 }
