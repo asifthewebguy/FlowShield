@@ -270,6 +270,12 @@ async fn run(cfg: TrackerConfig, mut flush_rx: mpsc::Receiver<oneshot::Sender<()
     let mut ticks_since_checkpoint: u32 = 0;
     let mut idle = IdleDetector::default();
     let mut interval = tokio::time::interval(Duration::from_secs(1));
+    // Default `Burst` behavior replays every missed tick back-to-back after
+    // a stall (slow OS call, DB contention), and each tick adds 1s to
+    // `duration_seconds` — inflating the open bucket by the length of the
+    // stall instead of reflecting wall-clock time. `Skip` absorbs a stall
+    // as a single tick that catches up to "now".
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     loop {
         tokio::select! {

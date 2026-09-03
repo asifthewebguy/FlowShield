@@ -1,17 +1,12 @@
-//! `pending_activity_sync` queue — payloads that failed to POST at
-//! session-end, persisted so a background worker can retry later.
-//!
-//! Bounded at 500 rows / 7-day TTL. On each enqueue we purge rows older
-//! than `MAX_AGE_SECS` and, if still over `MAX_ROWS`, drop the oldest by
-//! `created_at`. Same invariants the v2 desktop's `PendingOperations`
-//! used so users moving between v2 ↔ v3 see consistent behavior.
+//! `pending_activity_sync` queue — legacy payloads queued by pre-Phase-1
+//! builds at session end. Nothing enqueues new rows any more (the
+//! always-on tracker persists straight to `activity_local` instead); this
+//! module only drains rows a still-installed older build already queued,
+//! with exponential backoff.
 
 use super::Db;
 use crate::error::{AppError, AppResult};
 use crate::tracker::ActivitySample;
-
-const MAX_ROWS: i64 = 500;
-const MAX_AGE_SECS: i64 = 7 * 24 * 60 * 60; // 7 days
 
 /// Exponential backoff between retries: `min(5min · 2^retry, 30min)`.
 /// Same shape v2 desktop used. Retry counts above 8 saturate at the cap.
@@ -40,22 +35,6 @@ fn now_secs() -> i64 {
 fn lock(db: &Db) -> AppResult<std::sync::MutexGuard<'_, rusqlite::Connection>> {
     db.lock()
         .map_err(|_| AppError::Storage("db mutex poisoned".into()))
-}
-
-/// Persist a failed sync payload for later retry.
-pub fn enqueue(db: &Db, session_id: &str, samples: &[ActivitySample]) -> AppResult<()> {
-    let payload = serde_json::to_string(samples)?;
-    let now = now_secs();
-    let conn = lock(db)?;
-    conn.execute(
-        "INSERT INTO pending_activity_sync\n\
-         (session_id, payload, retry_count, created_at, next_retry_at)\n\
-         VALUES (?1, ?2, 0, ?3, ?3)",
-        rusqlite::params![session_id, payload, now],
-    )
-    .map_err(|e| AppError::Storage(format!("enqueue: {e}")))?;
-    purge_locked(&conn, now)?;
-    Ok(())
 }
 
 /// Fetch up to `limit` rows whose `next_retry_at <= now`, oldest first.
@@ -117,31 +96,6 @@ pub fn record_failure(db: &Db, id: i64, retry_count: i64) -> AppResult<()> {
         rusqlite::params![retry_count + 1, next, id],
     )
     .map_err(|e| AppError::Storage(format!("record_failure: {e}")))?;
-    Ok(())
-}
-
-/// Drop rows older than `MAX_AGE_SECS`, then if still over `MAX_ROWS`,
-/// drop the oldest until we're under the cap. Called on each enqueue.
-fn purge_locked(conn: &rusqlite::Connection, now: i64) -> AppResult<()> {
-    conn.execute(
-        "DELETE FROM pending_activity_sync WHERE created_at < ?1",
-        rusqlite::params![now - MAX_AGE_SECS],
-    )
-    .map_err(|e| AppError::Storage(format!("purge ttl: {e}")))?;
-    let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM pending_activity_sync", [], |r| r.get(0))
-        .map_err(|e| AppError::Storage(format!("purge count: {e}")))?;
-    if count > MAX_ROWS {
-        let excess = count - MAX_ROWS;
-        conn.execute(
-            "DELETE FROM pending_activity_sync WHERE id IN (\n\
-                SELECT id FROM pending_activity_sync\n\
-                ORDER BY created_at ASC LIMIT ?1\n\
-             )",
-            rusqlite::params![excess],
-        )
-        .map_err(|e| AppError::Storage(format!("purge cap: {e}")))?;
-    }
     Ok(())
 }
 

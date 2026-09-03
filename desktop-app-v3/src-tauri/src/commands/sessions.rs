@@ -158,7 +158,10 @@ pub async fn session_end(
 }
 
 /// `session_toggle_pause` — POST /api/sessions/[id]/toggle-pause
-/// `action` is "pause" or "resume".
+/// `action` is "pause" or "resume". Also updates `AppState.active_session_id`
+/// so the always-on tracker stops tagging new buckets with a session the
+/// user has paused (and resumes tagging once they resume it) — otherwise a
+/// paused session keeps mis-attributing unrelated activity indefinitely.
 #[tauri::command]
 pub async fn session_toggle_pause(
     state: State<'_, AppState>,
@@ -166,5 +169,13 @@ pub async fn session_toggle_pause(
     action: String,
 ) -> AppResult<Session> {
     let token = token_or_err(&state).await?;
-    api::sessions::toggle_pause(&state.http, &token, &session_id, &action).await
+    let session = api::sessions::toggle_pause(&state.http, &token, &session_id, &action).await?;
+
+    if action == "pause" {
+        *state.active_session_id.write().await = None;
+    } else if action == "resume" {
+        *state.active_session_id.write().await = Some(session_id);
+    }
+
+    Ok(session)
 }
