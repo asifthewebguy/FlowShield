@@ -4,9 +4,7 @@ import SocialProof from '@/components/landing/SocialProof';
 import FeaturesGrid from '@/components/landing/FeaturesGrid';
 import TimerShowcase from '@/components/landing/TimerShowcase';
 import AnalyticsShowcase from '@/components/landing/AnalyticsShowcase';
-import AICoachShowcase from '@/components/landing/AICoachShowcase';
 import CrossPlatform from '@/components/landing/CrossPlatform';
-import TeamsSection from '@/components/landing/TeamsSection';
 import Pricing from '@/components/landing/Pricing';
 import FAQ from '@/components/landing/FAQ';
 import Footer from '@/components/landing/Footer';
@@ -24,9 +22,7 @@ export default function Home() {
         <FeaturesGrid />
         <TimerShowcase />
         <AnalyticsShowcase />
-        <AICoachShowcase />
         <CrossPlatform />
-        <TeamsSection />
         <Pricing />
         <FAQ />
       </main>

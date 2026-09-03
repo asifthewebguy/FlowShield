@@ -66,7 +66,7 @@ export default function FeaturesGrid() {
             Everything You Need to Stay Focused
           </h2>
           <p className="text-gray-400 mt-4">
-            From intelligent tracking to AI coaching, FlowShield gives you the complete toolkit
+            From tracking to analytics, FlowShield gives you the complete toolkit
             to understand and improve your productivity.
           </p>
         </div>

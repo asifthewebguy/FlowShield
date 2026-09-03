@@ -4,7 +4,6 @@ const footerLinks = {
   Product: [
     { label: 'Features', href: '#features' },
     { label: 'Analytics', href: '#analytics' },
-    { label: 'AI Coach', href: '#coach' },
     { label: 'Pricing', href: '#pricing' },
   ],
   Platforms: [
@@ -45,7 +44,7 @@ export default function Footer() {
               Flow<span className="text-primary-500">Shield</span>
             </Link>
             <p className="mt-3 text-sm text-gray-500">
-              AI-powered productivity & focus management platform.
+              Focus sessions, automatic activity tracking, and distraction blocking.
             </p>
           </div>
 
