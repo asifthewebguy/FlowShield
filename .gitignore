@@ -2,3 +2,14 @@
 .claude
 .env.worktrees/
 browser-extension/dist/
+
+# Dependencies and build output
+node_modules/
+*.tsbuildinfo
+flowshield-extension-*.zip
+
+# Agent tooling scratch state (machine-specific, not shared)
+.superpowers/
+memory/
+.github/hooks/
+*.bak
