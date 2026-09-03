@@ -48,6 +48,7 @@ model UserPreferences {
   breakReminders      Boolean  @default(true)
   soundEnabled        Boolean  @default(true)
   darkMode            Boolean  @default(false)
+  shareWindowDetails  Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)

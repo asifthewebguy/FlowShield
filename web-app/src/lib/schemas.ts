@@ -56,6 +56,7 @@ export const UpdatePreferencesSchema = z.object({
   breakReminders: z.boolean().optional(),
   soundEnabled: z.boolean().optional(),
   darkMode: z.boolean().optional(),
+  shareWindowDetails: z.boolean().optional(),
 });
 
 export const PushSendSchema = z.object({
@@ -92,6 +93,7 @@ export const UpdateProfileSchema = z.object({
       breakReminders: z.boolean().optional(),
       soundEnabled: z.boolean().optional(),
       darkMode: z.boolean().optional(),
+      shareWindowDetails: z.boolean().optional(),
     })
     .strict()
     .optional(),

@@ -6,6 +6,7 @@ import {
   CreateGoalSchema,
   CreateProjectSchema,
   UpdatePreferencesSchema,
+  UpdateProfileSchema,
   PushSendSchema,
 } from './schemas';
 
@@ -229,5 +230,25 @@ describe('PushSendSchema', () => {
     expect(
       PushSendSchema.safeParse({ title: 'Hi', body: 'World', userId: 'not-a-uuid' }).success
     ).toBe(false);
+  });
+});
+
+describe('shareWindowDetails preference', () => {
+  it('UpdatePreferencesSchema accepts shareWindowDetails: false', () => {
+    const r = UpdatePreferencesSchema.safeParse({ shareWindowDetails: false });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.shareWindowDetails).toBe(false);
+  });
+
+  it('UpdatePreferencesSchema rejects a non-boolean shareWindowDetails', () => {
+    const r = UpdatePreferencesSchema.safeParse({ shareWindowDetails: 'no' });
+    expect(r.success).toBe(false);
+  });
+
+  it('UpdateProfileSchema accepts preferences.shareWindowDetails (strict object)', () => {
+    const r = UpdateProfileSchema.safeParse({
+      preferences: { primaryDistractions: [], shareWindowDetails: true },
+    });
+    expect(r.success).toBe(true);
   });
 });
