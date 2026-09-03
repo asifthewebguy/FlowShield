@@ -14,6 +14,7 @@ function formatAway(seconds: number): string {
 export function IdlePrompt() {
   const visible = useIdleStore(selectShowIdlePrompt);
   const awaySeconds = useIdleStore((s) => s.awaySeconds);
+  const error = useIdleStore((s) => s.error);
   const resume = useIdleStore((s) => s.resume);
   const endSession = useIdleStore((s) => s.endSession);
   const dismiss = useIdleStore((s) => s.dismiss);
@@ -34,6 +35,11 @@ export function IdlePrompt() {
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
           You were away for {formatAway(awaySeconds)}. Your focus session was paused while you were gone.
         </p>
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        )}
         <div className="mt-6 flex gap-2">
           <Button variant="primary" className="flex-1" onClick={() => void resume()}>
             Resume session
