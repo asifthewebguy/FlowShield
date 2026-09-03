@@ -9,19 +9,11 @@ const faqs = [
   },
   {
     q: 'Is FlowShield really free?',
-    a: 'Yes — all core features are free with no time limit and no credit card required. You get unlimited focus sessions, full analytics, AI coach, teams, and cross-platform sync at no cost.',
+    a: 'Everything that ships today is free, with no time limit and no credit card. A paid Pro plan is planned for the day-planning, calendar, and client-billing features listed under Pricing. Pricing will be announced when those ship.',
   },
   {
     q: 'How does activity tracking work?',
     a: 'The desktop app passively monitors your active window and process names. The browser extension tracks which sites you visit. The mobile app tracks phone usage and app time. Everything syncs to your dashboard automatically.',
-  },
-  {
-    q: 'What does the AI Coach do?',
-    a: 'The AI Coach analyzes your last 7 days of productivity data and generates personalized recommendations — like which hours to protect for deep work, which apps distract you most, and how to structure your sessions for better results.',
-  },
-  {
-    q: 'Can I use FlowShield with my team?',
-    a: 'Yes. Create a team from the Coach page, copy your invite code, and share it. Team members appear on a shared leaderboard. It\'s great for building accountability and a healthy focus culture.',
   },
   {
     q: 'Is my data private?',
@@ -29,7 +21,7 @@ const faqs = [
   },
   {
     q: 'What is Deep Work Mode?',
-    a: 'Deep Work Mode lets the desktop app block distracting websites and apps at the system level during your focus sessions. You choose which sites to block in your profile preferences.',
+    a: 'Deep Work Mode lets the desktop app block distracting websites at the system level during your focus sessions. You choose which sites to block in your profile preferences.',
   },
 ];
 

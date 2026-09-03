@@ -16,7 +16,7 @@ const body = Onest({
 });
 
 export const metadata: Metadata = {
-  title: "FlowShield - AI-Powered Productivity & Focus Management",
+  title: "FlowShield - Focus Sessions & Automatic Time Tracking",
   description: "Build better focus habits through structured work sessions, intelligent activity tracking, and actionable analytics.",
   icons: {
     icon: '/favicon.ico',
