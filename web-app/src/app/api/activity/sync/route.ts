@@ -70,6 +70,14 @@ export async function POST(request: NextRequest) {
     // Source identifies the client sending data: desktop | browser | mobile
     const source: string = rawSource || 'desktop';
 
+    // Privacy switch. When the user turned off sharing, never persist window
+    // titles or URLs — even from clients that did not strip them themselves.
+    const prefs = await prisma.userPreferences.findUnique({
+      where: { userId },
+      select: { shareWindowDetails: true },
+    });
+    const shareWindowDetails = prefs?.shareWindowDetails ?? true;
+
     // Load CategoryRules once for the whole batch (browser source only)
     const categoryRules = source === 'browser'
       ? await prisma.categoryRule.findMany({
@@ -82,10 +90,12 @@ export async function POST(request: NextRequest) {
     const activityLogs = activities.map((activity) => ({
       userId,
       timestamp: new Date(activity.timestamp),
-      windowTitle: activity.windowTitle || activity.url || 'Unknown',
+      windowTitle: shareWindowDetails
+        ? (activity.windowTitle || activity.url || 'Unknown')
+        : 'Hidden',
       processName: activity.processName || source,
       applicationName: activity.applicationName || activity.domain || 'Unknown',
-      url: activity.url || null,
+      url: shareWindowDetails ? (activity.url || null) : null,
       durationSeconds: activity.durationSeconds,
       activityLevel: activity.activityLevel || 0,
       category: resolveCategory(
