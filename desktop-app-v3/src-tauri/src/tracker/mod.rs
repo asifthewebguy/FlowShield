@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+use tauri::Emitter;
 use tokio::sync::{mpsc, oneshot, RwLock};
 
 /// Treat the user as away-from-keyboard after this many seconds of OS-level
@@ -35,6 +36,47 @@ const IDLE_THRESHOLD_SECS: u64 = 5 * 60;
 /// Persist the open bucket's duration this often so a crash loses at
 /// most this many seconds of the current window.
 const CHECKPOINT_TICKS: u32 = 30;
+
+/// Payload of the `tracker-idle-started` / `tracker-idle-ended` events.
+/// For `started`, `idle_seconds` is the threshold that was just crossed.
+/// For `ended`, it is the whole stretch the user was away.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdlePayload {
+    pub idle_seconds: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IdleTransition {
+    Started(IdlePayload),
+    Ended(IdlePayload),
+}
+
+/// Pure edge detector over the OS idle counter. Fed once per tick; reports
+/// the tick the user crosses `IDLE_THRESHOLD_SECS` and the tick they come
+/// back. Owns no clock — the caller supplies `idle_secs`, so it is trivially
+/// unit-testable.
+#[derive(Debug, Default)]
+pub struct IdleDetector {
+    was_idle: bool,
+    last_idle_secs: u64,
+}
+
+impl IdleDetector {
+    pub fn observe(&mut self, idle_secs: u64) -> Option<IdleTransition> {
+        let is_idle = idle_secs >= IDLE_THRESHOLD_SECS;
+        let transition = match (self.was_idle, is_idle) {
+            (false, true) => Some(IdleTransition::Started(IdlePayload { idle_seconds: idle_secs })),
+            (true, false) => Some(IdleTransition::Ended(IdlePayload { idle_seconds: self.last_idle_secs })),
+            _ => None,
+        };
+        if is_idle {
+            self.last_idle_secs = idle_secs;
+        }
+        self.was_idle = is_idle;
+        transition
+    }
+}
 
 /// One bucketed observation of "user was looking at <window> for <N>s".
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -132,6 +174,7 @@ pub struct TrackerConfig {
     pub db: Db,
     pub active_session_id: Arc<RwLock<Option<String>>>,
     pub paused: Arc<AtomicBool>,
+    pub app: tauri::AppHandle,
 }
 
 pub struct TrackerHandle {
@@ -159,13 +202,13 @@ impl TrackerHandle {
     }
 }
 
-fn poll_os() -> Poll {
-    let idle_secs = user_idle::UserIdle::get_time()
+fn os_idle_secs() -> u64 {
+    user_idle::UserIdle::get_time()
         .map(|t| t.as_seconds())
-        .unwrap_or(0);
-    if idle_secs >= IDLE_THRESHOLD_SECS {
-        return Poll::Idle;
-    }
+        .unwrap_or(0)
+}
+
+fn poll_window() -> Poll {
     match active_win_pos_rs::get_active_window() {
         Ok(win) => {
             let process_name = win
@@ -185,6 +228,22 @@ fn poll_os() -> Poll {
             })
         }
         Err(_) => Poll::Unavailable,
+    }
+}
+
+fn emit_idle(app: &tauri::AppHandle, transition: IdleTransition) {
+    let result = match transition {
+        IdleTransition::Started(payload) => {
+            tracing::info!(idle_seconds = payload.idle_seconds, "user went idle");
+            app.emit("tracker-idle-started", payload)
+        }
+        IdleTransition::Ended(payload) => {
+            tracing::info!(idle_seconds = payload.idle_seconds, "user came back");
+            app.emit("tracker-idle-ended", payload)
+        }
+    };
+    if let Err(err) = result {
+        tracing::warn!(?err, "idle event emit failed");
     }
 }
 
@@ -209,6 +268,7 @@ async fn run(cfg: TrackerConfig, mut flush_rx: mpsc::Receiver<oneshot::Sender<()
     let mut current: Option<ActivitySample> = None;
     let mut row_id: Option<i64> = None;
     let mut ticks_since_checkpoint: u32 = 0;
+    let mut idle = IdleDetector::default();
     let mut interval = tokio::time::interval(Duration::from_secs(1));
 
     loop {
@@ -221,7 +281,15 @@ async fn run(cfg: TrackerConfig, mut flush_rx: mpsc::Receiver<oneshot::Sender<()
                 let _ = reply.send(());
             }
             _ = interval.tick() => {
-                let poll = if cfg.paused.load(Ordering::Relaxed) { Poll::Idle } else { poll_os() };
+                let idle_secs = os_idle_secs();
+                if let Some(transition) = idle.observe(idle_secs) {
+                    emit_idle(&cfg.app, transition);
+                }
+                let poll = if cfg.paused.load(Ordering::Relaxed) || idle_secs >= IDLE_THRESHOLD_SECS {
+                    Poll::Idle
+                } else {
+                    poll_window()
+                };
                 let session_id = cfg.active_session_id.read().await.clone();
                 match step(&mut current, poll, session_id.as_deref(), &now_iso()) {
                     Step::Nothing => {}
@@ -348,5 +416,46 @@ mod tests {
         let old_payload = r#"{"applicationName":"a","processName":"a","windowTitle":"t","url":null,"timestamp":"x","durationSeconds":3}"#;
         let s: ActivitySample = serde_json::from_str(old_payload).unwrap();
         assert!(s.session_id.is_none());
+    }
+
+    #[test]
+    fn idle_detector_is_silent_below_threshold() {
+        let mut d = IdleDetector::default();
+        assert_eq!(d.observe(0), None);
+        assert_eq!(d.observe(IDLE_THRESHOLD_SECS - 1), None);
+        assert_eq!(d.observe(0), None);
+    }
+
+    #[test]
+    fn idle_detector_fires_started_once_when_threshold_crossed() {
+        let mut d = IdleDetector::default();
+        assert_eq!(d.observe(IDLE_THRESHOLD_SECS - 1), None);
+        assert_eq!(
+            d.observe(IDLE_THRESHOLD_SECS),
+            Some(IdleTransition::Started(IdlePayload { idle_seconds: IDLE_THRESHOLD_SECS }))
+        );
+        // Still idle: no repeat.
+        assert_eq!(d.observe(IDLE_THRESHOLD_SECS + 1), None);
+        assert_eq!(d.observe(IDLE_THRESHOLD_SECS + 60), None);
+    }
+
+    #[test]
+    fn idle_detector_fires_ended_with_total_away_time() {
+        let mut d = IdleDetector::default();
+        d.observe(IDLE_THRESHOLD_SECS);
+        d.observe(IDLE_THRESHOLD_SECS + 120);
+        // User touches the keyboard: OS idle counter resets.
+        assert_eq!(
+            d.observe(0),
+            Some(IdleTransition::Ended(IdlePayload { idle_seconds: IDLE_THRESHOLD_SECS + 120 }))
+        );
+        // Back at work: silent again.
+        assert_eq!(d.observe(1), None);
+    }
+
+    #[test]
+    fn idle_payload_serialises_camel_case() {
+        let json = serde_json::to_string(&IdlePayload { idle_seconds: 7 }).unwrap();
+        assert_eq!(json, r#"{"idleSeconds":7}"#);
     }
 }

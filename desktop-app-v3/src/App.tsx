@@ -7,6 +7,8 @@ import SettingsTrackingPage from './routes/SettingsTrackingPage';
 import { useAuthStore } from './lib/auth';
 import { useUpdateStore } from './lib/update';
 import { useAIStore } from './lib/ai';
+import { useIdleStore } from './lib/idle';
+import { IdlePrompt } from './components/IdlePrompt';
 
 export default function App() {
   const { token, hydrated, hydrate } = useAuthStore();
@@ -37,6 +39,15 @@ export default function App() {
     };
   }, []);
 
+  // Subscribe to tracker idle events: auto-pause the running session when
+  // the user walks away, prompt them when they come back.
+  useEffect(() => {
+    const unlistenPromise = useIdleStore.getState().bootstrap();
+    return () => {
+      void unlistenPromise.then((fn) => fn());
+    };
+  }, []);
+
   // Once hydration finishes, redirect unauthenticated users to /login and
   // authenticated users away from /login.
   useEffect(() => {
@@ -51,13 +62,16 @@ export default function App() {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/" element={<DashboardPage />} />
-      <Route path="/settings/ai" element={<SettingsAiPage />} />
-      <Route path="/settings/tracking" element={<SettingsTrackingPage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/settings/ai" element={<SettingsAiPage />} />
+        <Route path="/settings/tracking" element={<SettingsTrackingPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <IdlePrompt />
+    </>
   );
 }
 

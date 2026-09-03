@@ -247,6 +247,7 @@ pub fn run() {
                         db: db.clone(),
                         active_session_id: state.active_session_id.clone(),
                         paused: state.tracking_paused.clone(),
+                        app: app.handle().clone(),
                     });
                     match state.tracker.try_write() {
                         Ok(mut slot) => *slot = Some(handle),
