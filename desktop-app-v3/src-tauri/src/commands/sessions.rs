@@ -1,17 +1,15 @@
 //! Session-timer commands. The frontend invokes these; we forward to the
 //! FlowShield REST API using the in-memory token from AppState.
 //!
-//! Activity-tracker lifecycle is bound to session lifecycle:
-//!   - session_start spawns the tracker after the API confirms the new session
-//!   - session_end stops the tracker, drains its buffer, and syncs to
-//!     /api/activity/sync (best-effort — sync errors are logged but don't
-//!     fail the end since the user already clicked "End")
+//! The activity tracker is always on (spawned in `lib.rs` setup). These
+//! commands only publish the active session id so buckets get tagged:
+//!   - session_start / session_active set `AppState.active_session_id`
+//!   - session_end clears it, flushes the open bucket, and triggers an
+//!     immediate upload so the web dashboard reflects the session
 
 use crate::api::{self, Session};
 use crate::device;
 use crate::error::{AppError, AppResult};
-use crate::store;
-use crate::tracker::TrackerHandle;
 use crate::AppState;
 use tauri::State;
 
@@ -28,7 +26,8 @@ async fn token_or_err(state: &State<'_, AppState>) -> AppResult<String> {
         })
 }
 
-/// `session_start` — POST /api/sessions, then spawn the activity tracker.
+/// `session_start` — POST /api/sessions, then publish the session id so
+/// the always-on tracker starts tagging buckets with it.
 #[tauri::command]
 pub async fn session_start(
     state: State<'_, AppState>,
@@ -48,29 +47,23 @@ pub async fn session_start(
     )
     .await?;
 
-    // Replace any leftover tracker (e.g. a previous session that wasn't ended
-    // cleanly) — drop the old one, spawn a fresh one for this session.
-    let mut slot = state.tracker.write().await;
-    if let Some(prev) = slot.take() {
-        // Drain (and discard) — phase 4 will surface this as orphaned-session
-        // recovery; for now, log and move on.
-        let leftover = prev.stop_and_drain().await;
-        if !leftover.is_empty() {
-            tracing::warn!(
-                count = leftover.len(),
-                "discarded leftover tracker samples from a prior session"
-            );
-        }
-    }
-    *slot = Some(TrackerHandle::spawn());
+    *state.active_session_id.write().await = Some(session.id.clone());
     Ok(session)
 }
 
 /// `session_active` — GET /api/sessions/active. Returns null if none.
+/// Also publishes the id so buckets get tagged for sessions started on
+/// another device (web, mobile, extension).
 #[tauri::command]
 pub async fn session_active(state: State<'_, AppState>) -> AppResult<Option<Session>> {
     let token = token_or_err(&state).await?;
-    api::sessions::get_active_session(&state.http, &token).await
+    let session = api::sessions::get_active_session(&state.http, &token).await?;
+    let id = session
+        .as_ref()
+        .filter(|s| !s.completed)
+        .map(|s| s.id.clone());
+    *state.active_session_id.write().await = id;
+    Ok(session)
 }
 
 /// `session_end` — PATCH /api/sessions/[id] with completed=true, then stop
@@ -89,38 +82,18 @@ pub async fn session_end(
     let session =
         api::sessions::end_session(&state.http, &token, &session_id, productivity_score).await?;
 
-    // Drain whatever the tracker captured during this session.
-    let mut samples = {
-        let mut slot = state.tracker.write().await;
-        match slot.take() {
-            Some(handle) => handle.stop_and_drain().await,
-            None => Vec::new(), // No tracker (e.g. session created elsewhere; we never started one)
-        }
-    };
-
-    // Best-effort sync — failure here does NOT fail the end.
-    // On failure, we persist the payload to the local SQLite queue so the
-    // background drainer can retry later (network blip, server hiccup).
-    if !samples.is_empty() {
-        let count = samples.len();
-        for s in samples.iter_mut() {
-            s.session_id = Some(session_id.clone());
-        }
-        match api::activity::sync_activity(&state.http, &token, &samples).await {
-            Ok(result) => tracing::info!(
-                synced = result.synced.unwrap_or(count as i32),
-                "activity samples synced"
-            ),
-            Err(err) => {
-                tracing::warn!(count, ?err, "activity sync failed; enqueueing for retry");
-                if let Some(db) = state.db.get() {
-                    if let Err(e) = store::pending_sync::enqueue(db, &session_id, &samples) {
-                        tracing::error!(?e, count, "failed to enqueue pending sync; samples lost");
-                    }
-                } else {
-                    tracing::warn!(count, "local store unavailable; samples lost");
-                }
-            }
+    *state.active_session_id.write().await = None;
+    if let Some(tracker) = state.tracker.read().await.as_ref() {
+        tracker.flush().await;
+    }
+    // Best-effort immediate upload so the session's activity appears on the
+    // web without waiting for the next sync tick. Failure is fine: rows stay
+    // in activity_local and the sync worker retries.
+    if let Some(db) = state.db.get() {
+        let share = crate::activity_upload::resolve_share_flag(&state.http, &token, &state.prefs_cache).await;
+        match crate::activity_upload::upload_once(&state.http, &token, db, share).await {
+            Ok(n) => tracing::info!(uploaded = n, "post-session activity upload"),
+            Err(err) => tracing::warn!(?err, "post-session upload failed; sync worker will retry"),
         }
     }
 
@@ -148,13 +121,19 @@ pub async fn session_end(
 
     // Phase 1.6a — index this completed session into the AI corpus.
     // Best-effort, backgrounded: never blocks or fails the session end.
+    //
+    // TODO(always-on-tracking follow-up): the tracker no longer drains an
+    // in-memory per-session sample buffer (Task 8 of the always-on-tracking
+    // plan) — buckets are persisted straight to activity_local as they
+    // open. `top_apps` below is empty until store::activity_local grows a
+    // "rows for this session_id" query the indexer can read from.
     if let Some(db) = state.db.get().cloned() {
         use tauri::Manager;
         if let Ok(app_data_dir) = app.path().app_data_dir() {
             let input = crate::ai::indexer::session_chunk_input(
                 &session,
                 productivity_score,
-                &samples,
+                &[],
             );
             crate::ai::indexer::index_session_background(
                 app.clone(),

@@ -66,8 +66,8 @@ pub fn run_blocker_subcommand(args: &[String]) -> Option<i32> {
 /// Shared application state. The HTTP client is reused across requests so
 /// connections are pooled. Token + user are mirrored from the persistent
 /// store on first read so commands don't pay the IPC round-trip every call.
-/// `tracker` holds the activity-monitoring task while a session is running;
-/// session_start populates it, session_end takes() it and drains the buffer.
+/// `tracker` holds the always-on activity tracker, spawned in `setup` once
+/// the local store is open.
 /// `db` is opened lazily in `setup()` once we can resolve the OS app-data
 /// directory; it stays `None` in test/headless contexts and the offline
 /// queue is treated as a best-effort feature when absent.
@@ -101,6 +101,11 @@ pub struct AppState {
     /// Set true while `briefing::generate` is running; prevents the 5am
     /// scheduler tick and the lazy-fallback dashboard mount from racing.
     pub briefing_in_flight: Arc<AtomicBool>,
+    /// Focus session currently running (set by session_start/session_active,
+    /// cleared by session_end). Each tracker bucket records this when it opens.
+    pub active_session_id: Arc<RwLock<Option<String>>>,
+    /// Tray "Pause tracking" toggle. Not persisted — a restart resumes tracking.
+    pub tracking_paused: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl AppState {
@@ -125,6 +130,8 @@ impl AppState {
             prefs_cache: Arc::new(RwLock::new(None)),
             embedder: Arc::new(std::sync::OnceLock::new()),
             briefing_in_flight: Arc::new(AtomicBool::new(false)),
+            active_session_id: Arc::new(RwLock::new(None)),
+            tracking_paused: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 }
@@ -231,6 +238,21 @@ pub fn run() {
                 Ok(db) => {
                     let state: tauri::State<'_, AppState> = app.state();
                     let _ = state.db.set(db.clone());
+                    match store::activity_local::close_all_open(&db) {
+                        Ok(0) => {}
+                        Ok(n) => tracing::info!(n, "closed activity buckets orphaned by a previous run"),
+                        Err(err) => tracing::warn!(?err, "orphaned bucket cleanup failed"),
+                    }
+                    let handle = tracker::TrackerHandle::spawn(tracker::TrackerConfig {
+                        db: db.clone(),
+                        active_session_id: state.active_session_id.clone(),
+                        paused: state.tracking_paused.clone(),
+                    });
+                    match state.tracker.try_write() {
+                        Ok(mut slot) => *slot = Some(handle),
+                        Err(_) => tracing::warn!("tracker slot busy during setup; flush() will be unavailable"),
+                    }
+                    tracing::info!("always-on activity tracker started");
                     sync_worker::spawn(
                         state.http.clone(),
                         state.token.clone(),
