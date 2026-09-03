@@ -4,12 +4,23 @@ import { useScrollReveal } from './useScrollReveal';
 const primaryFeatures = [
   {
     title: 'Focus Timer',
-    description: 'Pomodoro-style sessions with Work, Study, and Creative modes. Intelligent break scheduling keeps you fresh and on task.',
+    description: 'Pomodoro-style sessions with Work, Study, and Creative modes. Pause, resume, and pick a project for every session.',
     iconBg: 'bg-primary-900/40',
     iconColor: 'text-primary-400',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Activity Tracking',
+    description: 'The desktop app records which app and window you are in. The extension records sites. The mobile app records phone use. No manual logging.',
+    iconBg: 'bg-surface-4',
+    iconColor: 'text-gray-300',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
       </svg>
     ),
   },
@@ -25,26 +36,15 @@ const primaryFeatures = [
       </svg>
     ),
   },
-  {
-    title: 'AI Coach',
-    description: 'Personalized productivity advice powered by AI. Analyzes your patterns, spots weak points, and suggests concrete improvements.',
-    iconBg: 'bg-surface-4',
-    iconColor: 'text-gray-300',
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
-      </svg>
-    ),
-  },
 ];
 
 const secondaryFeatures = [
-  { title: 'Activity Tracking', description: 'Passive monitoring across desktop, mobile, and browser. No manual logging.' },
   { title: 'Distraction Analysis', description: 'See which apps and sites steal your focus, with daily trends.' },
-  { title: 'Deep Work Mode', description: 'System-level blocking of distracting sites during focus sessions.' },
-  { title: 'Goals & Streaks', description: 'Daily and weekly focus targets that build accountability over time.' },
+  { title: 'Deep Work Mode', description: 'Hosts-file blocking of distracting sites during focus sessions on desktop.' },
+  { title: 'Projects & Hourly Rates', description: 'Attach sessions to projects, set a rate, and see hours and cost per project.' },
+  { title: 'Goals', description: 'Daily and weekly focus targets tracked against your sessions.' },
   { title: 'Smart Sync', description: 'Your data follows you across web, desktop, mobile, and browser.' },
-  { title: 'Gamification', description: 'Badges, levels, and achievements that reward consistent focus.' },
+  { title: 'Data Export', description: 'Download your sessions as CSV or your full account as JSON at any time.' },
 ];
 
 export default function FeaturesGrid() {
