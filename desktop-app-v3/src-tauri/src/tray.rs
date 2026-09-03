@@ -8,6 +8,8 @@
 //!   user has hidden it via close-to-tray).
 //! - **Quit** — actually exit the process. Without this menu, hide-to-tray
 //!   would leave no obvious way to quit.
+//! - **Pause tracking / Resume tracking** — toggles the always-on activity
+//!   tracker; not persisted across restarts.
 //!
 //! Session indicator: while a focus session is running, the frontend
 //! ticks once per second and calls `tray_set_session_indicator` (in
@@ -18,6 +20,7 @@
 use crate::tray_indicator;
 use crate::update::UpdateInfo;
 use crate::AppState;
+use std::sync::atomic::Ordering;
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconEvent;
@@ -28,6 +31,7 @@ const TRAY_ID: &str = "main";
 const SHOW_ID: &str = "show";
 const QUIT_ID: &str = "quit";
 const UPDATE_ID: &str = "update";
+const PAUSE_ID: &str = "pause-tracking";
 
 /// Embedded base FlowShield logo, used to reset the tray icon when no
 /// session is active. Same source as the bundle icons (PR #48).
@@ -38,17 +42,41 @@ const BASE_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
 const TRAY_ICON_SIZE: u32 = 32;
 
 pub fn install(app: &App) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, SHOW_ID, "Show FlowShield", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
-
     let tray = app
         .tray_by_id(TRAY_ID)
         .ok_or_else(|| tauri::Error::AssetNotFound(format!("tray '{TRAY_ID}' not configured")))?;
-
-    tray.set_menu(Some(menu))?;
     tray.on_menu_event(handle_menu_event);
     tray.on_tray_icon_event(handle_icon_event);
+    rebuild_menu(app.handle())
+}
+
+/// Rebuild the whole tray menu from current state: optional "Updates
+/// available", Pause/Resume tracking, Show, Quit. Called on install, on
+/// update announcement, and on every pause toggle.
+pub fn rebuild_menu(handle: &AppHandle) -> tauri::Result<()> {
+    let Some(tray) = handle.tray_by_id(TRAY_ID) else {
+        return Ok(()); // tray install failed earlier — log already emitted
+    };
+    let state = handle.state::<AppState>();
+    let paused = state.tracking_paused.load(Ordering::Relaxed);
+    let pause_label = if paused { "Resume tracking" } else { "Pause tracking" };
+    let update_info = match state.latest_update.lock() {
+        Ok(guard) => guard.clone(),
+        Err(poisoned) => poisoned.into_inner().clone(),
+    };
+
+    let pause = MenuItem::with_id(handle, PAUSE_ID, pause_label, true, None::<&str>)?;
+    let show = MenuItem::with_id(handle, SHOW_ID, "Show FlowShield", true, None::<&str>)?;
+    let quit = MenuItem::with_id(handle, QUIT_ID, "Quit", true, None::<&str>)?;
+    let menu = match update_info {
+        Some(info) => {
+            let label = format!("▲ Updates: {} available", info.latest_version);
+            let update_item = MenuItem::with_id(handle, UPDATE_ID, &label, true, None::<&str>)?;
+            Menu::with_items(handle, &[&update_item, &pause, &show, &quit])?
+        }
+        None => Menu::with_items(handle, &[&pause, &show, &quit])?,
+    };
+    tray.set_menu(Some(menu))?;
     Ok(())
 }
 
@@ -60,6 +88,15 @@ fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
             app.exit(0);
         }
         UPDATE_ID => open_update_url(app),
+        PAUSE_ID => {
+            let state = app.state::<AppState>();
+            let now_paused = !state.tracking_paused.load(Ordering::Relaxed);
+            state.tracking_paused.store(now_paused, Ordering::Relaxed);
+            tracing::info!(paused = now_paused, "tracking pause toggled via tray");
+            if let Err(e) = rebuild_menu(app) {
+                tracing::warn!(error = %e, "tray menu rebuild failed");
+            }
+        }
         _ => {}
     }
 }
@@ -154,17 +191,7 @@ pub fn announce_update(handle: &AppHandle, info: &UpdateInfo) -> tauri::Result<(
         Err(poisoned) => *poisoned.into_inner() = Some(info.clone()),
     }
 
-    let Some(tray) = handle.tray_by_id(TRAY_ID) else {
-        return Ok(()); // tray install failed earlier — log already emitted
-    };
-
-    let label = format!("▲ Updates: {} available", info.latest_version);
-    let update_item = MenuItem::with_id(handle, UPDATE_ID, &label, true, None::<&str>)?;
-    let show = MenuItem::with_id(handle, SHOW_ID, "Show FlowShield", true, None::<&str>)?;
-    let quit = MenuItem::with_id(handle, QUIT_ID, "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(handle, &[&update_item, &show, &quit])?;
-    tray.set_menu(Some(menu))?;
-    Ok(())
+    rebuild_menu(handle)
 }
 
 /// Restore the default tray icon + clear the text label. Called when the

@@ -11,5 +11,6 @@ pub mod preferences;
 pub mod projects;
 pub mod realtime;
 pub mod sessions;
+pub mod tracking;
 pub mod tray;
 pub mod update;

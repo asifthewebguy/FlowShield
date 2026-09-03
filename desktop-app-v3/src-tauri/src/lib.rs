@@ -340,6 +340,8 @@ pub fn run() {
             commands::preferences::prefs_load,
             commands::preferences::prefs_set_share_window_details,
             commands::realtime::realtime_config,
+            commands::tracking::tracking_paused_get,
+            commands::tracking::tracking_set_paused,
             commands::tray::tray_set_session_indicator,
             commands::tray::tray_reset_session_indicator,
             commands::update::update_check_now,
