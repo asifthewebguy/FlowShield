@@ -413,6 +413,7 @@ mod tests {
             url: None,
             timestamp: "2026-06-23T09:10:00Z".into(),
             duration_seconds: secs,
+            session_id: None,
         }
     }
 
