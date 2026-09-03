@@ -90,7 +90,7 @@ pub async fn session_end(
         api::sessions::end_session(&state.http, &token, &session_id, productivity_score).await?;
 
     // Drain whatever the tracker captured during this session.
-    let samples = {
+    let mut samples = {
         let mut slot = state.tracker.write().await;
         match slot.take() {
             Some(handle) => handle.stop_and_drain().await,
@@ -103,7 +103,10 @@ pub async fn session_end(
     // background drainer can retry later (network blip, server hiccup).
     if !samples.is_empty() {
         let count = samples.len();
-        match api::activity::sync_activity(&state.http, &token, &session_id, &samples).await {
+        for s in samples.iter_mut() {
+            s.session_id = Some(session_id.clone());
+        }
+        match api::activity::sync_activity(&state.http, &token, &samples).await {
             Ok(result) => tracing::info!(
                 synced = result.synced.unwrap_or(count as i32),
                 "activity samples synced"

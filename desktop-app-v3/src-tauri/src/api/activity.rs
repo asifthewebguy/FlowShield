@@ -15,7 +15,7 @@ struct ActivityPayload {
     duration_seconds: u64,
     category: &'static str,
     activity_level: i32,
-    session_id: String,
+    session_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -30,8 +30,8 @@ pub struct SyncResult {
     pub synced: Option<i32>,
 }
 
-/// POST /api/activity/sync — uploads buffered samples for a completed
-/// session. Returns the API's `{ message, synced }` envelope.
+/// POST /api/activity/sync — uploads activity samples. Each sample carries
+/// its own optional session id.
 ///
 /// Server-side `resolveCategory` does the real category resolution from
 /// the user's CategoryRule table; we always send `category: "Unknown"`
@@ -39,7 +39,6 @@ pub struct SyncResult {
 pub async fn sync_activity(
     http: &reqwest::Client,
     token: &str,
-    session_id: &str,
     samples: &[ActivitySample],
 ) -> AppResult<SyncResult> {
     if samples.is_empty() {
@@ -57,7 +56,7 @@ pub async fn sync_activity(
             duration_seconds: s.duration_seconds,
             category: "Unknown",
             activity_level: 0,
-            session_id: session_id.to_string(),
+            session_id: s.session_id.clone(),
         })
         .collect();
     let activities_len = activities.len();

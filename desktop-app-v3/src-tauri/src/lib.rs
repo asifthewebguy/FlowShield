@@ -1,6 +1,7 @@
 //! FlowShield desktop — library entry point. main.rs wraps `run()` so the
 //! same code can be unit-tested without spinning up a webview.
 
+mod activity_upload;
 mod ai;
 mod api;
 mod blocking;
@@ -230,7 +231,12 @@ pub fn run() {
                 Ok(db) => {
                     let state: tauri::State<'_, AppState> = app.state();
                     let _ = state.db.set(db.clone());
-                    sync_worker::spawn(state.http.clone(), state.token.clone(), db);
+                    sync_worker::spawn(
+                        state.http.clone(),
+                        state.token.clone(),
+                        db,
+                        state.prefs_cache.clone(),
+                    );
                     tracing::info!(path = %db_path.display(), "local store opened");
                 }
                 Err(err) => {
