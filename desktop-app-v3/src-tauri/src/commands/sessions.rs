@@ -10,6 +10,7 @@
 use crate::api::{self, Session};
 use crate::device;
 use crate::error::{AppError, AppResult};
+use crate::store;
 use crate::AppState;
 use tauri::State;
 
@@ -66,8 +67,9 @@ pub async fn session_active(state: State<'_, AppState>) -> AppResult<Option<Sess
     Ok(session)
 }
 
-/// `session_end` — PATCH /api/sessions/[id] with completed=true, then stop
-/// the tracker and POST whatever it collected to /api/activity/sync.
+/// `session_end` — PATCH /api/sessions/[id] with completed=true, then clear
+/// `active_session_id`, flush the tracker's open bucket, and best-effort
+/// upload closed activity so the web dashboard reflects the session.
 #[tauri::command]
 pub async fn session_end(
     state: State<'_, AppState>,
@@ -121,19 +123,26 @@ pub async fn session_end(
 
     // Phase 1.6a — index this completed session into the AI corpus.
     // Best-effort, backgrounded: never blocks or fails the session end.
-    //
-    // TODO(always-on-tracking follow-up): the tracker no longer drains an
-    // in-memory per-session sample buffer (Task 8 of the always-on-tracking
-    // plan) — buckets are persisted straight to activity_local as they
-    // open. `top_apps` below is empty until store::activity_local grows a
-    // "rows for this session_id" query the indexer can read from.
     if let Some(db) = state.db.get().cloned() {
         use tauri::Manager;
         if let Ok(app_data_dir) = app.path().app_data_dir() {
+            // The always-on tracker persists straight to activity_local
+            // instead of an in-memory per-session buffer, so read the
+            // session's closed buckets back for the indexer's top_apps
+            // aggregation. `tracker.flush()` above already closed the
+            // session's final bucket, so this sees the full timeline.
+            let samples: Vec<crate::tracker::ActivitySample> =
+                match store::activity_local::rows_for_session(&db, &session_id) {
+                    Ok(rows) => rows.into_iter().map(|r| r.sample).collect(),
+                    Err(err) => {
+                        tracing::warn!(?err, "session activity read failed; top_apps will be empty");
+                        Vec::new()
+                    }
+                };
             let input = crate::ai::indexer::session_chunk_input(
                 &session,
                 productivity_score,
-                &[],
+                &samples,
             );
             crate::ai::indexer::index_session_background(
                 app.clone(),

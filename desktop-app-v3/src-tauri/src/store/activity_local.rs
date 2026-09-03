@@ -141,6 +141,43 @@ pub fn closed_unsynced(db: &Db, limit: i64) -> AppResult<Vec<LocalRow>> {
     Ok(out)
 }
 
+/// All closed buckets recorded during one focus session, oldest first.
+/// Unlike `closed_unsynced` this ignores sync state — callers (the AI
+/// indexer) need the session's full timeline whether or not it uploaded.
+pub fn rows_for_session(db: &Db, session_id: &str) -> AppResult<Vec<LocalRow>> {
+    let conn = lock(db)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, session_id, application_name, process_name, window_title, url,\n\
+                    timestamp, duration_seconds\n\
+             FROM activity_local\n\
+             WHERE session_id = ?1 AND closed = 1\n\
+             ORDER BY id ASC",
+        )
+        .map_err(storage("rows_for_session prepare"))?;
+    let rows = stmt
+        .query_map(params![session_id], |r| {
+            Ok(LocalRow {
+                id: r.get(0)?,
+                sample: ActivitySample {
+                    session_id: r.get(1)?,
+                    application_name: r.get(2)?,
+                    process_name: r.get(3)?,
+                    window_title: r.get(4)?,
+                    url: r.get(5)?,
+                    timestamp: r.get(6)?,
+                    duration_seconds: r.get::<_, i64>(7)?.max(0) as u64,
+                },
+            })
+        })
+        .map_err(storage("rows_for_session query"))?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row.map_err(storage("rows_for_session row"))?);
+    }
+    Ok(out)
+}
+
 pub fn mark_synced(db: &Db, ids: &[i64]) -> AppResult<()> {
     if ids.is_empty() {
         return Ok(());
@@ -204,6 +241,24 @@ mod tests {
         assert_eq!(rows[0].sample.duration_seconds, 42);
         assert_eq!(rows[0].sample.session_id.as_deref(), Some("s1"));
         assert_eq!(rows[0].sample.application_name, "Code");
+    }
+
+    #[test]
+    fn rows_for_session_returns_only_that_sessions_closed_rows() {
+        let db = test_db();
+        let a = insert_open(&db, &sample("Code", Some("s1"))).unwrap();
+        let b = insert_open(&db, &sample("Firefox", Some("s1"))).unwrap();
+        let other = insert_open(&db, &sample("Slack", None)).unwrap();
+        close(&db, a, 10).unwrap();
+        close(&db, b, 20).unwrap();
+        close(&db, other, 5).unwrap();
+
+        let rows = rows_for_session(&db, "s1").unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].id, a);
+        assert_eq!(rows[1].id, b);
+        assert!(rows.iter().all(|r| r.sample.session_id.as_deref() == Some("s1")));
+        assert!(rows.iter().all(|r| r.id != other));
     }
 
     #[test]
