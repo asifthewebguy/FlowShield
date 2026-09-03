@@ -43,7 +43,8 @@ export const useIdleStore = create<IdleState>((set, get) => ({
         await useSessionStore.getState().togglePause('pause');
         set({ autoPausedSessionId: session.id, awaySeconds: null, error: null });
       } catch (err) {
-        // Non-fatal: the session simply keeps running. Store already set `error`.
+        // Non-fatal: the auto-pause call failed, so the session is left
+        // running unpaused (no store state changes here — just a log).
         // eslint-disable-next-line no-console
         console.warn('[idle] auto-pause failed', err);
       }
