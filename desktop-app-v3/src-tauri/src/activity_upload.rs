@@ -76,6 +76,10 @@ pub async fn upload_once(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::Connection;
+    use std::sync::Mutex;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn s(title: &str, url: Option<&str>) -> ActivitySample {
         ActivitySample {
@@ -105,5 +109,106 @@ mod tests {
         assert_eq!(out[0].process_name, "firefox");
         assert_eq!(out[0].duration_seconds, 9);
         assert_eq!(out[0].session_id.as_deref(), Some("sess"));
+    }
+
+    // `FLOWSHIELD_API_URL` is read process-wide by `api::api_base_url()`.
+    // Tests run in parallel threads within one process, so any test that
+    // points it at a mock server must hold this lock for the full
+    // set-env -> await -> unset-env span to avoid another such test's
+    // request landing on the wrong mock server.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn test_db() -> Db {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::store::apply_migrations(&conn).unwrap();
+        Arc::new(std::sync::Mutex::new(conn))
+    }
+
+    #[tokio::test]
+    async fn resolve_share_flag_defaults_to_false_when_preferences_unreachable() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/user/preferences"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::set_var("FLOWSHIELD_API_URL", server.uri());
+        let http = reqwest::Client::new();
+        let cache: Arc<RwLock<Option<api::Preferences>>> = Arc::new(RwLock::new(None));
+        let shared = resolve_share_flag(&http, "token", &cache).await;
+        std::env::remove_var("FLOWSHIELD_API_URL");
+        drop(_guard);
+
+        assert!(
+            !shared,
+            "must fail closed (do not share) when preferences can't be fetched"
+        );
+        assert!(
+            cache.read().await.is_none(),
+            "a failed fetch must not poison the cache with a fabricated value"
+        );
+    }
+
+    #[tokio::test]
+    async fn upload_once_leaves_rows_unsynced_when_post_fails() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/activity/sync"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let db = test_db();
+        let id = store::activity_local::insert_open(&db, &s("Doc", None)).unwrap();
+        store::activity_local::close(&db, id, 9).unwrap();
+
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::set_var("FLOWSHIELD_API_URL", server.uri());
+        let http = reqwest::Client::new();
+        let result = upload_once(&http, "token", &db, true).await;
+        std::env::remove_var("FLOWSHIELD_API_URL");
+        drop(_guard);
+
+        assert!(result.is_err(), "a failed POST must surface as an error");
+        let rows = store::activity_local::closed_unsynced(&db, 10).unwrap();
+        assert_eq!(
+            rows.len(),
+            1,
+            "row must remain unsynced (available for retry) after a failed upload"
+        );
+    }
+
+    #[tokio::test]
+    async fn upload_once_marks_synced_on_success() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/activity/sync"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"message": "ok", "synced": 1})),
+            )
+            .mount(&server)
+            .await;
+
+        let db = test_db();
+        let id = store::activity_local::insert_open(&db, &s("Doc", None)).unwrap();
+        store::activity_local::close(&db, id, 9).unwrap();
+
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::set_var("FLOWSHIELD_API_URL", server.uri());
+        let http = reqwest::Client::new();
+        let uploaded = upload_once(&http, "token", &db, true).await.unwrap();
+        std::env::remove_var("FLOWSHIELD_API_URL");
+        drop(_guard);
+
+        assert_eq!(uploaded, 1);
+        assert!(
+            store::activity_local::closed_unsynced(&db, 10)
+                .unwrap()
+                .is_empty(),
+            "row must be marked synced after a successful upload"
+        );
     }
 }
