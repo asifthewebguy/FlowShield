@@ -89,6 +89,10 @@ pub struct AppState {
     /// std::sync::Mutex (not tokio's) because the menu click handler is
     /// synchronous and lock contention is effectively zero.
     pub latest_update: Arc<std::sync::Mutex<Option<update::UpdateInfo>>>,
+    /// Last preferences fetched from the API. Read by the upload job to
+    /// decide whether to redact window titles. `None` until the first
+    /// `prefs_load` (dashboard mount) or the first upload tick.
+    pub prefs_cache: Arc<RwLock<Option<api::Preferences>>>,
     /// `OnceLock` because `CandleEmbedder` is loaded lazily on first
     /// briefing generation and reused for the process lifetime (~135 MB
     /// resident; cheap to keep around).
@@ -117,6 +121,7 @@ impl AppState {
             db: Arc::new(std::sync::OnceLock::new()),
             device_id: Arc::new(std::sync::OnceLock::new()),
             latest_update: Arc::new(std::sync::Mutex::new(None)),
+            prefs_cache: Arc::new(RwLock::new(None)),
             embedder: Arc::new(std::sync::OnceLock::new()),
             briefing_in_flight: Arc::new(AtomicBool::new(false)),
         }
@@ -305,6 +310,7 @@ pub fn run() {
             commands::blocking::blocking_clear,
             commands::blocking::blocking_status,
             commands::preferences::prefs_load,
+            commands::preferences::prefs_set_share_window_details,
             commands::realtime::realtime_config,
             commands::tray::tray_set_session_indicator,
             commands::tray::tray_reset_session_indicator,
