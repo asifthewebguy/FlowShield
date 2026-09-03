@@ -37,6 +37,7 @@ export default function ProfilePage() {
       workStyle: '',
       preferredDuration: 25,
       primaryDistractions: [] as string[],
+      shareWindowDetails: true,
       workEnvironment: '',
     },
   });
@@ -64,6 +65,7 @@ export default function ProfilePage() {
             workStyle: user.preferences?.workStyle || 'morning',
             preferredDuration: user.preferences?.preferredDuration || 25,
             primaryDistractions: user.preferences?.primaryDistractions || [],
+            shareWindowDetails: user.preferences?.shareWindowDetails ?? true,
             workEnvironment: user.preferences?.workEnvironment || 'home',
           },
         });
@@ -622,6 +624,35 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
+          </Card>
+
+          {/* Activity Privacy */}
+          <Card className="mt-6">
+            <h3 className="text-lg font-semibold mb-2">Activity privacy</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              The desktop app records which apps and windows you use. Choose whether
+              window titles and page URLs are sent to FlowShield or stay on your computer.
+            </p>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4"
+                checked={formData.preferences.shareWindowDetails}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    preferences: { ...prev.preferences, shareWindowDetails: e.target.checked },
+                  }))
+                }
+              />
+              <span>
+                <span className="font-medium">Share window titles and URLs</span>
+                <span className="block text-sm text-gray-600 dark:text-gray-400">
+                  Off: only app names and durations are uploaded. Titles and URLs stay in the
+                  local database on your computer, and any received are stored as &quot;Hidden&quot;.
+                </span>
+              </span>
+            </label>
           </Card>
 
           {/* Connected Devices */}
