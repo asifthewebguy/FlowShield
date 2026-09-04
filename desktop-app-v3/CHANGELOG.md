@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.12.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.11.1-alpha.0...v3.12.0-alpha.0) (2026-09-04)
+
+
+### Features
+
+* **desktop:** activity_local table for persisted tracker buckets ([0bffa3a](https://github.com/asifthewebguy/FlowShield/commit/0bffa3a9b1ba8430cd7d93cd8aa98c528a02cf5e))
+* **desktop:** always-on activity tracker with local persistence and session tagging ([76dc328](https://github.com/asifthewebguy/FlowShield/commit/76dc3282cb8032ebc1d703a04eadcf792abfc291))
+* **desktop:** auto-pause the focus session on idle and prompt on return ([83d1dfd](https://github.com/asifthewebguy/FlowShield/commit/83d1dfd42c04b67ede1c773f9144508f8830b2c3))
+* **desktop:** background upload of persisted activity with privacy redaction ([2588108](https://github.com/asifthewebguy/FlowShield/commit/2588108d498e19e3aef8b4309dbb6100c8cec1b5))
+* **desktop:** pause/resume tracking from tray and settings commands ([33e14dd](https://github.com/asifthewebguy/FlowShield/commit/33e14dd744eac350f45fa3c4143a9655bdffb7ad))
+* **desktop:** pure tracker bucketing step() with session tagging ([2a666f9](https://github.com/asifthewebguy/FlowShield/commit/2a666f97f3c794dcfcabe708a6b467fb53a3b3e1))
+* **desktop:** shareWindowDetails preference with cache and PATCH command ([ed89940](https://github.com/asifthewebguy/FlowShield/commit/ed899407160a7ad3bae96a3019dd16bbf10d8e25))
+* **desktop:** tracking and privacy settings page ([f95401c](https://github.com/asifthewebguy/FlowShield/commit/f95401c4a0dbb0b1c1bf2b33ad22be3f86348c69))
+
+
+### Bug Fixes
+
+* **desktop:** guard idle-prompt end/resume against stale sessions ([ce50448](https://github.com/asifthewebguy/FlowShield/commit/ce504483c029a0bcdeab4f2626fa006b33c5098b))
+* **desktop:** isolate bad upload batches, refresh privacy prefs, fix paused-session tagging ([8ac9a0f](https://github.com/asifthewebguy/FlowShield/commit/8ac9a0f29e7fda67ceb09ea36324177cc63e4879))
+* **desktop:** read session activity from activity_local for AI corpus top_apps ([3c93bd1](https://github.com/asifthewebguy/FlowShield/commit/3c93bd16daac083ed42d6f38038b9ca6e5648a59))
+* **desktop:** stop retrying OS idle-time query after first failure ([464b292](https://github.com/asifthewebguy/FlowShield/commit/464b292775d41e16f0e204b431d321e535ba7675))
+
 ## [3.11.1-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.11.0-alpha.0...v3.11.1-alpha.0) (2026-06-27)
 
 
