@@ -19,7 +19,7 @@ const activityItemSchema = z.object({
   processName: z.string().max(MAX_STRING).optional(),
   applicationName: z.string().max(MAX_STRING).optional(),
   domain: z.string().max(MAX_STRING).optional(),
-  url: z.string().max(MAX_STRING).optional(),
+  url: z.string().max(MAX_STRING).optional().nullable(),
   category: z.string().max(MAX_STRING).optional(),
   durationSeconds: z
     .number()

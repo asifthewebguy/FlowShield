@@ -75,4 +75,12 @@ describe('POST /api/activity/sync privacy redaction', () => {
     expect(res.status).toBe(200);
     expect(storedRows()[0].windowTitle).toBe('secret.ts - Visual Studio Code');
   });
+
+  it('accepts an explicit null url (desktop window-focus samples with no url)', async () => {
+    mocks.prefsFindUnique.mockResolvedValue({ shareWindowDetails: true });
+    const { url: _url, ...withoutUrl } = sample;
+    const res = await POST(makeRequest({ activities: [{ ...withoutUrl, url: null }], source: 'desktop' }));
+    expect(res.status).toBe(200);
+    expect(storedRows()[0].url).toBeNull();
+  });
 });
