@@ -202,10 +202,27 @@ impl TrackerHandle {
     }
 }
 
-fn os_idle_secs() -> u64 {
-    user_idle::UserIdle::get_time()
-        .map(|t| t.as_seconds())
-        .unwrap_or(0)
+/// Query OS idle time, but stop trying after the first failure. Some
+/// XWayland setups (GNOME's notably) don't implement MIT-SCREEN-SAVER, so
+/// `user_idle` fails every call — Xlib prints straight to stderr on each
+/// attempt, independent of our error handling, so retrying every tick
+/// means one warning per second for the life of the process.
+fn os_idle_secs(query_unavailable: &mut bool) -> u64 {
+    if *query_unavailable {
+        return 0;
+    }
+    match user_idle::UserIdle::get_time() {
+        Ok(t) => t.as_seconds(),
+        Err(err) => {
+            tracing::warn!(
+                ?err,
+                "OS idle-time query unavailable (no MIT-SCREEN-SAVER extension?); \
+                 disabling idle detection for this session"
+            );
+            *query_unavailable = true;
+            0
+        }
+    }
 }
 
 fn poll_window() -> Poll {
@@ -269,6 +286,7 @@ async fn run(cfg: TrackerConfig, mut flush_rx: mpsc::Receiver<oneshot::Sender<()
     let mut row_id: Option<i64> = None;
     let mut ticks_since_checkpoint: u32 = 0;
     let mut idle = IdleDetector::default();
+    let mut idle_query_unavailable = false;
     let mut interval = tokio::time::interval(Duration::from_secs(1));
     // Default `Burst` behavior replays every missed tick back-to-back after
     // a stall (slow OS call, DB contention), and each tick adds 1s to
@@ -287,7 +305,7 @@ async fn run(cfg: TrackerConfig, mut flush_rx: mpsc::Receiver<oneshot::Sender<()
                 let _ = reply.send(());
             }
             _ = interval.tick() => {
-                let idle_secs = os_idle_secs();
+                let idle_secs = os_idle_secs(&mut idle_query_unavailable);
                 if let Some(transition) = idle.observe(idle_secs) {
                     emit_idle(&cfg.app, transition);
                 }
