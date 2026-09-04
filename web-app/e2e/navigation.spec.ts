@@ -7,13 +7,13 @@ test.describe('Navigation & Public Pages', () => {
   });
 
   test('login page has correct title', async ({ page }) => {
-    await page.goto('/login');
+    await page.goto('/auth/login');
     const title = await page.title();
     expect(title.toLowerCase()).toMatch(/flowshield|log in|sign in/);
   });
 
   test('signup page has correct title', async ({ page }) => {
-    await page.goto('/signup');
+    await page.goto('/auth/signup');
     const title = await page.title();
     expect(title.toLowerCase()).toMatch(/flowshield|sign up|register/);
   });
@@ -43,13 +43,13 @@ test.describe('Navigation & Public Pages', () => {
     await expect(page).toHaveURL(/login|\/$/);
   });
 
-  test('settings page redirects unauthenticated users', async ({ page }) => {
-    await page.goto('/settings');
+  test('profile page redirects unauthenticated users', async ({ page }) => {
+    await page.goto('/profile');
     await expect(page).toHaveURL(/login|\/$/);
   });
 
-  test('leaderboard page redirects unauthenticated users', async ({ page }) => {
-    await page.goto('/leaderboard');
+  test('community page redirects unauthenticated users', async ({ page }) => {
+    await page.goto('/community');
     await expect(page).toHaveURL(/login|\/$/);
   });
 });

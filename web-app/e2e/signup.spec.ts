@@ -2,14 +2,14 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Signup Flow', () => {
   test('signup page has all required fields', async ({ page }) => {
-    await page.goto('/signup');
+    await page.goto('/auth/signup');
     await expect(page.getByLabel(/email/i)).toBeVisible();
     await expect(page.getByLabel(/password/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /sign up|create|register/i })).toBeVisible();
   });
 
   test('shows error for invalid email format', async ({ page }) => {
-    await page.goto('/signup');
+    await page.goto('/auth/signup');
     await page.getByLabel(/email/i).fill('not-an-email');
     await page.getByLabel(/password/i).fill('StrongPass1');
     await page.getByRole('button', { name: /sign up|create|register/i }).click();
@@ -20,7 +20,7 @@ test.describe('Signup Flow', () => {
   });
 
   test('shows error for weak password', async ({ page }) => {
-    await page.goto('/signup');
+    await page.goto('/auth/signup');
     await page.getByLabel(/email/i).fill('new@example.com');
     await page.getByLabel(/password/i).fill('weak');
     await page.getByRole('button', { name: /sign up|create|register/i }).click();
@@ -36,13 +36,13 @@ test.describe('Signup Flow', () => {
   });
 
   test('has link back to login', async ({ page }) => {
-    await page.goto('/signup');
+    await page.goto('/auth/signup');
     const loginLink = page.getByRole('link', { name: /log in|sign in|already/i });
     await expect(loginLink).toBeVisible();
   });
 
   test('terms / privacy link accessible', async ({ page }) => {
-    await page.goto('/signup');
+    await page.goto('/auth/signup');
     const privacyLink = page.getByRole('link', { name: /privacy/i });
     if (await privacyLink.count() > 0) {
       await expect(privacyLink).toBeVisible();

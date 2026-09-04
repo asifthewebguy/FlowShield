@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Authentication', () => {
   test('login page renders correctly', async ({ page }) => {
-    await page.goto('/login');
+    await page.goto('/auth/login');
     await expect(page.getByRole('heading', { name: /sign in|log in|welcome/i })).toBeVisible();
     await expect(page.getByLabel(/email/i)).toBeVisible();
     await expect(page.getByLabel(/password/i)).toBeVisible();
@@ -10,7 +10,7 @@ test.describe('Authentication', () => {
   });
 
   test('shows validation error for empty email', async ({ page }) => {
-    await page.goto('/login');
+    await page.goto('/auth/login');
     await page.getByRole('button', { name: /sign in|log in/i }).click();
     const emailInput = page.getByLabel(/email/i);
     const validity = await emailInput.evaluate((el: HTMLInputElement) => el.validity.valid);
@@ -18,7 +18,7 @@ test.describe('Authentication', () => {
   });
 
   test('shows error for invalid credentials', async ({ page }) => {
-    await page.goto('/login');
+    await page.goto('/auth/login');
     await page.getByLabel(/email/i).fill('nonexistent@example.com');
     await page.getByLabel(/password/i).fill('wrongpassword');
     await page.getByRole('button', { name: /sign in|log in/i }).click();
@@ -26,13 +26,13 @@ test.describe('Authentication', () => {
   });
 
   test('sign up link is accessible from login page', async ({ page }) => {
-    await page.goto('/login');
+    await page.goto('/auth/login');
     const signupLink = page.getByRole('link', { name: /sign up|register|create/i });
     await expect(signupLink).toBeVisible();
   });
 
   test('signup page renders correctly', async ({ page }) => {
-    await page.goto('/signup');
+    await page.goto('/auth/signup');
     await expect(page.getByLabel(/email/i)).toBeVisible();
     await expect(page.getByLabel(/password/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /sign up|create/i })).toBeVisible();

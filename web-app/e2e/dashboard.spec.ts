@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 
 // Helper: authenticate and navigate to dashboard
 async function loginAndGoToDashboard(page: import('@playwright/test').Page) {
-  await page.goto('/login');
+  await page.goto('/auth/login');
   await page.getByLabel(/email/i).fill(process.env.E2E_TEST_EMAIL || 'test@flowshield.app');
   await page.getByLabel(/password/i).fill(process.env.E2E_TEST_PASSWORD || 'Test1234');
   await page.getByRole('button', { name: /sign in|log in/i }).click();
