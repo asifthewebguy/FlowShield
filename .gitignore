@@ -1,5 +1,6 @@
 *.file
-.claude
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 .env.worktrees/
 browser-extension/dist/
 
