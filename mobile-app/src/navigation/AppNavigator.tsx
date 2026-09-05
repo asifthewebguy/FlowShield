@@ -10,6 +10,7 @@ import LoginScreen from '../screens/LoginScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import TimerScreen from '../screens/TimerScreen';
 import HistoryScreen from '../screens/HistoryScreen';
+import TasksScreen from '../screens/TasksScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -59,6 +60,15 @@ function MainTabs() {
           tabBarLabel: 'History',
           tabBarIcon: ({ color }) => <TabIcon label="📋" color={color} />,
           headerTitle: 'Session History',
+        }}
+      />
+      <Tab.Screen
+        name="Tasks"
+        component={TasksScreen}
+        options={{
+          tabBarLabel: 'Tasks',
+          tabBarIcon: ({ color }) => <TabIcon label="✅" color={color} />,
+          headerTitle: 'Tasks',
         }}
       />
       <Tab.Screen
