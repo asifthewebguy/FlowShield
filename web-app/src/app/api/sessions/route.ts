@@ -53,6 +53,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (projectId) {
+      const ownedProject = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } });
+      if (!ownedProject) {
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      }
+    }
+
     const session = await prisma.session.create({
       data: {
         userId,

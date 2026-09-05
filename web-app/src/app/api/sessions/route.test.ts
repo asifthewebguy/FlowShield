@@ -8,12 +8,14 @@ const mocks = vi.hoisted(() => ({
   triggerUserEvent: vi.fn(),
   invalidateAnalyticsCache: vi.fn<(args: any) => Promise<any>>(async () => {}),
   taskFindFirst: vi.fn<(args: any) => Promise<any>>(async () => null),
+  projectFindFirst: vi.fn<(args: any) => Promise<any>>(async () => null),
 }));
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     session: { findFirst: mocks.findFirst, create: mocks.create },
     task: { findFirst: mocks.taskFindFirst },
+    project: { findFirst: mocks.projectFindFirst },
   },
 }));
 
@@ -104,5 +106,33 @@ describe('POST /api/sessions — taskId', () => {
     const res = await POST(makeRequest({ plannedDuration: 25 }));
     expect(res.status).toBe(201);
     expect(mocks.create.mock.calls[0][0].data.taskId).toBeNull();
+  });
+});
+
+const PROJECT_ID = '223e4567-e89b-12d3-a456-426614174000';
+
+describe('POST /api/sessions — projectId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('stores projectId when the project belongs to the caller', async () => {
+    mocks.findFirst.mockResolvedValueOnce(null);                          // no active session
+    mocks.projectFindFirst.mockResolvedValueOnce({ id: PROJECT_ID });     // owned
+    mocks.create.mockResolvedValueOnce({ id: 'new-1', plannedDuration: 25, projectId: PROJECT_ID });
+    const res = await POST(makeRequest({ plannedDuration: 25, projectId: PROJECT_ID }));
+    expect(res.status).toBe(201);
+    expect(mocks.projectFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: PROJECT_ID, userId: 'user-1' } })
+    );
+    expect(mocks.create.mock.calls[0][0].data.projectId).toBe(PROJECT_ID);
+  });
+
+  it('404s when projectId is not one of the caller\'s projects', async () => {
+    mocks.findFirst.mockResolvedValueOnce(null);
+    mocks.projectFindFirst.mockResolvedValueOnce(null);
+    const res = await POST(makeRequest({ plannedDuration: 25, projectId: PROJECT_ID }));
+    expect(res.status).toBe(404);
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 });
