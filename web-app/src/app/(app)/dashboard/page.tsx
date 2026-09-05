@@ -14,30 +14,8 @@ import InstallPrompts from '@/components/dashboard/InstallPrompts';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { getPusherClient } from '@/lib/pusher-client';
-import { getToken, removeToken, removeUserData, getUserData } from '@/lib/auth-token';
-
-const fetcher = (url: string) => {
-  const token = getToken();
-  if (!token) {
-    window.location.href = '/auth/login';
-    throw new Error('No token');
-  }
-
-  return fetch(url, {
-    headers: { Authorization: `Bearer ${token}` }
-  }).then(async res => {
-    if (res.status === 401) {
-      removeToken();
-      removeUserData();
-      window.location.href = '/auth/login';
-      throw new Error('Session expired');
-    }
-    if (!res.ok) {
-      throw new Error('An error occurred while fetching the data.');
-    }
-    return res.json();
-  });
-};
+import { getToken, getUserData } from '@/lib/auth-token';
+import { authFetcher as fetcher } from '@/lib/swr-fetcher';
 
 export default function DashboardPage() {
   const router = useRouter();

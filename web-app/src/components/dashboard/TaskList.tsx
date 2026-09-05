@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import useSWR from 'swr';
 import { getToken } from '@/lib/auth-token';
+import { authFetcher } from '@/lib/swr-fetcher';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 
@@ -27,12 +28,6 @@ const NEXT_STATUS: Record<Task['status'], Task['status']> = {
     DONE: 'TODO',
 };
 
-const fetcher = (url: string) => {
-    const token = getToken();
-    if (!token) throw new Error('No token');
-    return fetch(url, { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.json());
-};
-
 export default function TaskList() {
     const [activeTag, setActiveTag] = useState<string | null>(null);
     const [title, setTitle] = useState('');
@@ -40,10 +35,10 @@ export default function TaskList() {
     const [submitting, setSubmitting] = useState(false);
 
     const query = activeTag ? `?tag=${encodeURIComponent(activeTag)}` : '';
-    const { data, mutate } = useSWR(`/api/tasks${query}`, fetcher);
+    const { data, error, mutate } = useSWR(`/api/tasks${query}`, authFetcher);
     // Unfiltered fetch so the tag-filter chips stay stable while a filter is active.
     // Shares SWR's cache when activeTag is null (same key as above).
-    const { data: allTasksData, mutate: mutateAllTasks } = useSWR('/api/tasks', fetcher);
+    const { data: allTasksData, mutate: mutateAllTasks } = useSWR('/api/tasks', authFetcher);
 
     const tasks: Task[] = data?.tasks || [];
     const allTags = Array.from(new Set<string>((allTasksData?.tasks || []).flatMap((t: Task) => t.tags))).sort();
@@ -157,7 +152,9 @@ export default function TaskList() {
                 </div>
             )}
 
-            {tasks.length === 0 ? (
+            {error ? (
+                <p className="text-sm text-danger-600 dark:text-danger-400">Failed to load tasks.</p>
+            ) : tasks.length === 0 ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">No tasks yet</p>
             ) : (
                 <div className="space-y-4">
