@@ -298,7 +298,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       flushCurrentTab();
       await syncActivities();
       pendingLogs = [];
-      await chrome.storage.local.remove(['token', 'user', 'pendingLogs']);
+      await chrome.storage.local.remove(['token', 'user', 'pendingLogs', 'tasks']);
       activeSession = null;
       updateBadge();
       sendResponse({ ok: true });

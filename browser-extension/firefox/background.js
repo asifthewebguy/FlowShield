@@ -257,7 +257,7 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       flushCurrentTab();
       await syncActivities();
       pendingLogs = [];
-      await browser.storage.local.remove(['token', 'user', 'pendingLogs']);
+      await browser.storage.local.remove(['token', 'user', 'pendingLogs', 'tasks']);
       activeSession = null;
       updateBadge();
       sendResponse({ ok: true });
