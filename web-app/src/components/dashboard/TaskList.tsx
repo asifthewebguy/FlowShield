@@ -33,6 +33,7 @@ export default function TaskList() {
     const [title, setTitle] = useState('');
     const [dueDate, setDueDate] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [writeError, setWriteError] = useState<string | null>(null);
 
     const query = activeTag ? `?tag=${encodeURIComponent(activeTag)}` : '';
     const { data, error, mutate } = useSWR(`/api/tasks${query}`, authFetcher);
@@ -49,6 +50,7 @@ export default function TaskList() {
         if (!trimmedTitle) return;
 
         setSubmitting(true);
+        setWriteError(null);
         try {
             const token = getToken();
             const body: Record<string, unknown> = { title: trimmedTitle };
@@ -68,18 +70,23 @@ export default function TaskList() {
                 setDueDate('');
                 mutate();
                 mutateAllTasks();
+            } else {
+                const data = await response.json().catch(() => ({}));
+                setWriteError(data.error || 'Failed to add task');
             }
         } catch (error) {
             console.error('Failed to add task', error);
+            setWriteError('Failed to add task');
         } finally {
             setSubmitting(false);
         }
     };
 
     const handleCycleStatus = async (task: Task) => {
+        setWriteError(null);
         try {
             const token = getToken();
-            await fetch(`/api/tasks/${task.id}`, {
+            const response = await fetch(`/api/tasks/${task.id}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -87,10 +94,16 @@ export default function TaskList() {
                 },
                 body: JSON.stringify({ status: NEXT_STATUS[task.status] }),
             });
-            mutate();
-            mutateAllTasks();
+            if (response.ok) {
+                mutate();
+                mutateAllTasks();
+            } else {
+                const data = await response.json().catch(() => ({}));
+                setWriteError(data.error || 'Failed to update task');
+            }
         } catch (error) {
             console.error('Failed to update task', error);
+            setWriteError('Failed to update task');
         }
     };
 
@@ -150,6 +163,10 @@ export default function TaskList() {
                         </button>
                     ))}
                 </div>
+            )}
+
+            {writeError && (
+                <p className="text-sm text-danger-600 dark:text-danger-400 mb-2">{writeError}</p>
             )}
 
             {error ? (
