@@ -2,7 +2,9 @@
 //! on a network failure (not a validation failure — those are the user's
 //! fault and should surface immediately) they enqueue into
 //! `pending_task_ops` for `sync_worker` to replay later, and return
-//! optimistically so the UI doesn't block on connectivity.
+//! optimistically so the UI doesn't block on connectivity — but only when a
+//! local store is actually available to hold the queued op; otherwise the
+//! network error surfaces rather than silently dropping the write.
 
 use crate::api::{self, Task};
 use crate::error::{AppError, AppResult};
@@ -73,24 +75,27 @@ pub async fn tasks_create(
     }
     match api::tasks::create_task(&state.http, &token, trimmed, project_id.as_deref()).await {
         Ok(task) => Ok(task),
-        Err(err) if is_offline(&err) => {
-            if let Some(db) = state.db.get() {
+        Err(err) if is_offline(&err) => match state.db.get() {
+            Some(db) => {
                 let payload = serde_json::json!({ "title": trimmed, "projectId": project_id }).to_string();
                 store::pending_task_ops::enqueue(db, "create", &payload)?;
+                Ok(Task {
+                    id: format!("pending-{}", uuid_v4_ish()),
+                    title: trimmed.to_string(),
+                    notes: None,
+                    project_id,
+                    estimate_minutes: None,
+                    due_at: None,
+                    scheduled_start: None,
+                    scheduled_end: None,
+                    status: "TODO".into(),
+                    tags: Vec::new(),
+                })
             }
-            Ok(Task {
-                id: format!("pending-{}", uuid_v4_ish()),
-                title: trimmed.to_string(),
-                notes: None,
-                project_id,
-                estimate_minutes: None,
-                due_at: None,
-                scheduled_start: None,
-                scheduled_end: None,
-                status: "TODO".into(),
-                tags: Vec::new(),
-            })
-        }
+            // No local store to queue into — surface the network error
+            // rather than silently dropping the write.
+            None => Err(err),
+        },
         Err(err) => Err(err),
     }
 }
@@ -111,13 +116,16 @@ pub async fn tasks_update(
     let token = token_or_err(&state).await?;
     match api::tasks::update_task(&state.http, &token, &id, patch.clone()).await {
         Ok(_) => Ok(()),
-        Err(err) if is_offline(&err) => {
-            if let Some(db) = state.db.get() {
+        Err(err) if is_offline(&err) => match state.db.get() {
+            Some(db) => {
                 let payload = serde_json::json!({ "id": id, "patch": patch }).to_string();
                 store::pending_task_ops::enqueue(db, "update", &payload)?;
+                Ok(())
             }
-            Ok(())
-        }
+            // No local store to queue into — surface the network error
+            // rather than silently dropping the write.
+            None => Err(err),
+        },
         Err(err) => Err(err),
     }
 }
@@ -131,13 +139,16 @@ pub async fn tasks_delete(state: State<'_, AppState>, id: String) -> AppResult<(
     let token = token_or_err(&state).await?;
     match api::tasks::delete_task(&state.http, &token, &id).await {
         Ok(()) => Ok(()),
-        Err(err) if is_offline(&err) => {
-            if let Some(db) = state.db.get() {
+        Err(err) if is_offline(&err) => match state.db.get() {
+            Some(db) => {
                 let payload = serde_json::json!({ "id": id }).to_string();
                 store::pending_task_ops::enqueue(db, "delete", &payload)?;
+                Ok(())
             }
-            Ok(())
-        }
+            // No local store to queue into — surface the network error
+            // rather than silently dropping the write.
+            None => Err(err),
+        },
         Err(err) => Err(err),
     }
 }
