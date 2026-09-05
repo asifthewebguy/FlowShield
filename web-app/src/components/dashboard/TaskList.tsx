@@ -41,9 +41,12 @@ export default function TaskList() {
 
     const query = activeTag ? `?tag=${encodeURIComponent(activeTag)}` : '';
     const { data, mutate } = useSWR(`/api/tasks${query}`, fetcher);
+    // Unfiltered fetch so the tag-filter chips stay stable while a filter is active.
+    // Shares SWR's cache when activeTag is null (same key as above).
+    const { data: allTasksData, mutate: mutateAllTasks } = useSWR('/api/tasks', fetcher);
 
     const tasks: Task[] = data?.tasks || [];
-    const allTags = Array.from(new Set(tasks.flatMap((t) => t.tags))).sort();
+    const allTags = Array.from(new Set<string>((allTasksData?.tasks || []).flatMap((t: Task) => t.tags))).sort();
 
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -69,6 +72,7 @@ export default function TaskList() {
                 setTitle('');
                 setDueDate('');
                 mutate();
+                mutateAllTasks();
             }
         } catch (error) {
             console.error('Failed to add task', error);
@@ -89,6 +93,7 @@ export default function TaskList() {
                 body: JSON.stringify({ status: NEXT_STATUS[task.status] }),
             });
             mutate();
+            mutateAllTasks();
         } catch (error) {
             console.error('Failed to update task', error);
         }
