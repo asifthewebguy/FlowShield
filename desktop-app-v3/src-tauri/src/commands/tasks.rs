@@ -26,9 +26,12 @@ async fn token_or_err(state: &State<'_, AppState>) -> AppResult<String> {
 }
 
 /// A network-layer failure (server unreachable) is retryable offline; an API
-/// error the server actually answered (4xx/5xx) is not — surface it.
+/// error the server actually answered (4xx/5xx) is not — surface it. A body
+/// decode error (e.g. a captive portal returning 200 HTML) also means the
+/// server already committed the request, so it must not be treated as
+/// offline either — retrying would enqueue a duplicate.
 fn is_offline(err: &AppError) -> bool {
-    matches!(err, AppError::Network(_))
+    matches!(err, AppError::Network(e) if !e.is_decode())
 }
 
 /// Ids minted by `tasks_create` while offline. They exist only in this
