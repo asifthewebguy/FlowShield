@@ -71,6 +71,13 @@ export interface DailyStat {
   completedCount: number;
 }
 
+export interface Task {
+  id: string;
+  title: string;
+  status: 'TODO' | 'DOING' | 'DONE';
+  tags: string[];
+}
+
 async function getToken(): Promise<string | null> {
   return SecureStore.getItemAsync(TOKEN_KEY);
 }
@@ -182,12 +189,23 @@ export const api = {
     return data.sessions || data;
   },
 
-  async startSession(plannedDuration: number, sessionType: string = 'WORK'): Promise<Session> {
+  async getTasks(): Promise<Task[]> {
+    const res = await apiFetch('/api/tasks');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(data.error || 'Failed to fetch tasks', res.status, data.code);
+    }
+    const data = await res.json();
+    return data.tasks || data;
+  },
+
+  async startSession(plannedDuration: number, sessionType: string = 'WORK', taskId?: string): Promise<Session> {
     const res = await apiFetch('/api/sessions', {
       method: 'POST',
       body: JSON.stringify({
         plannedDuration,
         sessionType,
+        taskId,
         startTime: new Date().toISOString(),
       }),
     });

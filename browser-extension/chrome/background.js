@@ -190,11 +190,27 @@ async function fetchUserPreferences() {
   }
 }
 
+async function fetchTasks() {
+  const token = await getToken();
+  if (!token) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    await chrome.storage.local.set({ tasks: data.tasks || [] });
+  } catch {
+    // silently fail
+  }
+}
+
 // ─── Alarms ───────────────────────────────────────────────────────────────────
 
 chrome.alarms.create('syncActivity',    { periodInMinutes: SYNC_INTERVAL_MINUTES });
 chrome.alarms.create('pollSession',     { periodInMinutes: SESSION_POLL_SECONDS / 60 });
 chrome.alarms.create('pollPreferences', { periodInMinutes: 15 });
+chrome.alarms.create('pollTasks',       { periodInMinutes: 15 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'syncActivity') {
@@ -207,6 +223,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
   if (alarm.name === 'pollPreferences') {
     await fetchUserPreferences();
+  }
+  if (alarm.name === 'pollTasks') {
+    await fetchTasks();
   }
 });
 
@@ -258,6 +277,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     ).then(async () => {
       await fetchActiveSession();
       await fetchUserPreferences();
+      await fetchTasks();
       await syncActivities(); // replay logs preserved across the logged-out period
     });
     sendResponse({ ok: true });
@@ -278,7 +298,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       flushCurrentTab();
       await syncActivities();
       pendingLogs = [];
-      await chrome.storage.local.remove(['token', 'user', 'pendingLogs']);
+      await chrome.storage.local.remove(['token', 'user', 'pendingLogs', 'tasks']);
       activeSession = null;
       updateBadge();
       sendResponse({ ok: true });

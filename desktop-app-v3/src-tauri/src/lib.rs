@@ -259,6 +259,7 @@ pub fn run() {
                         state.token.clone(),
                         db,
                         state.prefs_cache.clone(),
+                        app.handle().clone(),
                     );
                     tracing::info!(path = %db_path.display(), "local store opened");
                 }
@@ -335,6 +336,10 @@ pub fn run() {
             commands::sessions::session_toggle_pause,
             commands::projects::projects_list,
             commands::projects::projects_create,
+            commands::tasks::tasks_list,
+            commands::tasks::tasks_create,
+            commands::tasks::tasks_update,
+            commands::tasks::tasks_delete,
             commands::blocking::blocking_apply,
             commands::blocking::blocking_clear,
             commands::blocking::blocking_status,

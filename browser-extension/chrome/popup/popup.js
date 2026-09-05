@@ -28,6 +28,8 @@ const btnSync            = document.getElementById('btn-sync');
 const tabDomainDisplay = document.getElementById('tab-domain-display');
 const tabDot           = document.getElementById('tab-dot');
 
+const taskList = document.getElementById('task-list');
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function formatTime(seconds) {
   const m = Math.floor(Math.abs(seconds) / 60).toString().padStart(2, '0');
@@ -182,6 +184,37 @@ btnSync.addEventListener('click', async () => {
   setTimeout(() => { btnSync.textContent = 'Sync Activity Now'; }, 2000);
 });
 
+// ─── Tasks (read-only) ─────────────────────────────────────────────────────────
+async function renderTasks() {
+  const { tasks } = await chrome.storage.local.get('tasks');
+  taskList.textContent = ''; // clear previous rows
+
+  if (!Array.isArray(tasks) || tasks.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'tab-domain';
+    empty.textContent = 'No tasks';
+    taskList.appendChild(empty);
+    return;
+  }
+
+  for (const task of tasks) {
+    const row = document.createElement('div');
+    row.className = 'tab-domain-row';
+
+    const title = document.createElement('span');
+    title.className = 'tab-domain';
+    title.textContent = task.title;
+
+    const status = document.createElement('span');
+    status.className = 'tab-domain';
+    status.textContent = task.status;
+
+    row.appendChild(title);
+    row.appendChild(status);
+    taskList.appendChild(row);
+  }
+}
+
 // ─── Live timer tick ───────────────────────────────────────────────────────────
 let tickInterval = null;
 
@@ -204,5 +237,6 @@ function startTick() {
 // ─── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await checkAuth();
+  await renderTasks();
   startTick();
 });

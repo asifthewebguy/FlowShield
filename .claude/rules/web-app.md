@@ -45,11 +45,11 @@ cd web-app
 npm run dev        # dev server
 npm run build      # production build — must pass before pushing
 npm run lint       # ESLint — must be zero errors before pushing
-npm test           # Vitest unit tests (115 tests)
-npx playwright test  # E2E tests (12 specs)
+npm test           # Vitest unit tests (314 tests)
+npx playwright test  # E2E tests (13 specs)
 ```
 
-## API Routes (55 total)
+## API Routes (58 total)
 
 | Tag | Routes |
 |-----|--------|
@@ -63,6 +63,8 @@ npx playwright test  # E2E tests (12 specs)
 | Leaderboard | `/api/leaderboard` |
 | Goals | `/api/goals` |
 | Projects | `/api/projects`, `/api/projects/[id]`, `/api/projects/cost` |
+| Tasks | `/api/tasks`, `/api/tasks/[id]` |
+| Search | `/api/search` |
 | Devices | `/api/devices` |
 | Reports | `/api/reports/weekly` |
 | User | `/api/user/profile`, `/api/user/preferences`, `/api/user/password`, `/api/user/delete`, `/api/export` |
@@ -73,9 +75,9 @@ npx playwright test  # E2E tests (12 specs)
 
 ## Prisma Models
 
-`User` · `UserPreferences` · `Session` · `ActivityLog` · `Goal` · `DailyStats` · `DeviceConnection` · `PushSubscription` · `Project` · `Subscription` · `CategoryRule` · `AppSetting` · `Team` · `TeamMembership`
+`User` · `UserPreferences` · `Session` · `ActivityLog` · `Goal` · `DailyStats` · `DeviceConnection` · `PushSubscription` · `Project` · `Task` · `Subscription` · `CategoryRule` · `AppSetting` · `Team` · `TeamMembership`
 
-Enums: `SessionType` · `GoalType` · `UserRole` (USER/ADMIN) · `SubscriptionTier` (FREE/PRO/TEAM) · `SubscriptionStatus` · `TeamRole` (OWNER/ADMIN/MEMBER)
+Enums: `SessionType` · `GoalType` · `UserRole` (USER/ADMIN) · `SubscriptionTier` (FREE/PRO/TEAM) · `SubscriptionStatus` · `TeamRole` (OWNER/ADMIN/MEMBER) · `TaskStatus` (TODO/DOING/DONE)
 
 ## Category Normalization (web side)
 

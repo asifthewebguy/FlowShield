@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const { plannedDuration, sessionType, projectId } = parsed.data;
+    const { plannedDuration, sessionType, projectId, taskId } = parsed.data;
 
     // Race check: refuse to create a second active session for the same user.
     // A session is "active" when it hasn't been marked completed and has no
@@ -46,6 +46,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (taskId) {
+      const ownedTask = await prisma.task.findFirst({ where: { id: taskId, userId }, select: { id: true } });
+      if (!ownedTask) {
+        return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+      }
+    }
+
+    if (projectId) {
+      const ownedProject = await prisma.project.findFirst({ where: { id: projectId, userId }, select: { id: true } });
+      if (!ownedProject) {
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      }
+    }
+
     const session = await prisma.session.create({
       data: {
         userId,
@@ -53,9 +67,11 @@ export async function POST(request: NextRequest) {
         plannedDuration,
         sessionType,
         projectId: projectId || null,
+        taskId: taskId || null,
       },
       include: {
         project: true,
+        task: true,
       },
     });
 

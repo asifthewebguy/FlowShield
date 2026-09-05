@@ -21,6 +21,7 @@ use std::sync::{Arc, Mutex};
 pub mod activity_local;
 pub mod ai;
 pub mod pending_sync;
+pub mod pending_task_ops;
 
 pub type Db = Arc<Mutex<Connection>>;
 
@@ -63,5 +64,6 @@ pub(crate) fn apply_migrations(conn: &Connection) -> AppResult<()> {
     .map_err(|e| AppError::Storage(format!("migrate: {e}")))?;
     ai::migrate(conn)?;
     activity_local::migrate(conn)?;
+    pending_task_ops::migrate(conn)?;
     Ok(())
 }
