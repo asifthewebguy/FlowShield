@@ -4,7 +4,7 @@
 //! `pending_task_ops` for `sync_worker` to replay later, and return
 //! optimistically so the UI doesn't block on connectivity.
 
-use crate::api::{self, tasks::Task};
+use crate::api::{self, Task};
 use crate::error::{AppError, AppResult};
 use crate::store;
 use crate::AppState;
