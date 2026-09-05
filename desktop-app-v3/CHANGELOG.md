@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.13.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.12.0-alpha.0...v3.13.0-alpha.0) (2026-09-05)
+
+
+### Features
+
+* Phase 2 — Task entity, tags, search, and offline task queue across all clients ([#114](https://github.com/asifthewebguy/FlowShield/issues/114)) ([afd106d](https://github.com/asifthewebguy/FlowShield/commit/afd106d54efc7f9b06f6fd87b0a36eff37708f1f))
+
 ## [3.12.0-alpha.0](https://github.com/asifthewebguy/FlowShield/compare/v3.11.1-alpha.0...v3.12.0-alpha.0) (2026-09-04)
 
 
