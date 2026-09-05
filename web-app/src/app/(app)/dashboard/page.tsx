@@ -7,6 +7,7 @@ import useSWR from 'swr';
 import FocusTimer from '@/components/dashboard/FocusTimer';
 import GoalsWidget from '@/components/dashboard/GoalsWidget';
 import TaskList from '@/components/dashboard/TaskList';
+import SearchBox from '@/components/dashboard/SearchBox';
 import GamificationStats from '@/components/dashboard/GamificationStats';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 import EmailVerificationBanner from '@/components/dashboard/EmailVerificationBanner';
@@ -118,6 +119,9 @@ export default function DashboardPage() {
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
         <EmailVerificationBanner />
         <InstallPrompts />
+        <div className="mb-6">
+          <SearchBox />
+        </div>
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Focus Timer */}
           <div className="lg:col-span-2">
