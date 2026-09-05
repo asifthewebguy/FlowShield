@@ -9,11 +9,13 @@ pub mod preferences;
 pub mod projects;
 pub mod realtime;
 pub mod sessions;
+pub mod tasks;
 
 pub use auth::{login, AuthUser};
 pub use preferences::Preferences;
 pub use realtime::RealtimeConfig;
 pub use sessions::Session;
+pub use tasks::Task;
 
 /// Default API base URL. Overrideable at runtime via the `FLOWSHIELD_API_URL`
 /// env var so dev / staging / preview environments don't need recompiles.
