@@ -7,10 +7,14 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   triggerUserEvent: vi.fn(),
   invalidateAnalyticsCache: vi.fn(async () => {}),
+  taskFindFirst: vi.fn(async () => null),
 }));
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: { session: { findFirst: mocks.findFirst, create: mocks.create } },
+  prisma: {
+    session: { findFirst: mocks.findFirst, create: mocks.create },
+    task: { findFirst: mocks.taskFindFirst },
+  },
 }));
 
 vi.mock('@/lib/jwt', () => ({
@@ -64,5 +68,41 @@ describe('POST /api/sessions — race check', () => {
     expect(res.status).toBe(400);
     expect(mocks.findFirst).not.toHaveBeenCalled();
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+});
+
+const TASK_ID = '123e4567-e89b-12d3-a456-426614174000';
+
+describe('POST /api/sessions — taskId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('stores taskId when the task belongs to the caller', async () => {
+    mocks.findFirst.mockResolvedValueOnce(null);                       // no active session
+    mocks.taskFindFirst.mockResolvedValueOnce({ id: TASK_ID });         // owned
+    mocks.create.mockResolvedValueOnce({ id: 'new-1', plannedDuration: 25, taskId: TASK_ID });
+    const res = await POST(makeRequest({ plannedDuration: 25, taskId: TASK_ID }));
+    expect(res.status).toBe(201);
+    expect(mocks.taskFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: TASK_ID, userId: 'user-1' } })
+    );
+    expect(mocks.create.mock.calls[0][0].data.taskId).toBe(TASK_ID);
+  });
+
+  it('404s when taskId is not one of the caller\'s tasks', async () => {
+    mocks.findFirst.mockResolvedValueOnce(null);
+    mocks.taskFindFirst.mockResolvedValueOnce(null);
+    const res = await POST(makeRequest({ plannedDuration: 25, taskId: TASK_ID }));
+    expect(res.status).toBe(404);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('still creates a session without a taskId (backward compatible)', async () => {
+    mocks.findFirst.mockResolvedValueOnce(null);
+    mocks.create.mockResolvedValueOnce({ id: 'new-2', plannedDuration: 25 });
+    const res = await POST(makeRequest({ plannedDuration: 25 }));
+    expect(res.status).toBe(201);
+    expect(mocks.create.mock.calls[0][0].data.taskId).toBeNull();
   });
 });
