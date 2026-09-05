@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import FocusTimer from '@/components/dashboard/FocusTimer';
 import GoalsWidget from '@/components/dashboard/GoalsWidget';
+import TaskList from '@/components/dashboard/TaskList';
 import GamificationStats from '@/components/dashboard/GamificationStats';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 import EmailVerificationBanner from '@/components/dashboard/EmailVerificationBanner';
@@ -196,6 +197,8 @@ export default function DashboardPage() {
               currentMinutes={totalFocusTime}
               onGoalUpdate={() => mutate()}
             />
+
+            <TaskList />
 
             <GamificationStats
               totalMinutes={totalFocusTime}
