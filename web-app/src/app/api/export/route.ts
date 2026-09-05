@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     const dateFilter = startDate ? { gte: startDate } : undefined;
 
     // Fetch all user data in parallel
-    const [user, preferences, sessions, activityLogs, goals, dailyStats, projects, devices] =
+    const [user, preferences, sessions, activityLogs, goals, dailyStats, projects, tasks, devices] =
       await Promise.all([
         prisma.user.findUnique({
           where: { id: userId },
@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
           orderBy: { date: 'desc' },
         }),
         prisma.project.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
+        prisma.task.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } }),
         prisma.deviceConnection.findMany({ where: { userId } }),
       ]);
 
@@ -142,6 +143,20 @@ export async function GET(request: NextRequest) {
         name: p.name,
         color: p.color,
         createdAt: p.createdAt.toISOString(),
+      })),
+      tasks: tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        notes: t.notes,
+        projectId: t.projectId,
+        estimateMinutes: t.estimateMinutes,
+        dueAt: t.dueAt?.toISOString() || null,
+        scheduledStart: t.scheduledStart?.toISOString() || null,
+        scheduledEnd: t.scheduledEnd?.toISOString() || null,
+        status: t.status,
+        completedAt: t.completedAt?.toISOString() || null,
+        tags: t.tags,
+        createdAt: t.createdAt.toISOString(),
       })),
       devices: devices.map((d) => ({
         deviceName: d.deviceName,
