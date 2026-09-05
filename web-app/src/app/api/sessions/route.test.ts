@@ -3,11 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long-xyz';
 
 const mocks = vi.hoisted(() => ({
-  findFirst: vi.fn(),
-  create: vi.fn(),
+  findFirst: vi.fn<(args: any) => Promise<any>>(),
+  create: vi.fn<(args: any) => Promise<any>>(),
   triggerUserEvent: vi.fn(),
-  invalidateAnalyticsCache: vi.fn(async () => {}),
-  taskFindFirst: vi.fn(async () => null),
+  invalidateAnalyticsCache: vi.fn<(args: any) => Promise<any>>(async () => {}),
+  taskFindFirst: vi.fn<(args: any) => Promise<any>>(async () => null),
 }));
 
 vi.mock('@/lib/prisma', () => ({

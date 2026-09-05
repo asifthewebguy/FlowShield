@@ -4,9 +4,9 @@ import type { NextRequest } from 'next/server';
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long-xyz';
 
 const mocks = vi.hoisted(() => ({
-  findMany: vi.fn(async () => []),
-  create: vi.fn(async (args: any) => ({ id: 'task-1', ...args.data })),
-  projectFindFirst: vi.fn(async () => null),
+  findMany: vi.fn<(args: any) => Promise<any>>(async () => []),
+  create: vi.fn<(args: any) => Promise<any>>(async (args: any) => ({ id: 'task-1', ...args.data })),
+  projectFindFirst: vi.fn<(args: any) => Promise<any>>(async () => null),
 }));
 
 vi.mock('@/lib/prisma', () => ({
