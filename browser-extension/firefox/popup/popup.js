@@ -223,7 +223,7 @@ async function renderTasks() {
     title.textContent = task.title;
 
     const status = document.createElement('span');
-    status.className = 'tab-dot';
+    status.className = 'tab-domain';
     status.textContent = task.status;
 
     row.appendChild(title);

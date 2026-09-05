@@ -45,8 +45,8 @@ cd web-app
 npm run dev        # dev server
 npm run build      # production build — must pass before pushing
 npm run lint       # ESLint — must be zero errors before pushing
-npm test           # Vitest unit tests (115 tests)
-npx playwright test  # E2E tests (12 specs)
+npm test           # Vitest unit tests (314 tests)
+npx playwright test  # E2E tests (13 specs)
 ```
 
 ## API Routes (58 total)

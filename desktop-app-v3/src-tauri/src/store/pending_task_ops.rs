@@ -76,7 +76,7 @@ pub fn ready_rows(db: &Db, limit: i64) -> AppResult<Vec<PendingTaskOp>> {
             "SELECT id, op, payload, retry_count\n\
              FROM pending_task_ops\n\
              WHERE next_retry_at <= ?1\n\
-             ORDER BY created_at ASC\n\
+             ORDER BY created_at ASC, id ASC\n\
              LIMIT ?2",
         )
         .map_err(|e| AppError::Storage(format!("ready_rows prepare: {e}")))?;
@@ -166,10 +166,15 @@ mod tests {
     #[test]
     fn ready_rows_respects_limit_and_order() {
         let db = test_db();
-        enqueue(&db, "create", r#"{"title":"a"}"#).unwrap();
-        enqueue(&db, "create", r#"{"title":"b"}"#).unwrap();
+        let a = enqueue(&db, "create", r#"{"title":"a"}"#).unwrap();
+        let b = enqueue(&db, "create", r#"{"title":"b"}"#).unwrap();
         enqueue(&db, "create", r#"{"title":"c"}"#).unwrap();
         let rows = ready_rows(&db, 2).unwrap();
         assert_eq!(rows.len(), 2);
+        // `created_at` alone doesn't disambiguate rows enqueued within the
+        // same second — `id ASC` is the tie-break, so this must return the
+        // first two enqueued ids, in order.
+        assert_eq!(rows[0].id, a);
+        assert_eq!(rows[1].id, b);
     }
 }

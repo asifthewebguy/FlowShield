@@ -30,7 +30,7 @@ alwaysApply: false
 
 ## Screens (6 tabs)
 
-`LoginScreen` · `DashboardScreen` · `TimerScreen` · `SessionHistoryScreen` · `TasksScreen` · `AnalyticsScreen` · `ProfileScreen` · `SettingsScreen`
+`LoginScreen` · `DashboardScreen` · `TimerScreen` · `HistoryScreen` · `TasksScreen` · `AnalyticsScreen` · `ProfileScreen` · `SettingsScreen`
 
 ## API Integration
 
