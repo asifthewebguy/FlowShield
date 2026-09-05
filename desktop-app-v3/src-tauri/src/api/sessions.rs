@@ -29,6 +29,8 @@ pub struct Session {
     pub paused_at: Option<String>,
     #[serde(default)]
     pub project_id: Option<String>,
+    #[serde(default)]
+    pub task_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -60,6 +62,7 @@ pub async fn start_session(
     planned_duration: i32,
     session_type: &str,
     project_id: Option<&str>,
+    task_id: Option<&str>,
 ) -> AppResult<Session> {
     let url = format!("{}/api/sessions", super::api_base_url());
     let mut body = serde_json::json!({
@@ -68,6 +71,9 @@ pub async fn start_session(
     });
     if let Some(pid) = project_id {
         body["projectId"] = serde_json::Value::String(pid.to_string());
+    }
+    if let Some(tid) = task_id {
+        body["taskId"] = serde_json::Value::String(tid.to_string());
     }
     let res = auth(http.post(&url), token).json(&body).send().await?;
 

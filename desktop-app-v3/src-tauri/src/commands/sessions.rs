@@ -35,16 +35,19 @@ pub async fn session_start(
     planned_duration: i32,
     session_type: Option<String>,
     project_id: Option<String>,
+    task_id: Option<String>,
 ) -> AppResult<Session> {
     let token = token_or_err(&state).await?;
     let session_type = session_type.as_deref().unwrap_or("WORK");
     let project_id = project_id.as_deref().filter(|s| !s.is_empty());
+    let task_id = task_id.as_deref().filter(|s| !s.is_empty());
     let session = api::sessions::start_session(
         &state.http,
         &token,
         planned_duration,
         session_type,
         project_id,
+        task_id,
     )
     .await?;
 
