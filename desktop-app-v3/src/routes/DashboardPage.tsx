@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import {
   isPermissionGranted,
   requestPermission,
@@ -786,16 +787,32 @@ function TaskListCard() {
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
+  // The offline queue replays on its own schedule (sync_worker, every 60s);
+  // this is how we learn a queued create/update/delete landed without
+  // waiting for the next mount or quick-add.
+  useEffect(() => {
+    const unlistenPromise = listen('tasks-synced', () => void tasks.refresh());
+    return () => {
+      void unlistenPromise.then((fn) => fn());
+    };
+  }, [tasks.refresh]);
+
   const handleAdd = async () => {
     const title = newTitle.trim();
     if (!title) return;
     setAdding(true);
     setAddError(null);
     try {
-      await tasks.create(title);
-      // Pick up any earlier replayed rows too, in case this add coincided
-      // with a reconnect (Task 13 brief).
-      await tasks.refresh();
+      const created = await tasks.create(title);
+      // A `pending-` id means this was queued offline — there's nothing to
+      // refresh yet, and refreshing now would just fail with a stale
+      // "Failed to load tasks" banner while offline. `tasks-synced` (above)
+      // picks it up once sync_worker replays it.
+      if (!created.id.startsWith('pending-')) {
+        // Pick up any earlier replayed rows too, in case this add coincided
+        // with a reconnect (Task 13 brief).
+        await tasks.refresh();
+      }
       setNewTitle('');
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Failed to create task');

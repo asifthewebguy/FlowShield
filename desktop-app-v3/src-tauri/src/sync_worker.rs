@@ -14,6 +14,7 @@ use crate::store::{self, Db};
 use crate::tracker::ActivitySample;
 use std::sync::Arc;
 use std::time::Duration;
+use tauri::Emitter;
 use tokio::sync::RwLock;
 
 const TICK_SECS: u64 = 60;
@@ -24,12 +25,13 @@ pub fn spawn(
     token: Arc<RwLock<Option<String>>>,
     db: Db,
     prefs_cache: Arc<RwLock<Option<api::Preferences>>>,
+    app: tauri::AppHandle,
 ) {
     tauri::async_runtime::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(TICK_SECS));
         loop {
             tick.tick().await;
-            if let Err(err) = drain_once(&http, &token, &db, &prefs_cache).await {
+            if let Err(err) = drain_once(&http, &token, &db, &prefs_cache, &app).await {
                 tracing::warn!(?err, "sync tick failed");
             }
         }
@@ -41,6 +43,7 @@ async fn drain_once(
     token: &Arc<RwLock<Option<String>>>,
     db: &Db,
     prefs_cache: &Arc<RwLock<Option<api::Preferences>>>,
+    app: &tauri::AppHandle,
 ) -> crate::error::AppResult<()> {
     let token = match token.read().await.clone() {
         Some(t) => t,
@@ -83,6 +86,9 @@ async fn drain_once(
 
     // Job 3 — queued task mutations.
     let task_rows = store::pending_task_ops::ready_rows(db, BATCH_SIZE)?;
+    // Frontend cannot see a queued op land until it re-fetches — tell it
+    // once per tick if at least one replay succeeded (see F1).
+    let mut any_synced = false;
     for row in task_rows {
         // A malformed payload can never succeed. Drop it and move on — a `?`
         // here would abort this tick (and Jobs 1–2 on every later tick) for
@@ -114,6 +120,7 @@ async fn drain_once(
         match result {
             Ok(()) => {
                 store::pending_task_ops::delete(db, row.id)?;
+                any_synced = true;
                 tracing::info!(op = %row.op, "queued task op replayed");
             }
             // The server answered and rejected it (404 task deleted meanwhile,
@@ -127,6 +134,11 @@ async fn drain_once(
                 store::pending_task_ops::record_failure(db, row.id, row.retry_count)?;
                 tracing::debug!(?err, op = %row.op, "task op replay failed; backing off");
             }
+        }
+    }
+    if any_synced {
+        if let Err(err) = app.emit("tasks-synced", ()) {
+            tracing::warn!(?err, "tasks-synced event emit failed");
         }
     }
     Ok(())

@@ -259,6 +259,7 @@ pub fn run() {
                         state.token.clone(),
                         db,
                         state.prefs_cache.clone(),
+                        app.handle().clone(),
                     );
                     tracing::info!(path = %db_path.display(), "local store opened");
                 }
