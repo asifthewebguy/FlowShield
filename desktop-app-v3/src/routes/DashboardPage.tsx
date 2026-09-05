@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import {
   isPermissionGranted,
   requestPermission,
@@ -9,6 +10,7 @@ import { Link } from 'react-router-dom';
 import { useAuthStore } from '../lib/auth';
 import { useSessionStore } from '../lib/sessions';
 import { useProjectsStore, type Project } from '../lib/projects';
+import { useTasksStore, type Task } from '../lib/tasks';
 import { usePrefsStore } from '../lib/preferences';
 import { useBlockingStore } from '../lib/blocking';
 import { useRealtimeStore } from '../lib/realtime';
@@ -87,9 +89,11 @@ export function DashboardPage() {
   const { user, logout } = useAuthStore();
   const { current, loading, error, refresh, start, end, togglePause } = useSessionStore();
   const projects = useProjectsStore();
+  const tasks = useTasksStore();
   const [duration, setDuration] = useState(25);
   const [type, setType] = useState<typeof SESSION_TYPES[number]>('WORK');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const cooldown = useCooldown();
   const previousSessionIdRef = useRef<string | null>(null);
   // Set when we auto-end a session that was already past its planned time at
@@ -172,7 +176,20 @@ export function DashboardPage() {
 
   useEffect(() => {
     void projects.refresh();
-  }, [projects.refresh]);
+    void tasks.refresh();
+  }, [projects.refresh, tasks.refresh]);
+
+  // Deselect the picked task if it drops out of the pickable set (cycled to
+  // DONE from the sidebar, deleted, or replaced by a pending- placeholder's
+  // real row) — otherwise the <select> would hold a value with no matching
+  // <option>.
+  useEffect(() => {
+    if (!selectedTaskId) return;
+    const stillPickable = tasks.items.some(
+      (t) => t.id === selectedTaskId && t.status !== 'DONE' && !t.id.startsWith('pending-'),
+    );
+    if (!stillPickable) setSelectedTaskId(null);
+  }, [tasks.items, selectedTaskId]);
 
   const prefs = usePrefsStore();
   useEffect(() => {
@@ -259,7 +276,7 @@ export function DashboardPage() {
   // Failure to apply blocks does NOT roll back the session — the user
   // can retry via the DeepWorkCard "Block now" button.
   const handleStart = async () => {
-    await start(duration, type, selectedProjectId);
+    await start(duration, type, selectedProjectId, selectedTaskId);
     const distractions = prefs.current?.primaryDistractions ?? [];
     if (deepWorkArmed && distractions.length > 0) {
       try {
@@ -326,12 +343,17 @@ export function DashboardPage() {
                 const created = await projects.create(name);
                 setSelectedProjectId(created.id);
               }}
+              tasks={tasks.items}
+              selectedTaskId={selectedTaskId}
+              onSelectTask={setSelectedTaskId}
               deepWorkArmed={deepWorkArmed}
               onSetDeepWorkArmed={setDeepWorkArmed}
               deepWorkAvailable={(prefs.current?.primaryDistractions?.length ?? 0) > 0}
               onStart={() => void handleStart()}
             />
           )}
+
+          <TaskListCard />
 
           <DeepWorkCard
             distractions={prefs.current?.primaryDistractions ?? []}
@@ -355,6 +377,9 @@ function SessionPicker({
   selectedProjectId,
   onSelectProject,
   onCreateProject,
+  tasks,
+  selectedTaskId,
+  onSelectTask,
   deepWorkArmed,
   onSetDeepWorkArmed,
   deepWorkAvailable,
@@ -370,6 +395,9 @@ function SessionPicker({
   selectedProjectId: string | null;
   onSelectProject: (id: string | null) => void;
   onCreateProject: (name: string) => Promise<void>;
+  tasks: Task[];
+  selectedTaskId: string | null;
+  onSelectTask: (id: string | null) => void;
   deepWorkArmed: boolean;
   onSetDeepWorkArmed: (v: boolean) => void;
   deepWorkAvailable: boolean;
@@ -539,6 +567,26 @@ function SessionPicker({
         )}
       </div>
 
+      <div>
+        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+          Task
+        </div>
+        <select
+          value={selectedTaskId ?? ''}
+          onChange={(e) => onSelectTask(e.target.value || null)}
+          className="w-full h-10 rounded-lg border border-surface-3 bg-surface-1 px-3 text-sm focus:outline-none focus:border-primary-500"
+        >
+          <option value="">No task</option>
+          {tasks
+            .filter((t) => t.status !== 'DONE' && !t.id.startsWith('pending-'))
+            .map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+        </select>
+      </div>
+
       <label
         className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer ${
           deepWorkAvailable
@@ -704,6 +752,157 @@ function DeepWorkCard({
         >
           Block now
         </Button>
+      )}
+    </div>
+  );
+}
+
+const STATUS_ORDER = ['TODO', 'DOING', 'DONE'] as const;
+
+const STATUS_LABELS: Record<Task['status'], string> = {
+  TODO: 'To Do',
+  DOING: 'Doing',
+  DONE: 'Done',
+};
+
+const NEXT_STATUS: Record<Task['status'], Task['status']> = {
+  TODO: 'DOING',
+  DOING: 'DONE',
+  DONE: 'TODO',
+};
+
+/**
+ * Task list sidebar card. Self-contained — reads/writes `useTasksStore`
+ * directly, same convention as `DeepWorkCard` reading `useBlockingStore`.
+ *
+ * Rows whose `id` starts with `pending-` were created while offline and
+ * are still queued for replay; `tasks_update`/`tasks_delete` reject
+ * `pending-` ids with a 409 (Task 11), so those rows render a "syncing…"
+ * label instead of the status-cycle button and get no delete affordance.
+ * They're swapped for the server copy on the next `refresh()`.
+ */
+function TaskListCard() {
+  const tasks = useTasksStore();
+  const [newTitle, setNewTitle] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  // The offline queue replays on its own schedule (sync_worker, every 60s);
+  // this is how we learn a queued create/update/delete landed without
+  // waiting for the next mount or quick-add.
+  useEffect(() => {
+    const unlistenPromise = listen('tasks-synced', () => void tasks.refresh());
+    return () => {
+      void unlistenPromise.then((fn) => fn());
+    };
+  }, [tasks.refresh]);
+
+  const handleAdd = async () => {
+    const title = newTitle.trim();
+    if (!title) return;
+    setAdding(true);
+    setAddError(null);
+    try {
+      const created = await tasks.create(title);
+      // A `pending-` id means this was queued offline — there's nothing to
+      // refresh yet, and refreshing now would just fail with a stale
+      // "Failed to load tasks" banner while offline. `tasks-synced` (above)
+      // picks it up once sync_worker replays it.
+      if (!created.id.startsWith('pending-')) {
+        // Pick up any earlier replayed rows too, in case this add coincided
+        // with a reconnect (Task 13 brief).
+        await tasks.refresh();
+      }
+      setNewTitle('');
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to create task');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleCycleStatus = (task: Task) => {
+    void tasks.update(task.id, { status: NEXT_STATUS[task.status] });
+  };
+
+  return (
+    <div className="rounded-lg border border-surface-3 bg-surface-1 p-4 space-y-3">
+      <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        Tasks
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void handleAdd();
+          }}
+          placeholder="Add a task…"
+          className="flex-1 h-9 rounded-lg border border-surface-3 bg-surface-1 px-3 text-sm focus:outline-none focus:border-primary-500"
+          disabled={adding}
+        />
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          loading={adding}
+          disabled={!newTitle.trim()}
+          onClick={() => void handleAdd()}
+        >
+          Add
+        </Button>
+      </div>
+      {addError && <div className="text-xs text-red-600 dark:text-red-400">{addError}</div>}
+      {!addError && tasks.error && (
+        <div className="text-xs text-red-600 dark:text-red-400">{tasks.error}</div>
+      )}
+
+      {tasks.items.length === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">No tasks yet</p>
+      ) : (
+        <div className="space-y-3">
+          {STATUS_ORDER.map((status) => {
+            const group = tasks.items.filter((t) => t.status === status);
+            if (group.length === 0) return null;
+            return (
+              <div key={status}>
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+                  {STATUS_LABELS[status]}
+                </div>
+                <div className="space-y-1">
+                  {group.map((task) => {
+                    const pending = task.id.startsWith('pending-');
+                    return (
+                      <div
+                        key={task.id}
+                        className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg bg-surface-2"
+                      >
+                        <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                          {task.title}
+                        </span>
+                        {pending ? (
+                          <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                            syncing…
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleCycleStatus(task)}
+                            className="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-500/20 transition-colors"
+                          >
+                            {STATUS_LABELS[task.status]}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

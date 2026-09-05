@@ -31,6 +31,7 @@ browser-extension/
 - **Toolbar badge:** Shows remaining session minutes; turns orange < 20% remaining; red on distraction sites
 - **Distraction detection:** Checks current domain against `user.preferences.primaryDistractions`
 - **`FORCE_POLL_SESSION`:** Message from popup → background; forces immediate `fetchActiveSession()` call so popup never shows stale timer data from 30s-old poll
+- **Task list (read-only):** `fetchTasks()` polled by the `pollTasks` alarm every 15 minutes, alongside `pollPreferences`; rendered as `#task-list` in the popup — the extension never starts sessions itself, so there's no task picker
 
 ## MV2 vs MV3 Differences (Firefox vs Chrome)
 

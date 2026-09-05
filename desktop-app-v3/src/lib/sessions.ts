@@ -14,6 +14,7 @@ export interface Session {
   isPaused: boolean;
   pausedAt?: string;
   projectId?: string;
+  taskId?: string;
 }
 
 interface SessionState {
@@ -28,6 +29,7 @@ interface SessionState {
     plannedDuration: number,
     sessionType?: Session['sessionType'],
     projectId?: string | null,
+    taskId?: string | null,
   ) => Promise<void>;
   /** Mark current session completed. */
   end: (productivityScore?: number) => Promise<void>;
@@ -59,13 +61,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  start: async (plannedDuration, sessionType = 'WORK', projectId = null) => {
+  start: async (plannedDuration, sessionType = 'WORK', projectId = null, taskId = null) => {
     set({ loading: true, error: null });
     try {
       const session = await invoke<Session>('session_start', {
         plannedDuration,
         sessionType,
         projectId: projectId || null,
+        taskId: taskId || null,
       });
       set({ current: session, loading: false });
     } catch (err) {

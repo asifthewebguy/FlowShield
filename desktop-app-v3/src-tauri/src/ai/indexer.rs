@@ -431,6 +431,7 @@ mod tests {
             is_paused: false,
             paused_at: None,
             project_id: Some("proj-1".into()),
+            task_id: None,
         }
     }
 

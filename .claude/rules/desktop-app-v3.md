@@ -28,16 +28,16 @@ is legacy — see [`desktop-app`](desktop-app.md).
 |------|----------|
 | `routes/` | `DashboardPage` · `LoginPage` · `SettingsAiPage` · `SettingsTrackingPage` |
 | `components/` | `BriefingCard` · `Button` · `Input` · `ReflectionCard` · `Timer` · `UpdateBanner` |
-| `lib/` | `ai` · `auth` · `blocking` · `preferences` · `projects` · `realtime` · `sessions` · `update` |
+| `lib/` | `ai` · `auth` · `blocking` · `preferences` · `projects` · `realtime` · `sessions` · `tasks` · `update` |
 
 ## Rust Modules (`src-tauri/src/`)
 
 | Module | Responsibility |
 |--------|---------------|
-| `api/` | Web API client — `activity` · `auth` · `devices` · `preferences` · `projects` · `realtime` · `sessions` |
-| `commands/` | Tauri command surface exposed to the frontend — `ai` · `auth` · `blocking` · `elevation` · `ping` · `preferences` · `projects` · `realtime` · `sessions` · `tracking` · `tray` · `update` |
+| `api/` | Web API client — `activity` · `auth` · `devices` · `preferences` · `projects` · `realtime` · `sessions` · `tasks` |
+| `commands/` | Tauri command surface exposed to the frontend — `ai` · `auth` · `blocking` · `elevation` · `ping` · `preferences` · `projects` · `realtime` · `sessions` · `tasks` · `tracking` · `tray` · `update` |
 | `ai/` | Local AI substrate (see below) |
-| `store/` | `pending_sync.rs` (offline queue) · `ai.rs` · `activity_local.rs` (persisted tracker buckets, 90-day retention) |
+| `store/` | `pending_sync.rs` (offline queue) · `pending_task_ops.rs` (offline write queue for task mutations, same backoff as pending_sync) · `ai.rs` · `activity_local.rs` (persisted tracker buckets, 90-day retention) |
 | `tracker/` | Always-on foreground-window + idle tracking (`active-win-pos-rs`, `user-idle`); pure `step()` bucketing; persists to `activity_local`; `flush()` at session end |
 | `activity_upload.rs` | Redacts (`shareWindowDetails`) and uploads closed `activity_local` rows; called by `sync_worker` every 60 s and by `session_end` |
 | `blocking/` | Distraction blocking |

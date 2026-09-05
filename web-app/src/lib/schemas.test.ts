@@ -5,6 +5,8 @@ import {
   CreateSessionSchema,
   CreateGoalSchema,
   CreateProjectSchema,
+  CreateTaskSchema,
+  UpdateTaskSchema,
   UpdatePreferencesSchema,
   UpdateProfileSchema,
   PushSendSchema,
@@ -250,5 +252,68 @@ describe('shareWindowDetails preference', () => {
       preferences: { primaryDistractions: [], shareWindowDetails: true },
     });
     expect(r.success).toBe(true);
+  });
+});
+
+describe('CreateTaskSchema', () => {
+  it('accepts a minimal task (title only)', () => {
+    const result = CreateTaskSchema.safeParse({ title: 'Write the report' });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an empty title', () => {
+    const result = CreateTaskSchema.safeParse({ title: '' });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts tags as an array of strings', () => {
+    const result = CreateTaskSchema.safeParse({ title: 'x', tags: ['deep-work', 'client-a'] });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.tags).toEqual(['deep-work', 'client-a']);
+  });
+
+  it('rejects a non-uuid projectId', () => {
+    const result = CreateTaskSchema.safeParse({ title: 'x', projectId: 'not-a-uuid' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects more than 20 tags', () => {
+    const tags = Array.from({ length: 21 }, (_, i) => `tag-${i}`);
+    const result = CreateTaskSchema.safeParse({ title: 'x', tags });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('UpdateTaskSchema', () => {
+  it('accepts a bare status change', () => {
+    const result = UpdateTaskSchema.safeParse({ status: 'DONE' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts an empty object (no-op patch)', () => {
+    const result = UpdateTaskSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an invalid status value', () => {
+    const result = UpdateTaskSchema.safeParse({ status: 'ARCHIVED' });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('CreateSessionSchema taskId', () => {
+  it('accepts an optional taskId', () => {
+    const result = CreateSessionSchema.safeParse({ plannedDuration: 25, taskId: '123e4567-e89b-12d3-a456-426614174000' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts a null taskId', () => {
+    const result = CreateSessionSchema.safeParse({ plannedDuration: 25, taskId: null });
+    expect(result.success).toBe(true);
+  });
+
+  it('omitting taskId still works (backward compatible)', () => {
+    const result = CreateSessionSchema.safeParse({ plannedDuration: 25 });
+    expect(result.success).toBe(true);
   });
 });

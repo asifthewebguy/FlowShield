@@ -28,9 +28,9 @@ alwaysApply: false
 | `src/lib/notifications.ts` | Expo push notification helpers |
 | `src/lib/usageTracker.ts` | AppState-based phone usage recording |
 
-## Screens (5 tabs)
+## Screens (6 tabs)
 
-`LoginScreen` · `DashboardScreen` · `FocusTimerScreen` · `SessionHistoryScreen` · `AnalyticsScreen` · `ProfileScreen` · `SettingsScreen`
+`LoginScreen` · `DashboardScreen` · `TimerScreen` · `HistoryScreen` · `TasksScreen` · `AnalyticsScreen` · `ProfileScreen` · `SettingsScreen`
 
 ## API Integration
 
@@ -39,6 +39,7 @@ Uses existing web API endpoints — no mobile-specific backend:
 - Sessions: `/api/sessions`, `/api/sessions/active`
 - Analytics: `/api/analytics`
 - Activity sync: `/api/activity/sync` with `source: "mobile"`
+- Tasks: `getTasks()` → `/api/tasks`
 
 ## Run
 

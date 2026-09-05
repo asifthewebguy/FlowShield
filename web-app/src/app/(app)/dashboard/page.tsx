@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import FocusTimer from '@/components/dashboard/FocusTimer';
 import GoalsWidget from '@/components/dashboard/GoalsWidget';
+import TaskList from '@/components/dashboard/TaskList';
+import SearchBox from '@/components/dashboard/SearchBox';
 import GamificationStats from '@/components/dashboard/GamificationStats';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 import EmailVerificationBanner from '@/components/dashboard/EmailVerificationBanner';
@@ -13,30 +15,8 @@ import InstallPrompts from '@/components/dashboard/InstallPrompts';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { getPusherClient } from '@/lib/pusher-client';
-import { getToken, removeToken, removeUserData, getUserData } from '@/lib/auth-token';
-
-const fetcher = (url: string) => {
-  const token = getToken();
-  if (!token) {
-    window.location.href = '/auth/login';
-    throw new Error('No token');
-  }
-
-  return fetch(url, {
-    headers: { Authorization: `Bearer ${token}` }
-  }).then(async res => {
-    if (res.status === 401) {
-      removeToken();
-      removeUserData();
-      window.location.href = '/auth/login';
-      throw new Error('Session expired');
-    }
-    if (!res.ok) {
-      throw new Error('An error occurred while fetching the data.');
-    }
-    return res.json();
-  });
-};
+import { getToken, getUserData } from '@/lib/auth-token';
+import { authFetcher as fetcher } from '@/lib/swr-fetcher';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -139,6 +119,9 @@ export default function DashboardPage() {
     <div className="p-6 lg:p-8 max-w-7xl mx-auto">
         <EmailVerificationBanner />
         <InstallPrompts />
+        <div className="mb-6">
+          <SearchBox />
+        </div>
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Focus Timer */}
           <div className="lg:col-span-2">
@@ -196,6 +179,8 @@ export default function DashboardPage() {
               currentMinutes={totalFocusTime}
               onGoalUpdate={() => mutate()}
             />
+
+            <TaskList />
 
             <GamificationStats
               totalMinutes={totalFocusTime}

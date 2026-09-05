@@ -175,11 +175,25 @@ async function fetchUserPreferences() {
   } catch { /* silently fail */ }
 }
 
+async function fetchTasks() {
+  const token = await getToken();
+  if (!token) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/tasks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    await browser.storage.local.set({ tasks: data.tasks || [] });
+  } catch { /* silently fail */ }
+}
+
 // ─── Alarms ───────────────────────────────────────────────────────────────────
 
 browser.alarms.create('syncActivity',    { periodInMinutes: SYNC_INTERVAL_MINUTES });
 browser.alarms.create('pollSession',     { periodInMinutes: SESSION_POLL_SECONDS / 60 });
 browser.alarms.create('pollPreferences', { periodInMinutes: 15 });
+browser.alarms.create('pollTasks',       { periodInMinutes: 15 });
 
 browser.alarms.onAlarm.addListener(async alarm => {
   if (alarm.name === 'syncActivity') {
@@ -189,6 +203,7 @@ browser.alarms.onAlarm.addListener(async alarm => {
   }
   if (alarm.name === 'pollSession')     await fetchActiveSession();
   if (alarm.name === 'pollPreferences') await fetchUserPreferences();
+  if (alarm.name === 'pollTasks')       await fetchTasks();
 });
 
 // ─── Tab listeners ────────────────────────────────────────────────────────────
@@ -225,6 +240,7 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     (async () => {
       await fetchActiveSession();
       await fetchUserPreferences();
+      await fetchTasks();
       await syncActivities(); // replay logs preserved across the logged-out period
     })().then(() => sendResponse({ ok: true }));
     return true;
@@ -241,7 +257,7 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       flushCurrentTab();
       await syncActivities();
       pendingLogs = [];
-      await browser.storage.local.remove(['token', 'user', 'pendingLogs']);
+      await browser.storage.local.remove(['token', 'user', 'pendingLogs', 'tasks']);
       activeSession = null;
       updateBadge();
       sendResponse({ ok: true });

@@ -21,6 +21,7 @@ export const CreateSessionSchema = z.object({
   plannedDuration: z.number().int().min(1).max(480),
   sessionType: z.enum(['WORK', 'STUDY', 'CREATIVE']).default('WORK'),
   projectId: z.string().uuid().optional().nullable(),
+  taskId: z.string().uuid().optional().nullable(),
 });
 
 export const CreateGoalSchema = z.object({
@@ -37,6 +38,21 @@ export const CreateProjectSchema = z.object({
   hourlyRate: z.number().positive('Hourly rate must be positive').optional(),
   budget: z.number().positive('Budget must be positive').optional(),
   plannedHours: z.number().positive('Planned hours must be positive').optional(),
+});
+
+export const CreateTaskSchema = z.object({
+  title: z.string().min(1, 'Task title is required').max(200),
+  notes: z.string().max(2000).optional(),
+  projectId: z.string().uuid().optional().nullable(),
+  estimateMinutes: z.number().int().min(1).max(1440).optional(),
+  dueAt: z.string().datetime().optional().nullable(),
+  scheduledStart: z.string().datetime().optional().nullable(),
+  scheduledEnd: z.string().datetime().optional().nullable(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+});
+
+export const UpdateTaskSchema = CreateTaskSchema.partial().extend({
+  status: z.enum(['TODO', 'DOING', 'DONE']).optional(),
 });
 
 export const UpdateProjectCostSchema = z.object({

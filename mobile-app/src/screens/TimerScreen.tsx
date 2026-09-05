@@ -4,11 +4,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  ScrollView,
   Alert,
   Vibration,
 } from 'react-native';
 import { colors, spacing, fontSize } from '../lib/theme';
-import { api, Session } from '../lib/api';
+import { api, Session, Task } from '../lib/api';
 import { startUsageTracking, stopUsageTracking } from '../lib/usageTracker';
 
 type SessionType = 'WORK' | 'STUDY' | 'CREATIVE';
@@ -23,8 +24,26 @@ export default function TimerScreen() {
   const [secondsLeft, setSecondsLeft] = useState(25 * 60);
   const [session, setSession] = useState<Session | null>(null);
   const [breakMinutes, setBreakMinutes] = useState(0);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<Date | null>(null);
+
+  useEffect(() => {
+    api.getTasks()
+      .then((data) => setTasks(data.filter((t) => t.status !== 'DONE')))
+      .catch(() => {
+        // silently fail — task picker is optional, session start still works without it
+      });
+  }, []);
+
+  // Clear the selection if the picked task is no longer in the non-DONE list
+  // (e.g. it was completed elsewhere while this screen was open).
+  useEffect(() => {
+    if (selectedTaskId && !tasks.some((t) => t.id === selectedTaskId)) {
+      setSelectedTaskId(null);
+    }
+  }, [tasks, selectedTaskId]);
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -62,7 +81,7 @@ export default function TimerScreen() {
 
   const handleStart = async () => {
     try {
-      const s = await api.startSession(plannedMinutes, sessionType);
+      const s = await api.startSession(plannedMinutes, sessionType, selectedTaskId || undefined);
       setSession(s);
       setSecondsLeft(plannedMinutes * 60);
       startTimeRef.current = new Date();
@@ -200,6 +219,38 @@ export default function TimerScreen() {
         </View>
       )}
 
+      {/* Task picker (optional, only when idle) */}
+      {timerState === 'idle' && tasks.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.taskRow}
+        >
+          <TouchableOpacity
+            style={[styles.taskChip, !selectedTaskId && styles.taskChipActive]}
+            onPress={() => setSelectedTaskId(null)}
+          >
+            <Text style={[styles.taskChipText, !selectedTaskId && styles.taskChipTextActive]}>
+              No task
+            </Text>
+          </TouchableOpacity>
+          {tasks.map((t) => (
+            <TouchableOpacity
+              key={t.id}
+              style={[styles.taskChip, selectedTaskId === t.id && styles.taskChipActive]}
+              onPress={() => setSelectedTaskId(t.id)}
+            >
+              <Text
+                style={[styles.taskChipText, selectedTaskId === t.id && styles.taskChipTextActive]}
+                numberOfLines={1}
+              >
+                {t.title}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
       {/* Action buttons */}
       <View style={styles.actions}>
         {timerState === 'idle' && (
@@ -325,6 +376,27 @@ const styles = StyleSheet.create({
   },
   durText: { fontSize: fontSize.md, fontWeight: '600', color: colors.textSecondary },
   durTextActive: { color: '#fff' },
+  taskRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.xs,
+  },
+  taskChip: {
+    maxWidth: 160,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 20,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  taskChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  taskChipText: { fontSize: fontSize.sm, fontWeight: '600', color: colors.textSecondary },
+  taskChipTextActive: { color: '#fff' },
   actions: {
     width: '100%',
     alignItems: 'center',
