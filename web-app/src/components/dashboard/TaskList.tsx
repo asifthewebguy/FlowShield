@@ -71,8 +71,8 @@ export default function TaskList() {
                 mutate();
                 mutateAllTasks();
             } else {
-                const data = await response.json().catch(() => ({}));
-                setWriteError(data.error || 'Failed to add task');
+                const errBody = await response.json().catch(() => ({}));
+                setWriteError(errBody.error || 'Failed to add task');
             }
         } catch (error) {
             console.error('Failed to add task', error);
@@ -98,8 +98,8 @@ export default function TaskList() {
                 mutate();
                 mutateAllTasks();
             } else {
-                const data = await response.json().catch(() => ({}));
-                setWriteError(data.error || 'Failed to update task');
+                const errBody = await response.json().catch(() => ({}));
+                setWriteError(errBody.error || 'Failed to update task');
             }
         } catch (error) {
             console.error('Failed to update task', error);
