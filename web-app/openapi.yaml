@@ -66,6 +66,22 @@ components:
         isProductive: {type: boolean}
         isGlobal: {type: boolean}
         priority: {type: integer}
+    Task:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        notes: {type: string, nullable: true}
+        projectId: {type: string, format: uuid, nullable: true}
+        estimateMinutes: {type: integer, nullable: true}
+        dueAt: {type: string, format: date-time, nullable: true}
+        scheduledStart: {type: string, format: date-time, nullable: true}
+        scheduledEnd: {type: string, format: date-time, nullable: true}
+        status: {type: string, enum: [TODO, DOING, DONE]}
+        completedAt: {type: string, format: date-time, nullable: true}
+        tags: {type: array, items: {type: string}}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
 
 security:
   - bearerAuth: []
@@ -197,6 +213,7 @@ paths:
                 sessionType: {type: string, enum: [WORK, STUDY, CREATIVE]}
                 startTime: {type: string, format: date-time}
                 projectId: {type: string, format: uuid, nullable: true}
+                taskId: {type: string, format: uuid, nullable: true}
       responses:
         201:
           description: Session started
@@ -465,6 +482,141 @@ paths:
       responses:
         201: {description: Project created}
         401: {description: Unauthorized}
+
+  /api/tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks
+      parameters:
+        - {in: query, name: tag, schema: {type: string}}
+        - {in: query, name: status, schema: {type: string, enum: [TODO, DOING, DONE]}}
+      responses:
+        200:
+          description: Task list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+        400: {description: Invalid status}
+        401: {description: Unauthorized}
+    post:
+      tags: [Tasks]
+      summary: Create a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: {type: string, minLength: 1, maxLength: 200}
+                notes: {type: string, maxLength: 2000}
+                projectId: {type: string, format: uuid, nullable: true}
+                estimateMinutes: {type: integer, minimum: 1, maximum: 1440}
+                dueAt: {type: string, format: date-time, nullable: true}
+                scheduledStart: {type: string, format: date-time, nullable: true}
+                scheduledEnd: {type: string, format: date-time, nullable: true}
+                tags: {type: array, items: {type: string, maxLength: 50}, maxItems: 20}
+      responses:
+        201:
+          description: Task created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task:
+                    $ref: '#/components/schemas/Task'
+        400: {description: Validation error}
+        401: {description: Unauthorized}
+        404: {description: Project not found}
+
+  /api/tasks/{id}:
+    patch:
+      tags: [Tasks]
+      summary: Update a task (fields, status)
+      parameters:
+        - {in: path, name: id, required: true, schema: {type: string, format: uuid}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: {type: string, minLength: 1, maxLength: 200}
+                notes: {type: string, maxLength: 2000}
+                projectId: {type: string, format: uuid, nullable: true}
+                estimateMinutes: {type: integer, minimum: 1, maximum: 1440}
+                dueAt: {type: string, format: date-time, nullable: true}
+                scheduledStart: {type: string, format: date-time, nullable: true}
+                scheduledEnd: {type: string, format: date-time, nullable: true}
+                tags: {type: array, items: {type: string, maxLength: 50}, maxItems: 20}
+                status: {type: string, enum: [TODO, DOING, DONE]}
+      responses:
+        200:
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task:
+                    $ref: '#/components/schemas/Task'
+        400: {description: Validation error}
+        401: {description: Unauthorized}
+        404: {description: Not found}
+    delete:
+      tags: [Tasks]
+      summary: Delete a task
+      parameters:
+        - {in: path, name: id, required: true, schema: {type: string, format: uuid}}
+      responses:
+        200:
+          description: Task deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: {type: string}
+        401: {description: Unauthorized}
+        404: {description: Not found}
+
+  /api/search:
+    get:
+      tags: [Search]
+      summary: Search tasks, projects, and sessions by title/name
+      parameters:
+        - {in: query, name: q, required: true, schema: {type: string}}
+      responses:
+        200:
+          description: Search results, up to 10 per entity
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  projects:
+                    type: array
+                    items: {type: object}
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Session'
+        400: {description: Query parameter q is required}
+        401: {description: Unauthorized}
+        429: {description: Rate limited (60/min per user)}
 
   /api/user/profile:
     get:
