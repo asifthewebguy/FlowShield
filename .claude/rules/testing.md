@@ -27,7 +27,7 @@ alwaysApply: true
 `cron/expire-subscriptions` 6 · `auth/request-verification` 6 · `sessions` 6 · `tasks/[id]` 6 ·
 `search` 6 · `auth/forgot-password` 5 · `user/password` 5 ·
 `auth/logout-all` 4 · `projects/[id]` 4 · `sessions/[id]/auto-end` 4 · `user/delete` 4 ·
-`activity/sync` 3
+`activity/sync` 4
 
 **Redis in tests:** `UPSTASH_REDIS_REST_URL` is unset under Vitest, so any unmocked
 module that touches Redis makes a real `fetch` that fails slowly and spams stderr.
