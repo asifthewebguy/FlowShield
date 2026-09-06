@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
-import { sign } from 'jsonwebtoken';
-import { getJwtSecret } from '@/lib/jwt';
+import { createAuthToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { redis } from '@/lib/redis';
 
@@ -109,16 +108,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Issue our standard JWT.
-    // user.tokenVersion is present because every find/create/update path above
-    // uses `include` (not `select`), which returns all scalar fields. If any of
-    // those is changed to `select`, you MUST add tokenVersion or tv becomes
-    // undefined and revocation breaks for OAuth users.
-    const jwtToken = sign(
-      { userId: user.id, email: user.email, role: user.role, tv: user.tokenVersion },
-      getJwtSecret(),
-      { expiresIn: '7d', algorithm: 'HS256' }
-    );
+    // Issue our standard JWT via the shared helper (same TTL rules as
+    // password login) — user.tokenVersion is present because every
+    // find/create/update path above uses `include` (not `select`), which
+    // returns all scalar fields. If any of those is changed to `select`,
+    // you MUST add tokenVersion or tv becomes undefined and revocation
+    // breaks for OAuth users.
+    const jwtToken = createAuthToken(user);
 
     const isNewUser = !user.preferences?.workStyle;
     const dest = isNewUser ? '/onboarding' : '/dashboard';

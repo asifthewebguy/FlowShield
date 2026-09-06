@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyPassword } from '@/lib/auth';
-import { sign } from 'jsonwebtoken';
-import { getJwtSecret } from '@/lib/jwt';
+import { createAuthToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { LoginSchema } from '@/lib/schemas';
@@ -76,11 +75,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create JWT token
-    const token = sign(
-      { userId: user.id, email: user.email, role: user.role, tv: user.tokenVersion },
-      getJwtSecret(),
-      { expiresIn: rememberMe ? '30d' : '7d', algorithm: 'HS256' } // 30 days if rememberMe is true, else 7 days
-    );
+    const token = createAuthToken(user, { rememberMe });
 
     // Return user data (excluding password) and token
     const { hashedPassword, ...userWithoutPassword } = user;

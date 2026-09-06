@@ -12,13 +12,34 @@
  * un-awaited Promise is always truthy).
  */
 
-import { verify } from 'jsonwebtoken';
+import { sign, verify } from 'jsonwebtoken';
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { redis } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 
 const TV_CACHE_TTL_SECONDS = 3600; // self-heals a missed cache bust within 1h
+
+interface AuthTokenUser {
+  id: string;
+  email: string;
+  role: string;
+  tokenVersion: number;
+}
+
+/**
+ * Issue the standard session JWT. Both password login and OAuth login must
+ * mint tokens through here — a route that calls `sign()` directly and picks
+ * its own `expiresIn` is how login (7d/30d) and Google OAuth (once 1h)
+ * ended up disagreeing and logging OAuth users out hourly.
+ */
+export function createAuthToken(user: AuthTokenUser, opts: { rememberMe?: boolean } = {}): string {
+  return sign(
+    { userId: user.id, email: user.email, role: user.role, tv: user.tokenVersion },
+    getJwtSecret(),
+    { expiresIn: opts.rememberMe ? '30d' : '7d', algorithm: 'HS256' }
+  );
+}
 
 export function getJwtSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET;
