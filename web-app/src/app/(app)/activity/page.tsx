@@ -62,6 +62,16 @@ const ALL_CATEGORIES = [
   'Social Media', 'Browsing', 'Creative', 'Study', 'Unknown',
 ];
 
+interface CategoryRule {
+  id: string;
+  keyword: string;
+  matchField: string;
+  category: string;
+  isProductive: boolean;
+  isGlobal: boolean;
+  priority: number;
+}
+
 export default function ActivityAnalysisPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -70,6 +80,9 @@ export default function ActivityAnalysisPage() {
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'all'>('week');
   const [editingApp, setEditingApp] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState(false);
+  const [rules, setRules] = useState<CategoryRule[]>([]);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [ruleBusy, setRuleBusy] = useState(false);
 
   const fetchAnalysis = useCallback(async (token: string, range: string) => {
     setLoading(true);
@@ -122,6 +135,19 @@ export default function ActivityAnalysisPage() {
     }
   }, [router]);
 
+  const fetchRules = useCallback(async (token: string) => {
+    try {
+      const res = await fetch('/api/categories', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const body = await res.json();
+      setRules((body.rules || []).filter((r: CategoryRule) => !r.isGlobal));
+    } catch (err) {
+      console.error('Error fetching category rules:', err);
+    }
+  }, []);
+
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -129,7 +155,8 @@ export default function ActivityAnalysisPage() {
       return;
     }
     fetchAnalysis(token, timeRange);
-  }, [router, timeRange, fetchAnalysis]);
+    fetchRules(token);
+  }, [router, timeRange, fetchAnalysis, fetchRules]);
 
   const correctCategory = useCallback(async (appName: string, newCategory: string) => {
     const token = getToken();
@@ -162,12 +189,61 @@ export default function ActivityAnalysisPage() {
 
       setEditingApp(null);
       fetchAnalysis(token, timeRange);
+      fetchRules(token);
     } catch (err) {
       console.error('Error correcting category:', err);
     } finally {
       setCorrecting(false);
     }
-  }, [fetchAnalysis, timeRange]);
+  }, [fetchAnalysis, fetchRules, timeRange]);
+
+  const updateRuleCategory = useCallback(async (ruleId: string, newCategory: string) => {
+    const token = getToken();
+    if (!token) return;
+
+    setRuleBusy(true);
+    try {
+      const res = await fetch(`/api/categories/${ruleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ category: newCategory }),
+      });
+      if (res.ok) {
+        setEditingRuleId(null);
+        fetchRules(token);
+      }
+    } catch (err) {
+      console.error('Error updating category rule:', err);
+    } finally {
+      setRuleBusy(false);
+    }
+  }, [fetchRules]);
+
+  const deleteRule = useCallback(async (ruleId: string) => {
+    const token = getToken();
+    if (!token) return;
+    if (!window.confirm('Remove this category rule? Matching activities will fall back to the default category.')) {
+      return;
+    }
+
+    setRuleBusy(true);
+    try {
+      const res = await fetch(`/api/categories/${ruleId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchRules(token);
+      }
+    } catch (err) {
+      console.error('Error deleting category rule:', err);
+    } finally {
+      setRuleBusy(false);
+    }
+  }, [fetchRules]);
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
@@ -422,6 +498,72 @@ export default function ActivityAnalysisPage() {
               </tbody>
             </table>
           </div>
+        </Card>
+
+        {/* My Category Rules */}
+        <Card className="mb-6">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+            My Category Rules
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            Corrections you&apos;ve made above are saved here as rules. Edit or remove them anytime.
+          </p>
+          {rules.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No custom rules yet — correct a category above to create one.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {rules.map((rule) => (
+                <div
+                  key={rule.id}
+                  className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-gray-50 dark:bg-white/[0.03]"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-mono text-gray-500 dark:text-gray-400 shrink-0">
+                      {rule.matchField}
+                    </span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      &ldquo;{rule.keyword}&rdquo;
+                    </span>
+                    <span className="text-xs text-gray-400">→</span>
+                    {editingRuleId === rule.id ? (
+                      <select
+                        className="text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-2 py-1"
+                        defaultValue={rule.category}
+                        disabled={ruleBusy}
+                        onChange={(e) => updateRuleCategory(rule.id, e.target.value)}
+                        onBlur={() => setEditingRuleId(null)}
+                        autoFocus
+                      >
+                        {ALL_CATEGORIES.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {getCategoryEmoji(cat)} {cat}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <button
+                        onClick={() => setEditingRuleId(rule.id)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-white/[0.06] text-gray-700 dark:text-gray-300 hover:ring-2 hover:ring-primary-400/50 transition-all"
+                        title="Click to change category"
+                      >
+                        {getCategoryEmoji(rule.category)} {rule.category}
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => deleteRule(rule.id)}
+                    disabled={ruleBusy}
+                    className="shrink-0 text-xs font-medium text-red-500 hover:text-red-600 disabled:opacity-50"
+                    title="Remove rule"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         {/* Hourly Distribution */}
