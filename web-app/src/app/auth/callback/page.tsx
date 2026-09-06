@@ -11,13 +11,6 @@ function AuthCallbackInner() {
   useEffect(() => {
     const session = searchParams.get('session');
 
-    // Legacy compatibility: if a token is still in the URL (e.g. an old
-    // OAuth redirect from before the exchange flow), accept it once. New
-    // redirects use the session-exchange path above.
-    const legacyToken = searchParams.get('token');
-    const legacyUser = searchParams.get('user');
-    const legacyRedirect = searchParams.get('redirect') || '/dashboard';
-
     if (session) {
       let cancelled = false;
       (async () => {
@@ -47,15 +40,6 @@ function AuthCallbackInner() {
       return () => {
         cancelled = true;
       };
-    } else if (legacyToken && legacyUser) {
-      try {
-        const user = JSON.parse(legacyUser);
-        setToken(legacyToken, true);
-        setUserData(user, true);
-        router.replace(legacyRedirect);
-      } catch {
-        router.replace('/auth/login?error=oauth_failed');
-      }
     } else {
       router.replace('/auth/login?error=oauth_failed');
     }
