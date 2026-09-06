@@ -1,6 +1,6 @@
 {
   "name": "flowshield-desktop-v3",
-  "version": "3.0.0-alpha.0",
+  "version": "3.13.0-alpha.0",
   "description": "FlowShield desktop client (Windows · macOS · Linux). Tauri 2 + React.",
   "private": true,
   "type": "module",

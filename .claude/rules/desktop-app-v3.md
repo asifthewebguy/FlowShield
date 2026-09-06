@@ -9,7 +9,7 @@ alwaysApply: false
 **This is the desktop client that actually ships.** The .NET app in `desktop-app/`
 is legacy — see [`desktop-app`](desktop-app.md).
 
-- **Current version:** 3.11.1-alpha.0 (`.release-please-manifest.json` is the source of truth)
+- **Current version:** 3.13.0-alpha.0 (`.release-please-manifest.json` is the source of truth)
 - **Platforms:** Windows · macOS (universal) · Linux (AppImage, plus a CUDA AppImage)
 
 ## Stack

@@ -40,7 +40,7 @@ receives cross-client changes.
 ## Desktop v3 (`desktop-app-v3/`) — CURRENT
 
 Tauri 2 + React rewrite. Cross-platform (Windows · macOS · Linux) rather than
-Windows-only. Versioned by release-please, currently **v3.11.1-alpha.0** (still
+Windows-only. Versioned by release-please, currently **v3.13.0-alpha.0** (still
 on the alpha channel).
 
 Shipped in v3 so far: auth + login, dashboard, session timer, distraction

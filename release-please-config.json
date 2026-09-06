@@ -10,6 +10,11 @@
       "extra-files": [
         {
           "type": "json",
+          "path": "package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
           "path": "src-tauri/tauri.conf.json",
           "jsonpath": "$.version"
         },

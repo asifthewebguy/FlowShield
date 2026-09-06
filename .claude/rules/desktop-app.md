@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Desktop App — LEGACY (`desktop-app/`)
 
-> **Superseded by [`desktop-app-v3`](desktop-app-v3.md)** (Tauri 2 + React, v3.11.1-alpha.0),
+> **Superseded by [`desktop-app-v3`](desktop-app-v3.md)** (Tauri 2 + React, v3.13.0-alpha.0),
 > which is the client that actually ships. This .NET app is kept for reference and
 > still receives cross-client changes (e.g. token revocation), but is not released.
 >

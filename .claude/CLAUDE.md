@@ -1,6 +1,6 @@
 # FlowShield — Claude Code Project Guide
 
-> **Active:** Web — continuous deploy from `main` (not versioned) · Desktop — **v3.11.1-alpha.0** (`desktop-app-v3/`, Tauri 2)
+> **Active:** Web — continuous deploy from `main` (not versioned) · Desktop — **v3.13.0-alpha.0** (`desktop-app-v3/`, Tauri 2)
 > **GitHub:** asifthewebguy/FlowShield · **Live:** flowshield.app
 
 Detailed rules are in `.claude/rules/` and loaded automatically based on context.

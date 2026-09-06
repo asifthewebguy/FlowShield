@@ -7,7 +7,7 @@ alwaysApply: true
 
 - **Web app:** no independent version. `web-app/package.json` sits at `1.0.0` and is
   not bumped — the web app deploys continuously from `main` via Netlify.
-- **Desktop:** **v3.11.1-alpha.0** — `desktop-app-v3/` (Tauri 2 + React). This is the
+- **Desktop:** **v3.13.0-alpha.0** — `desktop-app-v3/` (Tauri 2 + React). This is the
   client that ships. Versioned by release-please; `.release-please-manifest.json` is
   the source of truth.
 - **Legacy desktop:** `desktop-app/` (.NET 8 WinForms, `<Version>3.0.8</Version>`) is
