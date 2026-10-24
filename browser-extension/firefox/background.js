@@ -3,7 +3,12 @@
 
 const API_BASE = 'https://flowshield.app';
 const SYNC_INTERVAL_MINUTES = 1;
-const SESSION_POLL_SECONDS  = 30;
+// Session poll is adaptive: tight while a session is running (badge countdown,
+// end/pause detection), slow when idle so an open browser does not hit the API
+// — and keep the DB compute awake — every 30s for nothing. Opening the popup
+// always forces a fresh poll (FORCE_POLL_SESSION), so idle lag is popup-free.
+const SESSION_POLL_ACTIVE_SECONDS = 30;
+const SESSION_POLL_IDLE_MINUTES   = 5;
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -142,7 +147,7 @@ async function syncActivities() {
 
 async function fetchActiveSession() {
   const token = await getToken();
-  if (!token) { activeSession = null; updateBadge(); return; }
+  if (!token) { activeSession = null; updateBadge(); scheduleSessionPoll(); return; }
   try {
     const today = new Date().toISOString().split('T')[0];
     const res = await fetch(`${API_BASE}/api/sessions?date=${today}`, {
@@ -159,6 +164,7 @@ async function fetchActiveSession() {
     activeSession = sessions.find(s => !s.completed && !s.endTime) || null;
     updateBadge();
   } catch { /* silently fail */ }
+  finally { scheduleSessionPoll(); }
 }
 
 async function fetchUserPreferences() {
@@ -190,8 +196,18 @@ async function fetchTasks() {
 
 // ─── Alarms ───────────────────────────────────────────────────────────────────
 
+// Re-creating an alarm with the same name replaces it, which also resets its
+// timer — so only touch it when the wanted period actually changes.
+let sessionPollPeriod = null;
+function scheduleSessionPoll() {
+  const period = activeSession ? SESSION_POLL_ACTIVE_SECONDS / 60 : SESSION_POLL_IDLE_MINUTES;
+  if (period === sessionPollPeriod) return;
+  sessionPollPeriod = period;
+  browser.alarms.create('pollSession', { periodInMinutes: period });
+}
+
 browser.alarms.create('syncActivity',    { periodInMinutes: SYNC_INTERVAL_MINUTES });
-browser.alarms.create('pollSession',     { periodInMinutes: SESSION_POLL_SECONDS / 60 });
+scheduleSessionPoll();
 browser.alarms.create('pollPreferences', { periodInMinutes: 15 });
 browser.alarms.create('pollTasks',       { periodInMinutes: 15 });
 

@@ -3,7 +3,12 @@
 
 const API_BASE = 'https://flowshield.app';
 const SYNC_INTERVAL_MINUTES = 1;    // sync activity every 1 min
-const SESSION_POLL_SECONDS  = 30;   // refresh active session every 30s
+// Session poll is adaptive: tight while a session is running (badge countdown,
+// end/pause detection), slow when idle so an open browser does not hit the API
+// — and keep the DB compute awake — every 30s for nothing. Opening the popup
+// always forces a fresh poll (FORCE_POLL_SESSION), so idle lag is popup-free.
+const SESSION_POLL_ACTIVE_SECONDS = 30;
+const SESSION_POLL_IDLE_MINUTES   = 5;
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -150,7 +155,7 @@ async function syncActivities() {
 
 async function fetchActiveSession() {
   const token = await getToken();
-  if (!token) { activeSession = null; updateBadge(); return; }
+  if (!token) { activeSession = null; updateBadge(); scheduleSessionPoll(); return; }
 
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -171,6 +176,8 @@ async function fetchActiveSession() {
     updateBadge();
   } catch {
     // silently fail
+  } finally {
+    scheduleSessionPoll();
   }
 }
 
@@ -207,8 +214,18 @@ async function fetchTasks() {
 
 // ─── Alarms ───────────────────────────────────────────────────────────────────
 
+// Re-creating an alarm with the same name replaces it, which also resets its
+// timer — so only touch it when the wanted period actually changes.
+let sessionPollPeriod = null;
+function scheduleSessionPoll() {
+  const period = activeSession ? SESSION_POLL_ACTIVE_SECONDS / 60 : SESSION_POLL_IDLE_MINUTES;
+  if (period === sessionPollPeriod) return;
+  sessionPollPeriod = period;
+  chrome.alarms.create('pollSession', { periodInMinutes: period });
+}
+
 chrome.alarms.create('syncActivity',    { periodInMinutes: SYNC_INTERVAL_MINUTES });
-chrome.alarms.create('pollSession',     { periodInMinutes: SESSION_POLL_SECONDS / 60 });
+scheduleSessionPoll();
 chrome.alarms.create('pollPreferences', { periodInMinutes: 15 });
 chrome.alarms.create('pollTasks',       { periodInMinutes: 15 });
 
