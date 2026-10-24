@@ -39,7 +39,11 @@ export default function DashboardPage() {
   const { data: sessionData, error: sessionError, mutate } = useSWR(
     user ? `/api/sessions?date=${today}` : null,
     fetcher,
-    { refreshInterval: 30000 }
+    // Pusher `session-update` / `activity-synced` (below) drive instant
+    // refresh. This interval is only a backstop for a dropped socket, so
+    // keep it slow: a 30s poll from every open tab kept the DB compute
+    // awake 24/7 and burned the Neon quota.
+    { refreshInterval: 300000 }
   );
 
   // Stable mutate reference for Pusher effect

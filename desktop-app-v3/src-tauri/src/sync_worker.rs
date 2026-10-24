@@ -77,11 +77,20 @@ async fn drain_once(
     }
 
     // Job 2 — always-on tracker rows.
-    let share = activity_upload::resolve_share_flag(http, &token, prefs_cache).await;
-    match activity_upload::upload_once(http, &token, db, share).await {
-        Ok(0) => {}
-        Ok(n) => tracing::info!(uploaded = n, redacted = !share, "activity_local uploaded"),
-        Err(err) => tracing::debug!(?err, "activity_local upload failed; will retry next tick"),
+    // `resolve_share_flag` is a network GET (/api/user/preferences). Only pay
+    // for it when there is something to upload — otherwise an idle machine
+    // hits the server (and keeps the DB compute awake) every minute for
+    // nothing. Retention purge must still run every tick either way.
+    let has_rows = !store::activity_local::closed_unsynced(db, 1)?.is_empty();
+    if has_rows {
+        let share = activity_upload::resolve_share_flag(http, &token, prefs_cache).await;
+        match activity_upload::upload_once(http, &token, db, share).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!(uploaded = n, redacted = !share, "activity_local uploaded"),
+            Err(err) => tracing::debug!(?err, "activity_local upload failed; will retry next tick"),
+        }
+    } else if let Err(err) = store::activity_local::purge_older_than(db, activity_upload::RETENTION_SECS) {
+        tracing::debug!(?err, "activity_local retention purge failed");
     }
 
     // Job 3 — queued task mutations.

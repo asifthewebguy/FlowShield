@@ -128,12 +128,16 @@ export function DashboardPage() {
   // Skips if a local mutation is in flight (`loading`) to avoid an
   // overwrite race where the poll's stale response lands after a fresh
   // togglePause / start / end response.
+  //
+  // 5 min, not 30s: this is a backstop, Pusher is the primary path. A 30s
+  // poll from an always-running desktop kept the DB compute awake 24/7
+  // and burned the Neon quota.
   useEffect(() => {
     const id = setInterval(() => {
       if (!useSessionStore.getState().loading) {
         void refresh();
       }
-    }, 30_000);
+    }, 300_000);
     return () => clearInterval(id);
   }, [refresh]);
 
