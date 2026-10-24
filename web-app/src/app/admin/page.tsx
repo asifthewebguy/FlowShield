@@ -29,7 +29,7 @@ function StatCard({ label, value, sub }: { label: string; value: number | string
 }
 
 export default function AdminOverviewPage() {
-  const { data, error } = useSWR('/api/admin/stats', adminFetcher, { refreshInterval: 60000 });
+  const { data, error } = useSWR('/api/admin/stats', adminFetcher, { refreshInterval: 300000 });
 
   if (error) return <div className="text-red-500">Failed to load stats.</div>;
   if (!data) return (
